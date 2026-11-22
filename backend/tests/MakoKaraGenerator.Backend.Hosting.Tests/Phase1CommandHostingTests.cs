@@ -119,6 +119,40 @@ public sealed class Phase1CommandHostingTests
         var winAfter = await session.ReadLyricsWindowAsync(branchId, rev, 0, 10, CancellationToken.None);
         Assert.Equal(2, winAfter.Response!.Lines.Length);
         Assert.Single(winAfter.Response.Lines[0].RubyAnnotations); // "夢"'s ruby preserved!
+
+        // 9. lyrics.clearLineTiming (keepLineTime=true then full clear)
+        var r9a = await SendJsonAsync(session, rev, $$"""
+        {"type":"lyrics.clearLineTiming","target":{"branchId":"{{branchId}}","lineId":"l1"},"keepLineTime":true}
+        """);
+        rev = r9a.ProjectRevision;
+        Assert.True(r9a.Changed);
+        var winAfterKeep = await session.ReadLyricsWindowAsync(branchId, rev, 0, 10, CancellationToken.None);
+        Assert.NotNull(winAfterKeep.Response!.Lines[0].Time.StartUs);
+        Assert.All(winAfterKeep.Response.Lines[0].Tokens, t => Assert.Null(t.Time.StartUs));
+
+        var r9b = await SendJsonAsync(session, rev, $$"""
+        {"type":"lyrics.clearLineTiming","target":{"branchId":"{{branchId}}","lineId":"l1"} }
+        """);
+        rev = r9b.ProjectRevision;
+        Assert.True(r9b.Changed);
+        var winAfterClearLine = await session.ReadLyricsWindowAsync(branchId, rev, 0, 10, CancellationToken.None);
+        Assert.Null(winAfterClearLine.Response!.Lines[0].Time.StartUs);
+        Assert.Single(winAfterClearLine.Response.Lines[0].RubyAnnotations); // ruby preserved!
+
+        // 10. Re-strike line 1 then lyrics.clearBranchTiming
+        var r10a = await SendJsonAsync(session, rev, $$"""
+        {"type":"lyrics.strikeBeat","branchId":"{{branchId}}","openTarget":{"branchId":"{{branchId}}","lineId":"l1","tokenId":"l1-t0"},"playheadUs":"8000000"}
+        """);
+        rev = r10a.ProjectRevision;
+        var r10b = await SendJsonAsync(session, rev, $$"""
+        {"type":"lyrics.clearBranchTiming","branchId":"{{branchId}}"}
+        """);
+        rev = r10b.ProjectRevision;
+        Assert.True(r10b.Changed);
+        var winAfterBranchClear = await session.ReadLyricsWindowAsync(branchId, rev, 0, 10, CancellationToken.None);
+        Assert.All(winAfterBranchClear.Response!.Lines, l => Assert.Null(l.Time.StartUs));
+        Assert.Equal("夢 星", winAfterBranchClear.Response.Lines[0].Text);
+        Assert.Equal("新行", winAfterBranchClear.Response.Lines[1].Text);
     }
 
     [Fact]
@@ -130,6 +164,14 @@ public sealed class Phase1CommandHostingTests
 
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>(
             """{"type":"lyrics.splitLine","target":{"branchId":"primary","lineId":"l1"},"tokenIndex":1,"extra":true}""",
+            WireJson));
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>(
+            """{"type":"lyrics.clearLineTiming","target":{"branchId":"primary","lineId":"l1","tokenId":"t1"}}""",
+            WireJson));
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>(
+            """{"type":"lyrics.clearBranchTiming","branchId":"primary","extra":1}""",
             WireJson));
     }
 }

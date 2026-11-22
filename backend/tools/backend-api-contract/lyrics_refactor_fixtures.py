@@ -62,6 +62,17 @@ def fixtures():
     add("apply-text-diff-missing-text", "ProjectCommandDtoInput", dict(
         type="lyrics.applyTextDiff", branchId="primary", lines=[dict(sourceLineId="line-1")]), False)
 
+    add("clear-line-timing-full", "ProjectCommandDtoInput", dict(
+        type="lyrics.clearLineTiming", target=line_target), True)
+    add("clear-line-timing-keep-line", "ProjectCommandDtoInput", dict(
+        type="lyrics.clearLineTiming", target=line_target, keepLineTime=True), True)
+    add("clear-line-timing-with-token", "ProjectCommandDtoInput", dict(
+        type="lyrics.clearLineTiming", target=token_target), False)
+    add("clear-branch-timing-valid", "ProjectCommandDtoInput", dict(
+        type="lyrics.clearBranchTiming", branchId="primary"), True)
+    add("clear-branch-timing-missing-branch", "ProjectCommandDtoInput", dict(
+        type="lyrics.clearBranchTiming"), False)
+
     add("token-dto-phrase-end-hint", "ProjectLyricTokenDto", dict(
         id="tok-1", text="夢", time={}, timingStatus="missing", phraseEndHint=True), True)
     add("token-dto-invalid-phrase-end-hint", "ProjectLyricTokenDto", dict(

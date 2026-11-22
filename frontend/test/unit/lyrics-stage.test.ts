@@ -13,6 +13,9 @@ import {
   computeTokenWipeProgress,
   computeUntimedBridgeFill,
   findBeatIndexForSelection,
+  firstBeatSelectionForLine,
+  lineHasAnyTiming,
+  lineHasChildTiming,
   resolveTimingKeyAction,
   stepBranchBeat,
   stepContentToken,
@@ -171,13 +174,15 @@ describe('Phase 3: 模式 M1 快捷键与高速轮指保护', () => {
     ...extra,
   });
 
-  it('打轴模式下正确解析 J/K 连打、L 收尾、Backspace/G 悔棋、Q/W 变速、Z/X 寻轨、F2 注音', () => {
+  it('打轴模式下正确解析 J/K 连打、L 收尾、Backspace/G 纯撤回、Shift+Backspace 清本行、Q/W 变速、Z/X 寻轨、F2 注音', () => {
     expect(resolveTimingKeyAction(key('j'), 'timing')).toEqual({ kind: 'strikeBeat' });
     expect(resolveTimingKeyAction(key('K'), 'timing')).toEqual({ kind: 'strikeBeat' });
     expect(resolveTimingKeyAction(key('j', { repeat: true }), 'timing')).toBeNull();
     expect(resolveTimingKeyAction(key('l'), 'timing')).toEqual({ kind: 'closeBeat' });
-    expect(resolveTimingKeyAction(key('Backspace'), 'timing')).toEqual({ kind: 'undoAndRewind' });
-    expect(resolveTimingKeyAction(key('g'), 'timing')).toEqual({ kind: 'undoAndRewind' });
+    expect(resolveTimingKeyAction(key('Backspace'), 'timing')).toEqual({ kind: 'undoBeat' });
+    expect(resolveTimingKeyAction(key('g'), 'timing')).toEqual({ kind: 'undoBeat' });
+    expect(resolveTimingKeyAction(key('Backspace', { shiftKey: true }), 'timing')).toEqual({ kind: 'clearLineTiming' });
+    expect(resolveTimingKeyAction(key('Backspace', { shiftKey: true, repeat: true }), 'timing')).toBeNull();
     expect(resolveTimingKeyAction(key('q'), 'timing')).toEqual({ kind: 'speedDown', fine: false });
     expect(resolveTimingKeyAction(key('W', { shiftKey: true }), 'timing')).toEqual({ kind: 'speedUp', fine: true });
     expect(resolveTimingKeyAction(key('z'), 'timing')).toEqual({ kind: 'seekBack' });
@@ -186,6 +191,45 @@ describe('Phase 3: 模式 M1 快捷键与高速轮指保护', () => {
     expect(resolveTimingKeyAction(key('ArrowRight', { altKey: true }), 'timing')).toEqual({ kind: 'nextBeat' });
     expect(resolveTimingKeyAction(key('['), 'timing')).toEqual({ kind: 'splitRubyBeat' });
     expect(resolveTimingKeyAction(key(']'), 'timing')).toEqual({ kind: 'mergeRubyBeat' });
+  });
+
+  it('lineHasAnyTiming、lineHasChildTiming 与 firstBeatSelectionForLine 正确识别行/词元/注音时间', () => {
+    const emptyLine = makeLine({ id: 'E1', text: 'abc', tokens: [{ id: 't0', lineId: 'E1', text: 'abc' }] });
+    expect(lineHasAnyTiming(emptyLine)).toBe(false);
+    expect(lineHasChildTiming(emptyLine)).toBe(false);
+
+    const lineOnlyTimed = makeLine({
+      id: 'E2',
+      text: 'abc',
+      startUs: 1_000_000,
+      endUs: 2_000_000,
+      tokens: [{ id: 't0', lineId: 'E2', text: 'abc' }],
+    });
+    expect(lineHasAnyTiming(lineOnlyTimed)).toBe(true);
+    expect(lineHasChildTiming(lineOnlyTimed)).toBe(false);
+
+    const rubyTimed = makeLine({
+      id: 'E3',
+      text: '二人',
+      tokens: [{ id: 't0', lineId: 'E3', text: '二人' }],
+      ruby: [
+        {
+          id: 'r0',
+          baseTokenId: 't0',
+          text: 'ふたり',
+          relativeScale: 0.5,
+          gapPx: 2,
+          alignment: 'center',
+          segments: [
+            { id: 's0', text: 'ふ', time: { startUs: toMicros(1_000_000), endUs: toMicros(1_200_000) }, timingStatus: 'edited' },
+            { id: 's1', text: 'た', time: {}, timingStatus: 'missing' },
+          ],
+        },
+      ],
+    });
+    expect(lineHasAnyTiming(rubyTimed)).toBe(true);
+    expect(lineHasChildTiming(rubyTimed)).toBe(true);
+    expect(firstBeatSelectionForLine(rubyTimed)).toEqual({ lineId: 'E3', tokenId: 't0', segmentId: 's0' });
   });
 
   it('编辑模式下 L 翻转停顿、Enter 断行、Shift+Enter 合行、Ctrl+Enter 行内改词、Alt+方向键微调帧', () => {

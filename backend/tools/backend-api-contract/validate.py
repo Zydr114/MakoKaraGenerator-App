@@ -535,7 +535,7 @@ def main():
         assert set(compilation_request["properties"]) == compilation_fields
     if legacy_version in ("1.22.0", "1.23.0", "1.24.0", "1.24.1", "1.25.0", "1.26.0", "1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0"):
         command_union = components["schemas"]["ProjectCommandDtoInput"]
-        expected_command_count = 104 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96
+        expected_command_count = 106 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96
         assert len(command_union["oneOf"]) == len(command_union["discriminator"]["mapping"]) == ({"1.22.0": 62, "1.23.0": 64, "1.24.0": 78, "1.24.1": 78, "1.25.0": 84, "1.26.0": 84, "1.27.0": 91, "1.28.0": 91, "1.29.0": 91, "1.30.0": 91, "1.30.1": 91, "1.30.2": 91, "1.31.0": 91, "1.32.0": 91, "1.32.1": 91, "1.33.0": 91, "1.34.0": 91, "1.35.0": 91, "1.36.0": expected_command_count}[legacy_version])
         for suffix, required, schema, capability in (
             ("geometry", ["expectedRevision", "nodeId"], "ProjectGeometryReferenceResponse", "geometry-reference"),
@@ -577,7 +577,7 @@ def main():
     if legacy_version in ("1.24.0", "1.24.1", "1.25.0", "1.26.0", "1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0"):
         schemas = components["schemas"]
         mapping = schemas["ProjectCommandDtoInput"]["discriminator"]["mapping"]
-        assert len(mapping) == ((104 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96) if legacy_version == "1.36.0" else 91 if legacy_version in ("1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0") else 84 if legacy_version in ("1.25.0", "1.26.0", "1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0") else 78)
+        assert len(mapping) == ((106 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96) if legacy_version == "1.36.0" else 91 if legacy_version in ("1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0") else 84 if legacy_version in ("1.25.0", "1.26.0", "1.27.0", "1.28.0", "1.29.0", "1.30.0", "1.30.1", "1.30.2", "1.31.0", "1.32.0", "1.32.1", "1.33.0", "1.34.0", "1.35.0", "1.36.0") else 78)
         strict_completion_commands = (
             "setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation", "setLeadInGeneration",
             "previewLeadInGeneration", "applyLeadInGeneration", "deleteLeadInAndExclude", "setLeadInAttachment",
@@ -718,7 +718,7 @@ def main():
             assert len(components["schemas"]) == expected_schema_count
         schemas = components["schemas"]
         mapping = schemas["ProjectCommandDtoInput"]["discriminator"]["mapping"]
-        assert len(mapping) == ((104 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96) if legacy_version == "1.36.0" else 91)
+        assert len(mapping) == ((106 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96) if legacy_version == "1.36.0" else 91)
         for command, fields in (
             ("setRubySegmentTime", ["type", "target", "startUs", "endUs"]),
             ("clearRubySegmentTime", ["type", "target"]),
@@ -783,7 +783,7 @@ def main():
             operation = spec["paths"][path]["post"]
             assert operation["x-receipt-location"] == "none"
             assert "200" in operation["responses"]
-        assert len(components["schemas"]["ProjectCommandDtoInput"]["oneOf"]) == (104 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96)
+        assert len(components["schemas"]["ProjectCommandDtoInput"]["oneOf"]) == (106 if lyrics_refactor_additions else 97 if lead_in_presentation_additions else 96)
         assert components["schemas"]["EffectPackageParameterSchemaDto"]["properties"]["defaultValueJson"]["type"] == "string"
     if actual_version in ("1.38.1", "1.39.0", "1.40.0", "1.41.0", "1.42.0", "1.42.1", "1.42.2", "1.42.3", "1.42.4", "1.43.0", "1.44.0", "1.44.1", "1.44.2", "1.45.0", "1.46.0", "1.46.1", "1.47.0", "1.48.0", "1.49.0", "1.49.1", "1.49.2", "1.50.0", "1.51.0", "1.51.1", "1.52.0", "1.52.1", "1.53.0", "1.54.0", "1.55.0", "1.55.1", "1.56.0", "1.57.0", "1.58.0", "1.59.0"):
         for path, methods in spec["paths"].items():

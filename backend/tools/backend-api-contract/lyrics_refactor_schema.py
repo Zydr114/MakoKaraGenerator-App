@@ -34,6 +34,8 @@ NEW_SCHEMAS = (
     "MergeLinesCommandDtoInput",
     "SetRubySegmentsCommandDtoInput",
     "ApplyTextDiffCommandDtoInput",
+    "ClearLineTimingCommandDtoInput",
+    "ClearBranchTimingCommandDtoInput",
 )
 
 
@@ -143,6 +145,25 @@ def extend_lyrics_refactor_commands(schemas, metadata, schema_for, variants, bas
                 "lines": {"type": "array", "items": ref("TextDiffLineDtoInput"), "minItems": 0, "maxItems": 20000},
             },
             ["type", "branchId", "lines"],
+        ),
+        (
+            "clearLineTiming",
+            "ClearLineTimingCommandDto",
+            {"keepLineTime"},
+            {
+                "target": copy.deepcopy(line_target),
+                "keepLineTime": {"anyOf": [{"type": "boolean"}, {"type": "null"}]},
+            },
+            ["type", "target"],
+        ),
+        (
+            "clearBranchTiming",
+            "ClearBranchTimingCommandDto",
+            {"branchId"},
+            {
+                "branchId": copy.deepcopy(STABLE),
+            },
+            ["type", "branchId"],
         ),
     )
 

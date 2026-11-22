@@ -169528,6 +169528,61 @@
       "valid": false
     },
     {
+      "name": "lyrics-refactor-clear-line-timing-full",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.clearLineTiming",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-clear-line-timing-keep-line",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.clearLineTiming",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1"
+        },
+        "keepLineTime": true
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-clear-line-timing-with-token",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.clearLineTiming",
+        "target": {
+          "branchId": "primary",
+          "lineId": "line-1",
+          "tokenId": "tok-1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "lyrics-refactor-clear-branch-timing-valid",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.clearBranchTiming",
+        "branchId": "primary"
+      },
+      "valid": true
+    },
+    {
+      "name": "lyrics-refactor-clear-branch-timing-missing-branch",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "lyrics.clearBranchTiming"
+      },
+      "valid": false
+    },
+    {
       "name": "lyrics-refactor-token-dto-phrase-end-hint",
       "schema": "ProjectLyricTokenDto",
       "value": {

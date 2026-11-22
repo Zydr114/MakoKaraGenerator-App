@@ -206,6 +206,72 @@ public static partial class LyricTimingEditUseCase
         return new(true, committed, DescribeChanges(source, committed));
     }
 
+    /// <summary>原子清除单行全部时间戳（默认含行时间、全部词元时间与注音拍时间；keepLineTime=true 时保留行起止时间）。</summary>
+    public static LyricTimingEditResult ClearLineTiming(
+        ProjectWorkspace workspace,
+        LyricTimingEditTarget target,
+        bool keepLineTime = false)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.TokenId is not null)
+            return Reject(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, "清除行时间目标不应指定单个元素。");
+
+        LyricBranch? branch = workspace.Project.Lyrics.Branches.FirstOrDefault(b => b.Id == target.BranchId);
+        LyricLine? line = branch?.Lines.FirstOrDefault(l => l.Id == target.LineId);
+        if (line is null)
+            return Reject(workspace.Project, LyricTimingEditErrorCode.TargetStale);
+
+        if (!LyricTimingEditor.TryClearLineTiming(
+                workspace.Project, target.BranchId, target.LineId, keepLineTime,
+                out Project candidate, out string reason)
+            || !TryValidate(candidate, out reason))
+            return Reject(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        Project source = workspace.Project;
+        if (ReferenceEquals(source, candidate))
+        {
+            workspace.History.BreakMergeGroup();
+            return new(true, source, ProjectTimingChangeSet.None);
+        }
+
+        workspace.History.BreakMergeGroup();
+        string commandName = keepLineTime ? "line.token-timing.clear" : "line.timing.clear";
+        Project committed = workspace.Execute(ProjectCommand.Create(commandName, _ => candidate));
+        workspace.History.BreakMergeGroup();
+        return new(true, committed, DescribeChanges(source, committed));
+    }
+
+    /// <summary>原子清除指定来源下全部歌词行的时间戳（含行、词元与注音拍），保留文本、分段与注音结构。</summary>
+    public static LyricTimingEditResult ClearBranchTiming(
+        ProjectWorkspace workspace,
+        string branchId)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        ArgumentNullException.ThrowIfNull(branchId);
+
+        if (!workspace.Project.Lyrics.Branches.Any(b => b.Id == branchId))
+            return Reject(workspace.Project, LyricTimingEditErrorCode.TargetStale);
+
+        if (!LyricTimingEditor.TryClearBranchTiming(
+                workspace.Project, branchId,
+                out Project candidate, out _, out string reason)
+            || !TryValidate(candidate, out reason))
+            return Reject(workspace.Project, LyricTimingEditErrorCode.DomainValidationFailed, reason);
+
+        Project source = workspace.Project;
+        if (ReferenceEquals(source, candidate))
+        {
+            workspace.History.BreakMergeGroup();
+            return new(true, source, ProjectTimingChangeSet.None);
+        }
+
+        workspace.History.BreakMergeGroup();
+        Project committed = workspace.Execute(ProjectCommand.Create("branch.timing.clear", _ => candidate));
+        workspace.History.BreakMergeGroup();
+        return new(true, committed, DescribeChanges(source, committed));
+    }
+
     private static bool BeatExists(Project project, LyricBeatTarget target) =>
         TryReadBeatTime(project, target, out _);
 

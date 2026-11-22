@@ -542,6 +542,8 @@ const TIMING_COMMANDS = new Set([
   'lyrics.setTokenTimes',
   'lyrics.strikeBeat',
   'lyrics.closeBeat',
+  'lyrics.clearLineTiming',
+  'lyrics.clearBranchTiming',
 ]);
 
 /** 从命令响应里取建议的来源与选择（规范 §6.6～§6.9）；project.applyEdits 取最后一条带建议的结果。 */

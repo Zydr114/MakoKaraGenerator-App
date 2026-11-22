@@ -72,3 +72,13 @@ public sealed record TextDiffLineDto(
 [JsonConverter(typeof(ProjectCommandJsonConverter))]
 public sealed record ApplyTextDiffCommandDto(string? BranchId, TextDiffLineDto[]? Lines)
     : ProjectCommandDto("lyrics.applyTextDiff");
+
+/// <summary>原子清除单行全部时间戳（默认连同行起止时间、词元与多拍注音一并清零；keepLineTime=true 时保留行起止时间）。</summary>
+[JsonConverter(typeof(ProjectCommandJsonConverter))]
+public sealed record ClearLineTimingCommandDto(LyricTimingTargetDto? Target, bool? KeepLineTime = null)
+    : ProjectCommandDto("lyrics.clearLineTiming", Target);
+
+/// <summary>原子清除指定来源下所有歌词行、词元与注音分段的时间戳，完整保留文本、分段与注音结构。</summary>
+[JsonConverter(typeof(ProjectCommandJsonConverter))]
+public sealed record ClearBranchTimingCommandDto(string? BranchId)
+    : ProjectCommandDto("lyrics.clearBranchTiming");

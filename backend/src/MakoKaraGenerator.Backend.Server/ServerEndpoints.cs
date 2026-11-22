@@ -158,6 +158,7 @@ internal static partial class ServerEndpoints
             "project-sessions.commands.lyrics.togglePhraseEndHint", "project-sessions.commands.lyrics.splitLine",
             "project-sessions.commands.lyrics.mergeLines", "project-sessions.commands.lyrics.setRubySegments",
             "project-sessions.commands.lyrics.applyTextDiff",
+            "project-sessions.commands.lyrics.clearLineTiming", "project-sessions.commands.lyrics.clearBranchTiming",
             "project-sessions.commands.lyrics.setTimeRange", "project-sessions.commands.history",
             "project-sessions.commands.lyrics.stampTokenStart", "project-sessions.commands.lyrics.stampTokenEnd",
             "project-sessions.commands.lyrics.clearTokenTime", "project-sessions.commands.lyrics.nudgeTokenTime",

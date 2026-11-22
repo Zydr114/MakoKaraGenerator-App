@@ -349,4 +349,143 @@ public sealed class Phase1BeatAndEditingTests
         Assert.Single(ws.Project.Lyrics.Lines);
         Assert.Equal("青い空を見る", ws.Project.Lyrics.Lines[0].Text);
     }
+
+    [Fact]
+    public void ClearLineTiming_ClearsLineTokensAndRubySegments_AndSupportsKeepLineTimeAndSingleUndo()
+    {
+        var ruby = RubyAnnotation.Create("r0", "t0", "ふたり") with
+        {
+            Segments =
+            [
+                RubyTextSegment.Create("s0", "ふ", new TimeRange(1_000_000, 1_300_000), TimingStatus.Edited),
+                RubyTextSegment.Create("s1", "た", new TimeRange(1_300_000, 1_600_000), TimingStatus.Edited),
+                RubyTextSegment.Create("s2", "り", new TimeRange(1_600_000, 2_000_000), TimingStatus.Edited),
+            ],
+        };
+        var line = new LyricLine
+        {
+            Id = "l1",
+            Text = "二人で",
+            Time = new TimeRange(1_000_000, 2_500_000),
+            TimingStatus = TimingStatus.Imported,
+            Tokens =
+            [
+                LyricToken.Create("t0", "二人", new TimeRange(1_000_000, 2_000_000), TimingStatus.Edited, phraseEndHint: true),
+                LyricToken.Create("t1", "で", new TimeRange(2_000_000, 2_500_000), TimingStatus.Edited),
+            ],
+            RubyAnnotations = [ruby],
+        };
+        var ws = CreateWorkspace(line);
+        string b = ws.Project.Lyrics.PrimaryBranchId;
+        var target = new LyricTimingEditTarget(b, "l1");
+
+        // 1. keepLineTime = true: preserves line.Time, clears token & ruby segment times
+        var keepRes = LyricTimingEditUseCase.ClearLineTiming(ws, target, keepLineTime: true);
+        Assert.True(keepRes.Accepted);
+        Assert.True(keepRes.Changed);
+        var afterKeep = ws.Project.Lyrics.Lines[0];
+        Assert.Equal(new TimeRange(1_000_000, 2_500_000), afterKeep.Time);
+        Assert.All(afterKeep.Tokens, t => { Assert.Null(t.Time); Assert.Equal(TimingStatus.Missing, t.TimingStatus); });
+        Assert.All(afterKeep.RubyAnnotations[0].Segments, s => { Assert.Null(s.Time); Assert.Equal(TimingStatus.Missing, s.TimingStatus); });
+        Assert.True(afterKeep.Tokens[0].PhraseEndHint);
+
+        // Undo restores all token & ruby times
+        ws.Undo();
+        Assert.Equal(new TimeRange(1_000_000, 2_000_000), ws.Project.Lyrics.Lines[0].Tokens[0].Time);
+        Assert.Equal(new TimeRange(1_000_000, 1_300_000), ws.Project.Lyrics.Lines[0].RubyAnnotations[0].Segments[0].Time);
+
+        // 2. keepLineTime = false: clears line.Time + tokens + ruby segments, allows fresh StrikeBeat at completely new time
+        var fullRes = LyricTimingEditUseCase.ClearLineTiming(ws, target, keepLineTime: false);
+        Assert.True(fullRes.Accepted);
+        Assert.True(fullRes.Changed);
+        var cleared = ws.Project.Lyrics.Lines[0];
+        Assert.Null(cleared.Time);
+        Assert.Equal(TimingStatus.Missing, cleared.TimingStatus);
+        Assert.Equal("二人で", cleared.Text);
+        Assert.Single(cleared.RubyAnnotations);
+        Assert.Equal(3, cleared.RubyAnnotations[0].Segments.Length);
+
+        // Re-timing at 10s now works with zero conflict and produces clean envelope starting at 10s
+        var strike = LyricTimingEditUseCase.StrikeBeat(ws, null, new LyricBeatTarget(b, "l1", "t0", "r0", "s0"), 10_000_000);
+        Assert.True(strike.Accepted);
+        Assert.Equal(10_000_000, ws.Project.Lyrics.Lines[0].Time!.Value.StartUs);
+
+        // Second ClearLineTiming on already untimed line is a no-op
+        ws.Undo();
+        var noop = LyricTimingEditUseCase.ClearLineTiming(ws, target, keepLineTime: false);
+        Assert.True(noop.Accepted);
+        Assert.False(noop.Changed);
+    }
+
+    [Fact]
+    public void ClearBranchTiming_ClearsAllLinesAndUnbindsClipsAndLeadInsWithFullUndo()
+    {
+        var l1 = new LyricLine
+        {
+            Id = "l1",
+            Text = "一行目",
+            Time = new TimeRange(5_000_000, 8_000_000),
+            TimingStatus = TimingStatus.Edited,
+            Tokens = [LyricToken.Create("t1", "一行目", new TimeRange(5_000_000, 8_000_000), TimingStatus.Edited)],
+            RubyAnnotations = [RubyAnnotation.Create("r1", "t1", "いち") with
+            {
+                Segments = [RubyTextSegment.Create("s1", "いち", new TimeRange(5_000_000, 8_000_000), TimingStatus.Edited)],
+            }],
+        };
+        var l2 = new LyricLine
+        {
+            Id = "l2",
+            Text = "二行目",
+            Time = new TimeRange(10_000_000, 12_000_000),
+            TimingStatus = TimingStatus.Edited,
+            Tokens = [LyricToken.Create("t2", "二行目", new TimeRange(10_000_000, 12_000_000), TimingStatus.Edited)],
+        };
+        var ws = CreateWorkspace(l1, l2);
+        string b = ws.Project.Lyrics.PrimaryBranchId;
+
+        // Add a Clip and a LeadIn referencing l1 & l2 to verify presentation stays valid
+        var tree = ws.Project.LyricPresentation.WithDefaultPrograms(ws.Project.Lyrics);
+        var prog = tree.FindProgram(b)!;
+        var markNode = new SceneContainerDefinition { Id = "mark-1", ParentId = "cd-1", Content = new TextMarkContent { Text = "●" } };
+        var cdNode = new SceneContainerDefinition
+        {
+            Id = "cd-1",
+            ParentId = prog.RootContainerId,
+            Content = new CountdownSequenceContent { MarkNodeIds = ["mark-1"] },
+        };
+        var clip = new LyricDisplayClip { Id = "clip-1", Name = "C1", ContainerId = prog.DefaultContainerId, LineIds = ["l1", "l2"] };
+        var leadIn = new LyricLeadIn { Id = "cue-1", TargetLineId = "l1", DurationUs = 2_000_000, IndicatorContainerId = "cd-1" };
+        var progWithClip = prog with { Clips = [clip], LeadIns = [leadIn] };
+        var treeWithClip = tree with
+        {
+            Nodes = tree.Nodes.Add(cdNode).Add(markNode),
+            Programs = tree.Programs.SetItem(tree.Programs.IndexOf(prog), progWithClip),
+        };
+        Assert.True(PresentationEditor.TrySetTree(ws.Project, treeWithClip, out Project projectWithClip, out _));
+        ws = ProjectWorkspace.Adopt(projectWithClip);
+
+        // Clear all timestamps in branch
+        var res = LyricTimingEditUseCase.ClearBranchTiming(ws, b);
+        Assert.True(res.Accepted);
+        Assert.True(res.Changed);
+        Assert.Equal(2, ws.Project.Lyrics.Lines.Length);
+        Assert.Equal(["一行目", "二行目"], ws.Project.Lyrics.Lines.Select(l => l.Text).ToArray());
+        Assert.All(ws.Project.Lyrics.Lines, l =>
+        {
+            Assert.Null(l.Time);
+            Assert.Equal(TimingStatus.Missing, l.TimingStatus);
+            Assert.All(l.Tokens, t => Assert.Null(t.Time));
+            Assert.All(l.RubyAnnotations, r => Assert.All(r.Segments, s => Assert.Null(s.Time)));
+        });
+        Assert.Single(ws.Project.Lyrics.Lines[0].RubyAnnotations);
+        Assert.Empty(ws.Project.LyricPresentation.FindProgram(b)!.Clips);
+        Assert.Empty(ws.Project.LyricPresentation.FindProgram(b)!.LeadIns);
+
+        // Single undo restores BOTH all timestamps and the Clip + LeadIn
+        ws.Undo();
+        Assert.Equal(new TimeRange(5_000_000, 8_000_000), ws.Project.Lyrics.Lines[0].Time);
+        Assert.Equal(new TimeRange(10_000_000, 12_000_000), ws.Project.Lyrics.Lines[1].Time);
+        Assert.Single(ws.Project.LyricPresentation.FindProgram(b)!.Clips);
+        Assert.Single(ws.Project.LyricPresentation.FindProgram(b)!.LeadIns);
+    }
 }

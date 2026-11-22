@@ -6,7 +6,8 @@ internal static class LyricBeatCommandJson
 {
     internal static bool IsType(string? type) => type is "lyrics.strikeBeat" or "lyrics.closeBeat"
         or "lyrics.togglePhraseEndHint" or "lyrics.splitLine" or "lyrics.mergeLines"
-        or "lyrics.setRubySegments" or "lyrics.applyTextDiff";
+        or "lyrics.setRubySegments" or "lyrics.applyTextDiff"
+        or "lyrics.clearLineTiming" or "lyrics.clearBranchTiming";
 
     internal static ProjectCommandDto Read(JsonElement root, string type)
     {
@@ -29,6 +30,8 @@ internal static class LyricBeatCommandJson
             "lyrics.mergeLines" => ["type", "target"],
             "lyrics.setRubySegments" => ["type", "target", "segments"],
             "lyrics.applyTextDiff" => ["type", "branchId", "lines"],
+            "lyrics.clearLineTiming" => ["type", "target", "keepLineTime"],
+            "lyrics.clearBranchTiming" => ["type", "branchId"],
             _ => throw new JsonException("未知歌词命令。"),
         };
 
@@ -41,6 +44,8 @@ internal static class LyricBeatCommandJson
             "lyrics.mergeLines" => ["type", "target"],
             "lyrics.setRubySegments" => ["type", "target", "segments"],
             "lyrics.applyTextDiff" => ["type", "branchId", "lines"],
+            "lyrics.clearLineTiming" => ["type", "target"],
+            "lyrics.clearBranchTiming" => ["type", "branchId"],
             _ => throw new JsonException("未知歌词命令。"),
         };
 
@@ -89,6 +94,14 @@ internal static class LyricBeatCommandJson
             "lyrics.applyTextDiff" => new ApplyTextDiffCommandDto(
                 ReadStableId(fields["branchId"]),
                 ReadDiffLines(fields["lines"])),
+
+            "lyrics.clearLineTiming" => new ClearLineTimingCommandDto(
+                ReadTimingTarget(fields["target"], tokenRequired: false),
+                fields.TryGetValue("keepLineTime", out JsonElement keepEl) && keepEl.ValueKind != JsonValueKind.Null
+                    ? ReadBoolean(keepEl) : null),
+
+            "lyrics.clearBranchTiming" => new ClearBranchTimingCommandDto(
+                ReadStableId(fields["branchId"])),
 
             _ => throw new JsonException("未知歌词命令。"),
         };
@@ -139,6 +152,16 @@ internal static class LyricBeatCommandJson
             case ApplyTextDiffCommandDto diff:
                 Field("branchId", diff.BranchId);
                 Field("lines", diff.Lines);
+                if (command.Target is not null) Field("inheritedTarget", command.Target);
+                break;
+
+            case ClearLineTimingCommandDto clearLine:
+                Field("target", clearLine.Target);
+                if (clearLine.KeepLineTime is { } keepLineTime) Field("keepLineTime", keepLineTime);
+                break;
+
+            case ClearBranchTimingCommandDto clearBranch:
+                Field("branchId", clearBranch.BranchId);
                 if (command.Target is not null) Field("inheritedTarget", command.Target);
                 break;
         }
@@ -267,4 +290,9 @@ internal static class LyricBeatCommandJson
         value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int num)
             ? num
             : throw new JsonException("必须是 32 位整数。");
+
+    private static bool ReadBoolean(JsonElement value) =>
+        value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : throw new JsonException("必须是布尔值。");
 }

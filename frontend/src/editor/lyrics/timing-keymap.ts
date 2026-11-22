@@ -295,12 +295,37 @@ export function computeMonotonicStrikeUs(
   return adjusted;
 }
 
+/** 判断一行是否包含任何词元或注音拍时间。 */
+export function lineHasChildTiming(line: EditorLine | undefined): boolean {
+  if (!line) return false;
+  if (line.tokens.some((t) => t.startUs !== undefined)) return true;
+  return line.ruby.some((r) => r.segments.some((s) => fromLyricTime(s.time).startUs !== undefined));
+}
+
+/** 判断一行是否包含任何行级、词元或注音拍时间。 */
+export function lineHasAnyTiming(line: EditorLine | undefined): boolean {
+  if (!line) return false;
+  return line.startUs !== undefined || lineHasChildTiming(line);
+}
+
+/** 获取指定行的首个可打轴选择（优先首实义词元的多拍首注音段，否则首实义词元，否则仅行）。 */
+export function firstBeatSelectionForLine(line: EditorLine): Selection {
+  const firstContent = line.tokens.find(isContentToken);
+  if (!firstContent) return { lineId: line.id };
+  const ruby = rubyOf(line, firstContent.id);
+  if (ruby && ruby.segments.length >= 2) {
+    return { lineId: line.id, tokenId: firstContent.id, segmentId: ruby.segments[0]!.id };
+  }
+  return { lineId: line.id, tokenId: firstContent.id };
+}
+
 /** 模式 M1 默认快捷键绑定表。 */
 export const DEFAULT_KEYMAP: Readonly<Record<TimingActionId, readonly string[]>> = {
   togglePlay: [' '],
   strikeBeat: ['j', 'k'],
   closeBeat: ['l'],
-  undoAndRewind: ['backspace', 'g'],
+  undoBeat: ['backspace', 'g'],
+  clearLineTiming: ['shift+backspace'],
   speedDown: ['q'],
   speedUp: ['w'],
   seekBack: ['z'],
@@ -328,7 +353,8 @@ export type ResolvedKeyIntent =
   | { kind: 'strikeBeat' }
   | { kind: 'closeBeat' }
   | { kind: 'togglePhraseEndHint' }
-  | { kind: 'undoAndRewind' }
+  | { kind: 'undoBeat' }
+  | { kind: 'clearLineTiming' }
   | { kind: 'clearSelectedTiming' }
   | { kind: 'speedDown'; fine: boolean }
   | { kind: 'speedUp'; fine: boolean }
@@ -360,6 +386,11 @@ function matchesAction(
   const codeLower = (event.code ?? '').toLowerCase();
   return bindings.some((b) => {
     const norm = b.toLowerCase();
+    if (norm.startsWith('shift+')) {
+      if (!event.shiftKey) return false;
+      const base = norm.slice('shift+'.length);
+      return base === keyLower || (codeLower !== '' && base === codeLower);
+    }
     return norm === keyLower || (codeLower !== '' && norm === codeLower);
   });
 }
@@ -415,6 +446,10 @@ export function resolveTimingKeyAction(
   }
 
   if (event.shiftKey) {
+    // Shift+Backspace in timing mode: clear current line timing
+    if (mode === 'timing' && matchesAction(event, 'clearLineTiming', overrides)) {
+      return event.repeat ? null : { kind: 'clearLineTiming' };
+    }
     // Shift+Enter in edit mode: merge current line with previous line
     if (mode === 'edit' && event.key === 'Enter') {
       return event.repeat ? null : { kind: 'mergeLines' };
@@ -452,8 +487,11 @@ export function resolveTimingKeyAction(
     if (matchesAction(event, 'closeBeat', overrides)) {
       return event.repeat ? null : { kind: 'closeBeat' };
     }
-    if (matchesAction(event, 'undoAndRewind', overrides)) {
-      return event.repeat ? null : { kind: 'undoAndRewind' };
+    if (matchesAction(event, 'clearLineTiming', overrides)) {
+      return event.repeat ? null : { kind: 'clearLineTiming' };
+    }
+    if (matchesAction(event, 'undoBeat', overrides)) {
+      return event.repeat ? null : { kind: 'undoBeat' };
     }
   } else if (mode === 'edit') {
     if (matchesAction(event, 'closeBeat', overrides)) {

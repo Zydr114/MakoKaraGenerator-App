@@ -77,7 +77,7 @@ GET|/api/v1/template-libraries/{id}/templates/detail|templateDetail|-|TemplateDe
 POST|/api/v1/template-libraries/{id}/commands|templateCommand|TemplateLibraryCommandRequest|TemplateLibraryCommandResponse|200|13|提交独立个人模板库CAS修改意图
 GET|/api/v1/project-sessions/{id}/waveform|projectWaveform|-|ProjectWaveformResponse|200|6|读取同次音频准备的波形缓存元数据
 GET,HEAD|/api/v1/project-sessions/{id}/waveform/peaks|projectWaveformPeaks|-|waveformPeaks|200|6|读取有界小端float32峰值窗口
-POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交一百零四种已开放具名命令之一
+POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交一百零六种已开放具名命令之一
 GET|/api/v1/file-roots/{rootGrantId}/entries|projectDirectoryEntries|-|ProjectDirectoryEntriesResponse|200|17|读取授权根下单层有界目录
 POST|/api/v1/project-sessions/{id}/lyrics-export-plans|planLyricsExport|LyricsExportPlanRequest|LyricsExportPlanResponse|201|17|预检来源或TTML全文档歌词导出与完整损失报告
 POST|/api/v1/project-sessions/{id}/lyrics-exports|exportLyrics|LyricsExportRequest|LyricsExportResponse|201|17|按固定计划及显式损失确认生成歌词内容

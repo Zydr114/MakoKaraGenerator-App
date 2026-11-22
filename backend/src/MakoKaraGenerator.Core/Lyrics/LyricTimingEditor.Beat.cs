@@ -350,6 +350,151 @@ public static partial class LyricTimingEditor
         return true;
     }
 
+    /// <summary>
+    /// 原子清除单行全部时间戳：清空所有词元时间与注音分段时间；当 <paramref name="keepLineTime"/> 为 false 时一并清空行起止时间，
+    /// 并同步解绑失去行时间的编排片段与前奏引用。文本、切分、注音与样式覆写完整保留。
+    /// </summary>
+    public static bool TryClearLineTiming(
+        Project project,
+        string branchId,
+        string lineId,
+        bool keepLineTime,
+        out Project result,
+        out string reason)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        result = project;
+
+        LyricBranch? branch = project.Lyrics.Branches.FirstOrDefault(b => b.Id == branchId);
+        if (branch is null) { reason = $"找不到歌词来源 {branchId}。"; return false; }
+
+        int lineIndex = -1;
+        for (int i = 0; i < branch.Lines.Length; i++)
+        {
+            if (branch.Lines[i].Id == lineId) { lineIndex = i; break; }
+        }
+        if (lineIndex < 0) { reason = $"找不到歌词行 {lineId}。"; return false; }
+
+        LyricLine sourceLine = branch.Lines[lineIndex];
+        LyricLine cleared = ClearLineTimingCore(sourceLine, keepLineTime);
+        if (ReferenceEquals(cleared, sourceLine))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        LyricsDocument nextLyrics = project.Lyrics.ReplaceBranch(branch with { Lines = branch.Lines.SetItem(lineIndex, cleared) });
+        LyricPresentationDefinition nextPresentation = keepLineTime
+            ? project.LyricPresentation
+            : project.LyricPresentation.RemoveUntimedReferences(nextLyrics);
+        Project candidate = project with { Lyrics = nextLyrics, LyricPresentation = nextPresentation };
+        if (!TryAcceptDisplay(project, ref candidate, out reason))
+            return false;
+
+        result = candidate;
+        reason = string.Empty;
+        return true;
+    }
+
+    /// <summary>
+    /// 原子清除整个歌词来源的全部时间戳（所有行时间、词元时间与注音分段时间），
+    /// 完整保留文本、分行/分段、词元切分、注音结构、停顿提示与样式覆写，并同步解绑失去行时间的编排片段与前奏引用。
+    /// </summary>
+    public static bool TryClearBranchTiming(
+        Project project,
+        string branchId,
+        out Project result,
+        out int clearedLineCount,
+        out string reason)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        result = project;
+        clearedLineCount = 0;
+
+        LyricBranch? branch = project.Lyrics.Branches.FirstOrDefault(b => b.Id == branchId);
+        if (branch is null) { reason = $"找不到歌词来源 {branchId}。"; return false; }
+
+        var lines = branch.Lines.ToBuilder();
+        int changed = 0;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            LyricLine sourceLine = lines[i];
+            LyricLine cleared = ClearLineTimingCore(sourceLine, keepLineTime: false);
+            if (!ReferenceEquals(cleared, sourceLine))
+            {
+                lines[i] = cleared;
+                changed++;
+            }
+        }
+
+        if (changed == 0)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        LyricsDocument nextLyrics = project.Lyrics.ReplaceBranch(branch with { Lines = lines.ToImmutable() });
+        LyricPresentationDefinition nextPresentation = project.LyricPresentation.RemoveUntimedReferences(nextLyrics);
+        Project candidate = project with { Lyrics = nextLyrics, LyricPresentation = nextPresentation };
+        if (!TryAcceptDisplay(project, ref candidate, out reason))
+            return false;
+
+        result = candidate;
+        clearedLineCount = changed;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static LyricLine ClearLineTimingCore(LyricLine line, bool keepLineTime)
+    {
+        bool changed = false;
+
+        var tokens = line.Tokens.ToBuilder();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            LyricToken tok = tokens[i];
+            if (tok.Time is not null || tok.TimingStatus != TimingStatus.Missing)
+            {
+                tokens[i] = tok with { Time = null, TimingStatus = TimingStatus.Missing };
+                changed = true;
+            }
+        }
+
+        var rubies = line.RubyAnnotations.ToBuilder();
+        for (int i = 0; i < rubies.Count; i++)
+        {
+            RubyAnnotation ruby = rubies[i];
+            bool rubyChanged = false;
+            var segs = ruby.Segments.ToBuilder();
+            for (int j = 0; j < segs.Count; j++)
+            {
+                RubyTextSegment seg = segs[j];
+                if (seg.Time is not null || seg.TimingStatus != TimingStatus.Missing)
+                {
+                    segs[j] = seg with { Time = null, TimingStatus = TimingStatus.Missing };
+                    rubyChanged = true;
+                }
+            }
+            if (rubyChanged && RubySegmentEditor.TryReplaceSegments(ruby, segs.ToImmutable(), out RubyAnnotation nextRuby))
+            {
+                rubies[i] = nextRuby;
+                changed = true;
+            }
+        }
+
+        bool clearLineEnvelope = !keepLineTime && (line.Time is not null || line.TimingStatus != TimingStatus.Missing);
+        if (!changed && !clearLineEnvelope)
+            return line;
+
+        return line with
+        {
+            Time = keepLineTime ? line.Time : null,
+            TimingStatus = keepLineTime ? line.TimingStatus : TimingStatus.Missing,
+            Tokens = changed ? tokens.ToImmutable() : line.Tokens,
+            RubyAnnotations = changed ? rubies.ToImmutable() : line.RubyAnnotations,
+        };
+    }
+
     private static bool TryLocateBeat(
         ImmutableArray<LyricLine>.Builder lines,
         LyricBeatTarget target,

@@ -1,6 +1,6 @@
 # 前后端 API 执行合同
 
-合同 **1.59.0**（2026-11-22，产品 **0.116.1**）：新增七条歌词打轴与非破坏性结构编辑原子命令（`lyrics.strikeBeat`、`lyrics.closeBeat`、`lyrics.togglePhraseEndHint`、`lyrics.splitLine`、`lyrics.mergeLines`、`lyrics.setRubySegments`、`lyrics.applyTextDiff`，共 104 条具名命令），并在 `ProjectLyricTokenDto` 增加可选 `phraseEndHint`（未覆写时省略）、在 `LyricTimingCommandResultDto` 增加可选 `closeGuardApplied`。
+合同 **1.59.0**（2026-11-22，产品 **0.116.1**）：新增九条歌词打轴与非破坏性结构编辑原子命令（`lyrics.strikeBeat`、`lyrics.closeBeat`、`lyrics.togglePhraseEndHint`、`lyrics.splitLine`、`lyrics.mergeLines`、`lyrics.setRubySegments`、`lyrics.applyTextDiff`、`lyrics.clearLineTiming`、`lyrics.clearBranchTiming`，共 106 条具名命令），并在 `ProjectLyricTokenDto` 增加可选 `phraseEndHint`（未覆写时省略）、在 `LyricTimingCommandResultDto` 增加可选 `closeGuardApplied`。
 
 产品 **0.116.1** 在携带原生媒体探针的 Windows x64 部署中启用现有媒体特征轨，合同保持 **1.58.0**；协议、路由、字段和例子不变。详见[宿主媒体特征轨](../docs/architecture/backend-api.md#sdk2-m10-media-features)。
 

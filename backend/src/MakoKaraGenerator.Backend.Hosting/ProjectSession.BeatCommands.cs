@@ -12,7 +12,8 @@ public sealed partial class ProjectSession
 {
     internal static bool IsLyricRefactorCommand(ProjectCommandDto command) => command.Type is "lyrics.strikeBeat"
         or "lyrics.closeBeat" or "lyrics.togglePhraseEndHint" or "lyrics.splitLine"
-        or "lyrics.mergeLines" or "lyrics.setRubySegments" or "lyrics.applyTextDiff";
+        or "lyrics.mergeLines" or "lyrics.setRubySegments" or "lyrics.applyTextDiff"
+        or "lyrics.clearLineTiming" or "lyrics.clearBranchTiming";
 
     internal static BackendErrorResponse? CheckLyricRefactorIntent(ProjectCommandDto command)
     {
@@ -88,6 +89,12 @@ public sealed partial class ProjectSession
                 try { ValidateIntentBytes(command, LyricRefactorEditingLimits.MaxIntentBytes); }
                 catch (ReadModelBudgetExceededException) { return TooLarge(); }
                 return null;
+
+            case ClearLineTimingCommandDto when command.Type == "lyrics.clearLineTiming":
+                return TryEditingTarget(command.Target, tokenRequired: false, out _) ? null : Invalid();
+
+            case ClearBranchTimingCommandDto clearBranch when command.Type == "lyrics.clearBranchTiming":
+                return command.Target is null && IsStableId(clearBranch.BranchId) ? null : Invalid();
 
             default:
                 return Invalid();
@@ -467,6 +474,75 @@ public sealed partial class ProjectSession
                     error = ContentBudgetExceeded();
                     return true;
                 }
+            }
+
+            case ClearLineTimingCommandDto clearLine:
+            {
+                var target = new LyricTimingEditTarget(clearLine.Target!.BranchId, clearLine.Target.LineId);
+                bool keepLineTime = clearLine.KeepLineTime == true;
+                Workspace.History.BreakMergeGroup();
+                LyricTimingEditResult result;
+                try { result = LyricTimingEditUseCase.ClearLineTiming(Workspace, target, keepLineTime); }
+                finally { Workspace.History.BreakMergeGroup(); }
+
+                if (!result.Accepted)
+                {
+                    error = MapTimingError(result.Error) with
+                    {
+                        Field = "command.target",
+                        FailureCode = result.Error?.Code.ToString(),
+                    };
+                    return true;
+                }
+
+                after = result.Project;
+                if (result.Changed)
+                {
+                    bool presentationChanged = !Equals(before.LyricPresentation, after.LyricPresentation);
+                    string[] areas = presentationChanged
+                        ? ["lyricsTiming", "lyricsRubyTiming", "orchestration", "timeline", "renderInputs"]
+                        : ["lyricsTiming", "lyricsRubyTiming", "timeline", "renderInputs"];
+                    changeSet = new ProjectChangeSetDto(areas, [target.BranchId], [target.LineId], [], presentationChanged);
+                }
+                else
+                {
+                    changeSet = new ProjectChangeSetDto([], [], [], [], false);
+                }
+                return true;
+            }
+
+            case ClearBranchTimingCommandDto clearBranch:
+            {
+                string branchId = clearBranch.BranchId!;
+                Workspace.History.BreakMergeGroup();
+                LyricTimingEditResult result;
+                try { result = LyricTimingEditUseCase.ClearBranchTiming(Workspace, branchId); }
+                finally { Workspace.History.BreakMergeGroup(); }
+
+                if (!result.Accepted)
+                {
+                    error = MapTimingError(result.Error) with
+                    {
+                        Field = "command.branchId",
+                        FailureCode = result.Error?.Code.ToString(),
+                    };
+                    return true;
+                }
+
+                after = result.Project;
+                if (result.Changed)
+                {
+                    bool presentationChanged = !Equals(before.LyricPresentation, after.LyricPresentation);
+                    string[] areas = presentationChanged
+                        ? ["lyricsTiming", "lyricsRubyTiming", "orchestration", "timeline", "renderInputs"]
+                        : ["lyricsTiming", "lyricsRubyTiming", "timeline", "renderInputs"];
+                    changeSet = new ProjectChangeSetDto(areas, [branchId], [], [], true);
+                }
+                else
+                {
+                    changeSet = new ProjectChangeSetDto([], [], [], [], false);
+                }
+                return true;
             }
 
             default:

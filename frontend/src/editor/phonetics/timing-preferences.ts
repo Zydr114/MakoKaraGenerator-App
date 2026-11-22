@@ -1,10 +1,11 @@
-// 本地持久化的打轴与注音偏好设置：按键延迟补偿、悔棋回跳时长、F2 暂停策略、长音/拨音合并与键位重绑。
+// 本地持久化的打轴与注音偏好设置：按键延迟补偿、画布字号、F2 暂停策略、长音/拨音合并与键位重绑。
 
 export type TimingActionId =
   | 'togglePlay'
   | 'strikeBeat'
   | 'closeBeat'
-  | 'undoAndRewind'
+  | 'undoBeat'
+  | 'clearLineTiming'
   | 'speedDown'
   | 'speedUp'
   | 'seekBack'
@@ -22,8 +23,8 @@ export type ScrollMode = 'follow' | 'lock' | 'free';
 export interface TimingPreferences {
   /** 按键延迟补偿（毫秒，落点自动减去该值；默认 0，范围 -500 ~ 500）。 */
   tagOffsetMs: number;
-  /** 悔棋重打（Backspace/G）自动回跳复听时长（毫秒；默认 2000，范围 200 ~ 10000）。 */
-  rewindMs: number;
+  /** 动态打轴画布当前行正文字号（像素；默认 42，范围 28 ~ 60）。 */
+  stageFontSize: number;
   /** 按 F2 弹出原地注音浮窗时是否自动暂停播放（默认 true）。 */
   pauseOnRubyPopover: boolean;
   /** 日语自动注音与罗马音分拍时是否合并汉字内部尾随长音与拨音（默认 false）。 */
@@ -38,7 +39,7 @@ export interface TimingPreferences {
 
 export const DEFAULT_TIMING_PREFERENCES: TimingPreferences = {
   tagOffsetMs: 0,
-  rewindMs: 2000,
+  stageFontSize: 42,
   pauseOnRubyPopover: true,
   mergeLongAndNasalInKanji: false,
   scrollMode: 'follow',
@@ -66,9 +67,9 @@ export function clampTagOffsetMs(ms: number): number {
   return Math.max(-500, Math.min(500, Math.round(ms)));
 }
 
-export function clampRewindMs(ms: number): number {
-  if (!Number.isFinite(ms)) return DEFAULT_TIMING_PREFERENCES.rewindMs;
-  return Math.max(200, Math.min(10000, Math.round(ms)));
+export function clampStageFontSize(px: number): number {
+  if (!Number.isFinite(px)) return DEFAULT_TIMING_PREFERENCES.stageFontSize;
+  return Math.max(28, Math.min(60, Math.round(px)));
 }
 
 function sanitize(raw: Partial<TimingPreferences>): TimingPreferences {
@@ -79,7 +80,9 @@ function sanitize(raw: Partial<TimingPreferences>): TimingPreferences {
 
   return {
     tagOffsetMs: clampTagOffsetMs(typeof raw.tagOffsetMs === 'number' ? raw.tagOffsetMs : DEFAULT_TIMING_PREFERENCES.tagOffsetMs),
-    rewindMs: clampRewindMs(typeof raw.rewindMs === 'number' ? raw.rewindMs : DEFAULT_TIMING_PREFERENCES.rewindMs),
+    stageFontSize: clampStageFontSize(
+      typeof raw.stageFontSize === 'number' ? raw.stageFontSize : DEFAULT_TIMING_PREFERENCES.stageFontSize,
+    ),
     pauseOnRubyPopover:
       typeof raw.pauseOnRubyPopover === 'boolean' ? raw.pauseOnRubyPopover : DEFAULT_TIMING_PREFERENCES.pauseOnRubyPopover,
     mergeLongAndNasalInKanji:

@@ -161,7 +161,9 @@ export type TimingCommand =
       fallbackDurationUs?: Micros | null;
     }
   | { type: 'lyrics.closeBeat'; target: LyricBeatTarget; playheadUs: Micros }
-  | { type: 'lyrics.togglePhraseEndHint'; target: TokenTarget };
+  | { type: 'lyrics.togglePhraseEndHint'; target: TokenTarget }
+  | { type: 'lyrics.clearLineTiming'; target: LineTarget; keepLineTime?: boolean }
+  | { type: 'lyrics.clearBranchTiming'; branchId: string };
 
 export type TimingCommandType = TimingCommand['type'];
 

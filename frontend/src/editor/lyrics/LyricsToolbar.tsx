@@ -18,7 +18,13 @@ import { useObservableSelector } from '../ui/hooks';
 import { Icon } from '../ui/Icon';
 import { Menu, MenuItem, MenuSection, MenuSeparator, MenuTrigger } from '../ui/Menu';
 import { toMicros } from '../model/time';
-import type { LyricsWorkMode } from './timing-keymap';
+import { lineHasAnyTiming, lineHasChildTiming, type LyricsWorkMode } from './timing-keymap';
+
+const STAGE_FONT_PRESETS = [
+  { size: 34, label: '标准 34px' },
+  { size: 42, label: '大号 42px' },
+  { size: 52, label: '超大 52px' },
+] as const;
 
 const NONE = { subscribe: () => () => undefined, get: () => undefined };
 
@@ -52,7 +58,9 @@ export function LyricsToolbar(props: {
   onResplitLine: () => void;
   onResplitBranch: () => void;
   onFillMissingTimes: () => void;
-  onClearLineTimes: () => void;
+  onClearLineTokenTimesOnly: () => void;
+  onClearLineTiming: () => void;
+  onClearBranchTiming: () => void;
   appearance: AppearanceStore | null;
   orchestration: OrchestrationStore | null;
   onOpenPage: (page: 'appearance' | 'orchestration') => void;
@@ -178,7 +186,9 @@ export function LyricsToolbar(props: {
             else if (id === 'resplitBranch') props.onResplitBranch();
             else if (id === 'shiftLine') setShiftOpen(true);
             else if (id === 'fillMissing') props.onFillMissingTimes();
-            else if (id === 'clearLine') props.onClearLineTimes();
+            else if (id === 'clearLineTokens') props.onClearLineTokenTimesOnly();
+            else if (id === 'clearLineFull') props.onClearLineTiming();
+            else if (id === 'clearBranchFull') props.onClearBranchTiming();
           }}
         >
           <MenuItem id="resplitLine" icon="call_split" disabled={!selectedLine || !session.supportsCommand('lyrics.resplitLine')}>
@@ -199,13 +209,44 @@ export function LyricsToolbar(props: {
           >
             补全本行缺失词元时间
           </MenuItem>
+          <MenuSeparator />
           <MenuItem
-            id="clearLine"
+            id="clearLineTokens"
+            icon="undo"
+            disabled={
+              !selectedLine ||
+              !lineHasChildTiming(selectedLine) ||
+              (!session.supportsCommand('lyrics.clearLineTiming') && !session.supportsCommand('lyrics.clearTokenTime'))
+            }
+            description="清除本行词元与注音拍时间，保留行起止区间"
+          >
+            仅清除本行逐字时间（保留行时间）
+          </MenuItem>
+          <MenuItem
+            id="clearLineFull"
             icon="delete"
             danger
-            disabled={!selectedLine || !selectedLine.tokens.some(isTimed) || !session.supportsCommand('lyrics.clearTokenTime')}
+            disabled={
+              !selectedLine ||
+              !lineHasAnyTiming(selectedLine) ||
+              (!session.supportsCommand('lyrics.clearLineTiming') && !session.supportsCommand('lyrics.clearTokenTime'))
+            }
+            description="清除本行起止、词元与注音拍时间，光标复位行首"
           >
-            清除本行全部词元时间
+            清除本行全部时间（含行与逐字）
+          </MenuItem>
+          <MenuItem
+            id="clearBranchFull"
+            icon="delete"
+            danger
+            disabled={
+              state.lines.length === 0 ||
+              !state.lines.some(lineHasAnyTiming) ||
+              !session.supportsCommand('lyrics.clearBranchTiming')
+            }
+            description="清空当前来源全部行与逐字时间，保留文本、分段与注音"
+          >
+            清除全部时间戳（保留文本与分段）…
           </MenuItem>
         </Menu>
       </MenuTrigger>
@@ -261,8 +302,33 @@ export function LyricsToolbar(props: {
         <Popover className="popover lt-prefs-pop" offset={6} placement="bottom start">
           <AriaDialog className="lt-prefs-dialog" aria-label="打轴偏好设置">
             <Heading slot="title" className="shift-title">
-              打轴与注音偏好
+              打轴与画布偏好
             </Heading>
+            <div className="lt-fs-group">
+              <NumberField
+                label="画布当前行字号"
+                size="sm"
+                suffix="px"
+                integer
+                min={28}
+                max={60}
+                value={prefs.stageFontSize}
+                helper="上下文行与注音字号随此值等比缩放"
+                onCommit={(stageFontSize) => onUpdatePrefs({ stageFontSize })}
+              />
+              <div className="lt-fs-presets" role="group" aria-label="画布字号预设">
+                {STAGE_FONT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.size}
+                    type="button"
+                    className={`lt-fs-preset${prefs.stageFontSize === preset.size ? ' is-active' : ''}`}
+                    onClick={() => onUpdatePrefs({ stageFontSize: preset.size })}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <NumberField
               label="按键延迟补偿"
               size="sm"
@@ -273,17 +339,6 @@ export function LyricsToolbar(props: {
               value={prefs.tagOffsetMs}
               helper="落点时间自动减去此值（消除人体反应/蓝牙延迟）"
               onCommit={(tagOffsetMs) => onUpdatePrefs({ tagOffsetMs })}
-            />
-            <NumberField
-              label="悔棋回跳时长（Backspace / G）"
-              size="sm"
-              suffix="ms"
-              integer
-              min={200}
-              max={10000}
-              value={prefs.rewindMs}
-              helper="撤回上一拍后音频自动倒回并保持播放"
-              onCommit={(rewindMs) => onUpdatePrefs({ rewindMs })}
             />
             <Switch
               label="按 F2 弹出注音框时自动暂停播放"

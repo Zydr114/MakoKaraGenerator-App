@@ -5818,7 +5818,7 @@
     "/api/v1/project-sessions/{id}/commands": {
       "post": {
         "operationId": "executeCommand",
-        "summary": "提交一百零四种已开放具名命令之一",
+        "summary": "提交一百零六种已开放具名命令之一",
         "tags": [
           "section-6"
         ],
@@ -16577,6 +16577,76 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ClearBackgroundCommandDto"
+      },
+      "ClearBranchTimingCommandDtoInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "lyrics.clearBranchTiming"
+          },
+          "branchId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "type",
+          "branchId"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ClearBranchTimingCommandDto",
+        "x-capability": "project-sessions.commands.lyrics.clearBranchTiming"
+      },
+      "ClearLineTimingCommandDtoInput": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "lyrics.clearLineTiming"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "branchId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "\\S"
+              },
+              "lineId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "\\S"
+              }
+            },
+            "required": [
+              "branchId",
+              "lineId"
+            ],
+            "additionalProperties": false
+          },
+          "keepLineTime": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "target"
+        ],
+        "additionalProperties": false,
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ClearLineTimingCommandDto",
+        "x-capability": "project-sessions.commands.lyrics.clearLineTiming"
       },
       "ClearProjectAudioCommandDtoInput": {
         "type": "object",
@@ -27477,6 +27547,12 @@
             "$ref": "#/components/schemas/ApplyTextDiffCommandDtoInput"
           },
           {
+            "$ref": "#/components/schemas/ClearLineTimingCommandDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/ClearBranchTimingCommandDtoInput"
+          },
+          {
             "$ref": "#/components/schemas/SetBackgroundAssetCommandDtoInput"
           },
           {
@@ -27594,6 +27670,8 @@
             "lyrics.mergeLines": "#/components/schemas/MergeLinesCommandDtoInput",
             "lyrics.setRubySegments": "#/components/schemas/SetRubySegmentsCommandDtoInput",
             "lyrics.applyTextDiff": "#/components/schemas/ApplyTextDiffCommandDtoInput",
+            "lyrics.clearLineTiming": "#/components/schemas/ClearLineTimingCommandDtoInput",
+            "lyrics.clearBranchTiming": "#/components/schemas/ClearBranchTimingCommandDtoInput",
             "composition.setBackgroundAsset": "#/components/schemas/SetBackgroundAssetCommandDtoInput",
             "composition.clearBackground": "#/components/schemas/ClearBackgroundCommandDtoInput",
             "composition.setBackgroundFit": "#/components/schemas/SetBackgroundFitCommandDtoInput",
@@ -28176,6 +28254,12 @@
           },
           {
             "$ref": "#/components/schemas/ApplyTextDiffCommandDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/ClearLineTimingCommandDtoInput"
+          },
+          {
+            "$ref": "#/components/schemas/ClearBranchTimingCommandDtoInput"
           },
           {
             "$ref": "#/components/schemas/ClearBackgroundCommandDtoInput"

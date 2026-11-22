@@ -24,7 +24,7 @@ import { splitJapaneseMora } from '../../src/editor/phonetics/mora-splitter';
 import { previewRomajiInput } from '../../src/editor/phonetics/romaji-preview';
 import {
   applyTagOffsetUs,
-  clampRewindMs,
+  clampStageFontSize,
   clampTagOffsetMs,
 } from '../../src/editor/phonetics/timing-preferences';
 import {
@@ -303,7 +303,9 @@ describe('语境化空格语义与打轴变速偏好工具', () => {
     expect(clampPlaybackRate(3.5)).toBe(2.0);
     expect(clampTagOffsetMs(-999)).toBe(-500);
     expect(clampTagOffsetMs(80)).toBe(80);
-    expect(clampRewindMs(50)).toBe(200);
+    expect(clampStageFontSize(12)).toBe(28);
+    expect(clampStageFontSize(42)).toBe(42);
+    expect(clampStageFontSize(99)).toBe(60);
     expect(applyTagOffsetUs(1_000_000, 50)).toBe(950_000);
     expect(applyTagOffsetUs(10_000, 100)).toBe(0);
   });

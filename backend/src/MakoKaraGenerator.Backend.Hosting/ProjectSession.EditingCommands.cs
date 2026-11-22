@@ -52,6 +52,8 @@ public sealed partial class ProjectSession
         MergeLinesCommandDto => command.Type == "lyrics.mergeLines",
         SetRubySegmentsCommandDto => command.Type == "lyrics.setRubySegments",
         ApplyTextDiffCommandDto => command.Type == "lyrics.applyTextDiff",
+        ClearLineTimingCommandDto => command.Type == "lyrics.clearLineTiming",
+        ClearBranchTimingCommandDto => command.Type == "lyrics.clearBranchTiming",
         StampTokenStartCommandDto => command.Type == "lyrics.stampTokenStart",
         StampTokenEndCommandDto => command.Type == "lyrics.stampTokenEnd",
         ClearTokenTimeCommandDto => command.Type == "lyrics.clearTokenTime",

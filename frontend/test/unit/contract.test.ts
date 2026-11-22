@@ -211,6 +211,8 @@ describe('手写协议类型与 OpenAPI 一致', () => {
       'lyrics.mergeLines',
       'lyrics.setRubySegments',
       'lyrics.applyTextDiff',
+      'lyrics.clearLineTiming',
+      'lyrics.clearBranchTiming',
       'orchestration.setClipMembers',
       'orchestration.splitClip',
       'orchestration.mergeClips',

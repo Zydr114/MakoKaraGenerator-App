@@ -16,6 +16,8 @@ import {
   collectBranchBeats,
   computeMonotonicStrikeUs,
   findBeatIndexForSelection,
+  firstBeatSelectionForLine,
+  lineHasAnyTiming,
   resolveTimingKeyAction,
   sameBeatTarget,
   stepBranchBeat,
@@ -38,6 +40,7 @@ import { loadTimingPreferences, updateTimingPreferences, type TimingPreferences 
 import { loadUserDictionary } from '../phonetics/user-dictionary';
 import type { EditorSession } from '../session/editor-session';
 import { Timeline, type RubyTimeEdit, type TokenTimeEdit } from '../timeline/Timeline';
+import { confirmAction } from '../ui/dialogs';
 import { toast } from '../ui/feedback';
 import { useObservable } from '../ui/hooks';
 import { StatusBar } from './StatusBar';
@@ -145,12 +148,10 @@ export function Workspace(props: {
     [branches, state.branchId, state.lines, state.primaryBranchId, state.linesByBranch],
   );
 
-  // Select first line & first content token on initial load.
+  // Select first line & first content beat on initial load.
   useEffect(() => {
     if (!state.selection && state.lines[0]) {
-      const firstLine = state.lines[0];
-      const firstToken = firstLine.tokens.find(isContentToken);
-      session.select(firstToken ? { lineId: firstLine.id, tokenId: firstToken.id } : { lineId: firstLine.id });
+      session.select(firstBeatSelectionForLine(state.lines[0]));
     }
   }, [session, state.selection, state.lines]);
 
@@ -355,15 +356,77 @@ export function Workspace(props: {
     if (res?.changed) toast(`已补全 ${changes.length} 个词元时间`, { label: '撤销', run: props.onUndo });
   }, [selectedLine, session, props.onUndo]);
 
-  const handleClearLineTimes = useCallback(async () => {
-    if (!selectedLine || !session.supportsCommand('lyrics.clearTokenTime')) return;
-    const edits: ProjectEditCommand[] = selectedLine.tokens
-      .filter((t) => t.startUs !== undefined)
-      .map((t) => ({ type: 'lyrics.clearTokenTime', target: { branchId: selectedLine.branchId, lineId: selectedLine.id, tokenId: t.id } }));
-    if (edits.length === 0) return;
-    const res = await session.applyEdits(edits);
-    if (res.applied > 0) toast(`已清除本行 ${res.applied} 个词元时间`, { label: '撤销', run: props.onUndo });
-  }, [selectedLine, session, props.onUndo]);
+  const handleClearLineTiming = useCallback(
+    async (line: EditorLine, keepLineTime: boolean) => {
+      const lineNum = session.state.lines.findIndex((l) => l.id === line.id) + 1;
+      clearOpenBeat();
+      strikeHistoryRef.current = [];
+
+      if (session.supportsCommand('lyrics.clearLineTiming')) {
+        const res = await session.command({
+          type: 'lyrics.clearLineTiming',
+          target: { branchId: line.branchId, lineId: line.id },
+          ...(keepLineTime ? { keepLineTime: true } : {}),
+        });
+        if (res?.changed) {
+          session.select(firstBeatSelectionForLine(line));
+          toast(
+            keepLineTime
+              ? `已清除第 ${lineNum || ''} 行逐字时间（已保留行时间）`
+              : `已清除第 ${lineNum || ''} 行全部时间`,
+            { label: '撤销', run: props.onUndo },
+          );
+        }
+        return;
+      }
+
+      if (!session.supportsCommand('lyrics.clearTokenTime')) return;
+      const edits: ProjectEditCommand[] = line.tokens
+        .filter((t) => t.startUs !== undefined)
+        .map((t) => ({ type: 'lyrics.clearTokenTime', target: { branchId: line.branchId, lineId: line.id, tokenId: t.id } }));
+      if (edits.length === 0) return;
+      const res = await session.applyEdits(edits);
+      if (res.applied > 0) {
+        session.select(firstBeatSelectionForLine(line));
+        toast(`已清除本行 ${res.applied} 个词元时间`, { label: '撤销', run: props.onUndo });
+      }
+    },
+    [session, clearOpenBeat, props.onUndo],
+  );
+
+  const handleClearBranchTiming = useCallback(async () => {
+    if (!session.supportsCommand('lyrics.clearBranchTiming')) return;
+    const lines = session.state.lines;
+    const timedCount = lines.filter(lineHasAnyTiming).length;
+    if (timedCount === 0) return;
+
+    const branchId = session.state.branchId;
+    const branchName = session.state.branches?.find((b) => b.id === branchId)?.name ?? '当前来源';
+    const orchProgram = props.orchestration?.state$.get().model?.programs.find((p) => p.branchId === branchId);
+    const clipCount = orchProgram?.clips?.length ?? 0;
+    const leadInCount = orchProgram?.leadIns?.length ?? 0;
+    const extraNotes: string[] = [];
+    if (clipCount > 0) extraNotes.push(`${clipCount} 个编排片段`);
+    if (leadInCount > 0) extraNotes.push(`${leadInCount} 个前奏提示`);
+    const presentationNote =
+      extraNotes.length > 0 ? `同时将自动解绑依赖行时间的 ${extraNotes.join('与')}（撤销时一并恢复）。` : '';
+
+    const ok = await confirmAction({
+      headline: `清除「${branchName}」全部时间戳？`,
+      description: `将清空共 ${timedCount} 行的所有行起止时间、词元时间与注音拍时间；歌词文本、分行分段、词元切分与注音将完整保留，可随时按 Ctrl+Z 撤销。${presentationNote}`,
+      confirmText: '清除全部时间',
+      danger: true,
+    });
+    if (!ok) return;
+
+    clearOpenBeat();
+    strikeHistoryRef.current = [];
+    const res = await session.command({ type: 'lyrics.clearBranchTiming', branchId });
+    if (res?.changed) {
+      if (lines[0]) session.select(firstBeatSelectionForLine(lines[0]));
+      toast(`已清除「${branchName}」全部时间戳（已保留文本与分段）`, { label: '撤销', run: props.onUndo });
+    }
+  }, [session, props.orchestration, clearOpenBeat, props.onUndo]);
 
   // Mode M1 global keyboard state machine.
   useLyricsKeymap({
@@ -379,6 +442,7 @@ export function Workspace(props: {
     openRubyPopover,
     onInlineEditLine: setInlineEditingLineId,
     onToggleTokenMenu: () => setTokenMenuOpen((v) => !v),
+    onClearLineTiming: handleClearLineTiming,
     onUndo: props.onUndo,
     onRedo: props.onRedo,
     onSave: props.onSave,
@@ -466,6 +530,7 @@ export function Workspace(props: {
             appearance={props.appearance}
             orchestration={props.orchestration}
             onOpenPage={props.onOpen}
+            onClearBranchTiming={() => void handleClearBranchTiming()}
           />
         ),
       }}
@@ -490,7 +555,9 @@ export function Workspace(props: {
             onResplitLine={() => selectedLine && actions.run('resplit', selectedLine)}
             onResplitBranch={() => setResplitBranchOpen(true)}
             onFillMissingTimes={() => void handleFillMissingTimes()}
-            onClearLineTimes={() => void handleClearLineTimes()}
+            onClearLineTokenTimesOnly={() => selectedLine && void handleClearLineTiming(selectedLine, true)}
+            onClearLineTiming={() => selectedLine && void handleClearLineTiming(selectedLine, false)}
+            onClearBranchTiming={() => void handleClearBranchTiming()}
             appearance={props.appearance}
             orchestration={props.orchestration}
             onOpenPage={props.onOpen}
@@ -512,6 +579,7 @@ export function Workspace(props: {
               audio={audio}
               mode={mode}
               scrollMode={prefs.scrollMode}
+              stageFontSize={prefs.stageFontSize}
               openBeat={openBeat}
               inlineEditingLineId={inlineEditingLineId}
               onInlineEditLine={setInlineEditingLineId}
@@ -519,6 +587,7 @@ export function Workspace(props: {
               onTokenMenuOpenChange={setTokenMenuOpen}
               onOpenRubyPopover={openRubyPopover}
               onResplitLine={(line) => actions.run('resplit', line)}
+              onClearLineTiming={() => selectedLine && void handleClearLineTiming(selectedLine, false)}
               stageRootRef={stageRootRef}
             />
           )}
@@ -584,11 +653,7 @@ export function Workspace(props: {
                   loopLine={loopLine}
                   onLoopLine={setLoopLine}
                   loopAvailable={!!selectedLine && isTimed(selectedLine)}
-                  help={
-                    mode === 'timing'
-                      ? 'Space 播放/暂停 · J/K 交替连打 · L 收尾 ● · Backspace/G 回退复听 · F2 注音 · Q/W 变速'
-                      : 'Space 播放/暂停 · F2 注音 · L 停顿提示 ○ · Enter 断行 · Shift+Enter 合行'
-                  }
+                  help="Space 播放/暂停 · Q/W 保调变速 · Z/X 快退/快进 · 滚轮缩放波形"
                 />
               }
             />
@@ -621,6 +686,7 @@ function useLyricsKeymap(options: {
   openRubyPopover: (lineId: string, tokenId: string, element: HTMLElement | null) => void;
   onInlineEditLine: (lineId: string | null) => void;
   onToggleTokenMenu: () => void;
+  onClearLineTiming: (line: EditorLine, keepLineTime: boolean) => Promise<void>;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
@@ -692,7 +758,9 @@ function useLyricsKeymap(options: {
           const beat = idx >= 0 ? beats[idx] : undefined;
           if (!beat) return;
 
-          const playheadUs = computeMonotonicStrikeUs(audio.playheadUs(), prefs.tagOffsetMs, lastStrikeUsRef.current);
+          const prevLastStrikeUs = lastStrikeUsRef.current;
+          const prevSelection = selection;
+          const playheadUs = computeMonotonicStrikeUs(audio.playheadUs(), prefs.tagOffsetMs, prevLastStrikeUs);
           lastStrikeUsRef.current = playheadUs;
 
           const prevOpen = openBeatRef.current;
@@ -717,7 +785,28 @@ function useLyricsKeymap(options: {
                 playheadUs: toMicros(playheadUs),
               })
               .then((res) => {
-                if (res?.timingResult?.closeGuardApplied) {
+                if (!res) {
+                  // Roll back optimistic state when backend rejects (e.g. conflict with existing stale timestamps).
+                  if (openBeatRef.current && sameBeatTarget(openBeatRef.current, beat.target)) {
+                    openBeatRef.current = prevOpen;
+                    setOpenBeat(prevOpen);
+                    lastStrikeUsRef.current = prevLastStrikeUs;
+                  }
+                  const top = strikeHistoryRef.current[strikeHistoryRef.current.length - 1];
+                  if (top && sameBeatTarget(top.struck.target, beat.target)) {
+                    strikeHistoryRef.current.pop();
+                  }
+                  session.select(prevSelection ?? beat.selection);
+                  const targetLine = session.state.lines.find((l) => l.id === beat.lineId);
+                  if (targetLine && lineHasAnyTiming(targetLine)) {
+                    toast('当前行已有冲突的旧时间戳，无法直接覆盖', {
+                      label: '清除本行并重打',
+                      run: () => void latest.current.onClearLineTiming(targetLine, false),
+                    });
+                  }
+                  return;
+                }
+                if (res.timingResult?.closeGuardApplied) {
                   toast('上一句触发跨间奏自动兜底收尾（虚线估算），可在波形微调');
                 }
               });
@@ -761,7 +850,7 @@ function useLyricsKeymap(options: {
           return;
         }
 
-        case 'undoAndRewind': {
+        case 'undoBeat': {
           event.preventDefault();
           const popped = strikeHistoryRef.current.pop();
           clearOpenBeat();
@@ -773,9 +862,14 @@ function useLyricsKeymap(options: {
             const prev = stepBranchBeat(beats, selection, -1);
             if (prev) session.select(prev.selection);
           }
-          if (audio) {
-            audio.rewind(prefs.rewindMs, true);
-          }
+          return;
+        }
+
+        case 'clearLineTiming': {
+          event.preventDefault();
+          const line = selection?.lineId ? lines.find((l) => l.id === selection.lineId) : undefined;
+          if (!line || !lineHasAnyTiming(line)) return;
+          void latest.current.onClearLineTiming(line, false);
           return;
         }
 
@@ -854,8 +948,7 @@ function useLyricsKeymap(options: {
           const curIdx = selection ? lines.findIndex((l) => l.id === selection.lineId) : -1;
           const nextLine = lines[curIdx < 0 ? 0 : curIdx + delta];
           if (!nextLine) return;
-          const firstContent = nextLine.tokens.find(isContentToken);
-          session.select(firstContent ? { lineId: nextLine.id, tokenId: firstContent.id } : { lineId: nextLine.id });
+          session.select(firstBeatSelectionForLine(nextLine));
           return;
         }
 

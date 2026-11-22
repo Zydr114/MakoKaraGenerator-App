@@ -18,6 +18,7 @@ import { lineActionItems, type LineAction, type LineActions } from './line-actio
 import { LineList, statusCounts, type LineNote } from './LineList';
 import { ResplitBranchDialog } from './ResplitDialogs';
 import { SourcesSheet } from './SourcesSheet';
+import { lineHasAnyTiming } from './timing-keymap';
 import './lyrics.css';
 
 const SHOW_TRANSLATIONS_KEY = 'mako.editor.showTranslationsInLineList';
@@ -35,6 +36,7 @@ export function LinePane(props: {
   appearance?: AppearanceStore | null;
   orchestration?: OrchestrationStore | null;
   onOpenPage?: (page: 'appearance' | 'orchestration') => void;
+  onClearBranchTiming?: () => void;
 }) {
   const { session, state, actions } = props;
   const [multi, setMulti] = useState(false);
@@ -152,11 +154,26 @@ export function LinePane(props: {
               if (id === 'resplit') setResplitBranchOpen(true);
               else if (id === 'translations') toggleTranslations();
               else if (id === 'link') actions.openLink(state.branchId);
+              else if (id === 'clearBranchTiming') props.onClearBranchTiming?.();
             }}
           >
             <MenuItem id="resplit" icon="call_split" disabled={state.lines.length === 0 || !session.supportsCommand('lyrics.resplitBranch')}>
               按规则重切整个来源…
             </MenuItem>
+            {props.onClearBranchTiming && (
+              <MenuItem
+                id="clearBranchTiming"
+                icon="delete"
+                danger
+                disabled={
+                  state.lines.length === 0 ||
+                  !state.lines.some(lineHasAnyTiming) ||
+                  !session.supportsCommand('lyrics.clearBranchTiming')
+                }
+              >
+                清除全部时间戳（保留文本与分段）…
+              </MenuItem>
+            )}
             {isPrimary ? (
               <MenuSection selectionMode="multiple" selectedKeys={showTranslations ? ['translations'] : []}>
                 <MenuItem id="translations" disabled={branches.length < 2}>

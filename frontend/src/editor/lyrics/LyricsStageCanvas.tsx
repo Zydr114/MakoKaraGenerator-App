@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
   type RefObject,
@@ -25,12 +26,15 @@ import { confirmAction } from '../ui/dialogs';
 import { toast } from '../ui/feedback';
 import { TextField } from '../ui/fields';
 import { Icon } from '../ui/Icon';
+import { Tooltip } from '../ui/Tooltip';
 import { StatusIcon } from './LineList';
 import {
   beatKeyOf,
   computeRubySegmentWipeProgress,
   computeTokenWipeProgress,
   computeUntimedBridgeFill,
+  firstBeatSelectionForLine,
+  lineHasAnyTiming,
   type LyricsWorkMode,
 } from './timing-keymap';
 
@@ -149,6 +153,7 @@ export function LyricsStageCanvas(props: {
   audio: AudioController | null;
   mode: Exclude<LyricsWorkMode, 'quickEdit'>;
   scrollMode: ScrollMode;
+  stageFontSize: number;
   openBeat: LyricBeatTarget | null;
   inlineEditingLineId: string | null;
   onInlineEditLine: (lineId: string | null) => void;
@@ -156,6 +161,7 @@ export function LyricsStageCanvas(props: {
   onTokenMenuOpenChange: (open: boolean) => void;
   onOpenRubyPopover: (lineId: string, tokenId: string, element: HTMLElement | null) => void;
   onResplitLine: (line: EditorLine) => void;
+  onClearLineTiming: () => void;
   stageRootRef: RefObject<HTMLDivElement | null>;
 }) {
   const {
@@ -164,6 +170,7 @@ export function LyricsStageCanvas(props: {
     audio,
     mode,
     scrollMode,
+    stageFontSize,
     openBeat,
     inlineEditingLineId,
     onInlineEditLine,
@@ -171,6 +178,7 @@ export function LyricsStageCanvas(props: {
     onTokenMenuOpenChange,
     onOpenRubyPopover,
     onResplitLine,
+    onClearLineTiming,
     stageRootRef,
   } = props;
 
@@ -187,6 +195,7 @@ export function LyricsStageCanvas(props: {
   const ghostMap = useMemo(() => computeGhostMap(state), [state.branchId, state.branches, state.linesByBranch, state.lines, state.primaryBranchId]);
 
   const selectedLineId = state.selection?.lineId;
+  const selectedTokenId = state.selection?.tokenId;
   const selectedLineIndex = selectedLineId ? state.lines.findIndex((l) => l.id === selectedLineId) : -1;
   const selectedLine = selectedLineIndex >= 0 ? state.lines[selectedLineIndex] : undefined;
   const openBeatKey = openBeat ? beatKeyOf(openBeat) : null;
@@ -198,12 +207,15 @@ export function LyricsStageCanvas(props: {
   audioRef.current = audio;
   const scrollModeRef = useRef(scrollMode);
   scrollModeRef.current = scrollMode;
+  const openBeatRef = useRef(openBeat);
+  openBeatRef.current = openBeat;
 
   const lineElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const wipeTokensRef = useRef<WipeTokenNode[]>([]);
   const wipeRubiesRef = useRef<WipeRubyNode[]>([]);
   const needsPaintRef = useRef(true);
   const activeSingingLineIdRef = useRef<string | null>(null);
+  const lastScrollTargetRef = useRef<{ top: number; at: number } | null>(null);
 
   // Rebuild DOM index ONLY when lines structure changes (not per frame).
   useLayoutEffect(() => {
@@ -239,23 +251,43 @@ export function LyricsStageCanvas(props: {
     needsPaintRef.current = true;
   }, [state.lines]);
 
-  const scrollLineToCenter = useCallback((lineId: string, smooth: boolean) => {
+  const scrollTargetToCenter = useCallback((lineId: string, smooth: boolean, tokenId?: string) => {
     const container = scrollRef.current;
-    const el = lineElsRef.current.get(lineId);
-    if (!container || !el) return;
-    const targetTop = el.offsetTop - container.clientHeight / 2 + el.offsetHeight / 2;
-    const clamped = Math.max(0, targetTop);
+    const lineEl = lineElsRef.current.get(lineId);
+    if (!container || !lineEl) return;
+    let tokenEl: HTMLElement | null = null;
+    if (tokenId) {
+      for (const el of lineEl.querySelectorAll<HTMLElement>('[data-token-id]')) {
+        if (el.dataset.tokenId === tokenId) {
+          tokenEl = el;
+          break;
+        }
+      }
+    }
+    const targetEl = tokenEl ?? lineEl;
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    const rawTop =
+      container.scrollTop +
+      (targetRect.top - containerRect.top) -
+      container.clientHeight / 2 +
+      targetRect.height / 2;
+    const clamped = Math.max(0, Math.min(maxScroll, rawTop));
     if (Math.abs(container.scrollTop - clamped) < 6) return;
+    const now = performance.now();
+    const prev = lastScrollTargetRef.current;
+    if (smooth && prev && Math.abs(prev.top - clamped) < 6 && now - prev.at < 450) return;
+    lastScrollTargetRef.current = { top: clamped, at: now };
     container.scrollTo({ top: clamped, behavior: smooth ? 'smooth' : 'auto' });
   }, []);
 
-  // Scroll selected line into center when selection changes (lock mode, or follow mode while paused).
+  // Scroll active token / line into center whenever selection or openBeat changes (both follow and lock modes, even during playback on untimed lyrics).
   useEffect(() => {
     if (!selectedLineId) return;
     if (scrollMode === 'free') return;
-    if (scrollMode === 'follow' && audio?.playing) return;
-    scrollLineToCenter(selectedLineId, true);
-  }, [selectedLineId, scrollMode, audio, scrollLineToCenter]);
+    scrollTargetToCenter(selectedLineId, true, selectedTokenId);
+  }, [selectedLineId, selectedTokenId, openBeatKey, scrollMode, scrollTargetToCenter]);
 
   // 60fps requestAnimationFrame karaoke wipe & playback scroll engine.
   useEffect(() => {
@@ -327,8 +359,8 @@ export function LyricsStageCanvas(props: {
         if (singingId) {
           const nextEl = lineElsRef.current.get(singingId);
           if (nextEl) nextEl.dataset.singing = '1';
-          if (scrollModeRef.current === 'follow' && a?.playing && !draggingRangeRef.current) {
-            scrollLineToCenter(singingId, true);
+          if (scrollModeRef.current === 'follow' && a?.playing && !draggingRangeRef.current && !openBeatRef.current) {
+            scrollTargetToCenter(singingId, true);
           }
         }
       }
@@ -336,7 +368,7 @@ export function LyricsStageCanvas(props: {
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [scrollLineToCenter]);
+  }, [scrollTargetToCenter]);
 
   // Global mouseup terminates edit-mode drag selection cleanly.
   useEffect(() => {
@@ -532,9 +564,22 @@ export function LyricsStageCanvas(props: {
     }
   };
 
+  const focusLineIndex = selectedLineIndex >= 0 ? selectedLineIndex : 0;
+
   return (
-    <div className={cls('lyrics-stage-shell', `mode-${mode}`)} ref={stageRootRef}>
-      <div className="lyrics-stage-scroll" ref={scrollRef} aria-label="动态歌词打轴画布">
+    <div
+      className={cls('lyrics-stage-shell', `mode-${mode}`, openBeat && 'has-open-beat')}
+      style={{ '--stage-fs': `${stageFontSize}px` } as CSSProperties}
+      ref={stageRootRef}
+    >
+      <div
+        className="lyrics-stage-scroll"
+        ref={scrollRef}
+        aria-label="动态歌词打轴画布"
+        onWheel={() => {
+          lastScrollTargetRef.current = null;
+        }}
+      >
         {state.lines.length === 0 ? (
           <div className="stage-empty">
             <Icon name="lyrics" className="stage-empty-ic" />
@@ -545,6 +590,8 @@ export function LyricsStageCanvas(props: {
           <div className="stage-track">
             {state.lines.map((line, lineIndex) => {
               const isSelectedLine = line.id === selectedLineId;
+              const hasOpenBeatLine = openBeat?.lineId === line.id;
+              const relPos = lineIndex < focusLineIndex ? 'past' : lineIndex > focusLineIndex ? 'future' : 'current';
               const isInlineEditing = inlineEditingLineId === line.id;
               const ghosts = ghostMap.get(line.id);
               const showFloatHere = floatingSelection?.line.id === line.id;
@@ -552,15 +599,15 @@ export function LyricsStageCanvas(props: {
               return (
                 <div
                   key={line.id}
-                  className={cls('stage-line', isSelectedLine && 'is-selected', !isTimed(line) && 'is-untimed')}
+                  className={cls('stage-line', isSelectedLine && 'is-selected', hasOpenBeatLine && 'has-open-beat-line', !isTimed(line) && 'is-untimed')}
                   data-stage-line={line.id}
+                  data-rel={relPos}
                   onClick={(e) => {
-                    // Clicking empty area on line selects line (first content token if in timing mode).
+                    // Clicking empty area on line selects first playable beat in timing mode.
                     if ((e.target as HTMLElement).closest('button, input')) return;
                     setEditRange(null);
                     onTokenMenuOpenChange(false);
-                    const firstContent = line.tokens.find(isContentToken);
-                    session.select(firstContent ? { lineId: line.id, tokenId: firstContent.id } : { lineId: line.id });
+                    session.select(firstBeatSelectionForLine(line));
                   }}
                 >
                   {showFloatHere && floatingSelection && (
@@ -758,14 +805,17 @@ export function LyricsStageCanvas(props: {
         )}
       </div>
 
-      {/* Canvas footer: precision timing editor + live Mode M1 shortcut cheat sheet */}
+      {/* Canvas footer: quick clear line timing + precision editor + live state & concise hints */}
       <StageFooterBar
         session={session}
         audio={audio}
+        lines={state.lines}
         line={selectedLine}
         tokenId={state.selection?.tokenId}
         segmentId={state.selection?.segmentId}
+        openBeat={openBeat}
         mode={mode}
+        onClearLineTiming={onClearLineTiming}
       />
     </div>
   );
@@ -848,15 +898,19 @@ const StageTokenBlock = memo(function StageTokenBlock(props: {
   const multiBeatRuby = ruby && ruby.segments.length >= 2 ? ruby : undefined;
   const tokenBeatKey = `${line.id}:${token.id}`;
   const isTokenOpenBeat = openBeatKey === tokenBeatKey;
+  const hasOpenRubySeg = !!multiBeatRuby && multiBeatRuby.segments.some((s) => openBeatKey === `${line.id}:${token.id}:${s.id}`);
+  const hasSegSel = isSelectedToken && !!multiBeatRuby && !!selection?.segmentId;
 
   return (
     <span
       className={cls(
         'stage-tok kind-content',
         isSelectedToken && 'is-sel',
+        hasSegSel && 'has-seg-sel',
         inMultiSelect && 'in-multi',
         !isTimed(token) && 'is-untimed',
         isTokenOpenBeat && 'is-open-beat',
+        hasOpenRubySeg && 'has-open-rseg',
         isPhraseEnd && 'has-phrase-end',
       )}
       data-token-id={token.id}
@@ -883,10 +937,11 @@ const StageTokenBlock = memo(function StageTokenBlock(props: {
             const segKey = `${line.id}:${token.id}:${seg.id}`;
             const isSegSel = isSelectedToken && selection?.segmentId === seg.id;
             const isSegOpen = openBeatKey === segKey;
+            const isSegTimed = multiBeatRuby ? isTimed(fromLyricTime(seg.time)) : isTimed(token);
             return (
               <span
                 key={seg.id}
-                className={cls('st-rseg', isSegSel && 'is-sel', isSegOpen && 'is-open-beat')}
+                className={cls('st-rseg', !isSegTimed && 'is-untimed-seg', isSegSel && 'is-sel', isSegOpen && 'is-open-beat')}
                 data-wipe-rseg="1"
                 data-li={lineIndex}
                 data-ti={tokenIndex}
@@ -1034,18 +1089,41 @@ function InlineLineEditor(props: {
   );
 }
 
-/** 画布底栏：左侧选中项精确时间微调与试听，右侧模式 M1 实时键位速查。 */
+/** 解析拍点目标的人类可读短标签（如单字“消”或注音拍“ふ”）。 */
+function resolveBeatLabel(lines: readonly EditorLine[], target: LyricBeatTarget | null): string | undefined {
+  if (!target) return undefined;
+  const line = lines.find((l) => l.id === target.lineId);
+  const tok = line?.tokens.find((t) => t.id === target.tokenId);
+  if (!line || !tok) return undefined;
+  if (target.segmentId) {
+    const ruby = rubyOf(line, tok.id);
+    const seg = ruby?.segments.find((s) => s.id === target.segmentId);
+    if (seg) return `${tok.text}[${seg.text}]`;
+  }
+  return tok.text;
+}
+
+/** 画布底栏：左侧一键清除本行时间 + 精确微调，右侧实时录制态胶囊与精简键位提示。 */
 function StageFooterBar(props: {
   session: EditorSession;
   audio: AudioController | null;
+  lines: readonly EditorLine[];
   line: EditorLine | undefined;
   tokenId?: string | undefined;
   segmentId?: string | undefined;
+  openBeat: LyricBeatTarget | null;
   mode: Exclude<LyricsWorkMode, 'quickEdit'>;
+  onClearLineTiming: () => void;
 }) {
-  const { session, audio, line, mode } = props;
+  const { session, audio, lines, line, openBeat, mode, onClearLineTiming } = props;
   const token = line && props.tokenId ? line.tokens.find((t) => t.id === props.tokenId) : undefined;
   const selectedSeg = line && token && props.segmentId ? selectedSegment(line, { lineId: line.id, tokenId: token.id, segmentId: props.segmentId }) : undefined;
+  const busy = session.state.pendingCommands > 0;
+  const canClearLine =
+    !!line &&
+    lineHasAnyTiming(line) &&
+    !busy &&
+    (session.supportsCommand('lyrics.clearLineTiming') || session.supportsCommand('lyrics.clearTokenTime'));
 
   const setTimeRange = (target: LyricTimingTarget) => (startUs: number, endUs: number) =>
     session.command({ type: 'lyrics.setTimeRange', target, startUs: toMicros(startUs), endUs: toMicros(endUs) });
@@ -1054,9 +1132,30 @@ function StageFooterBar(props: {
     ? fromLyricTime(selectedSeg.segment.time).startUs
     : token?.startUs ?? line?.startUs;
 
+  const openBeatLabel = resolveBeatLabel(lines, openBeat);
+  const nextBeatLabel = selectedSeg
+    ? `${token?.text ?? ''}[${selectedSeg.segment.text}]`
+    : token && isContentToken(token)
+      ? token.text
+      : undefined;
+
   return (
-    <footer className="stage-footer" role="group" aria-label="时间微调与键位速查">
+    <footer className="stage-footer" role="group" aria-label="快捷反悔、时间微调与打轴状态">
       <div className="sf-timing">
+        <Tooltip label="清除本行全部时间（含行起止、词元与注音拍），光标复位行首，可 Ctrl+Z 撤销 · 打轴模式快捷键 Shift+Backspace">
+          <Button
+            variant="tonal"
+            size="sm"
+            icon="delete"
+            isDisabled={!canClearLine}
+            onPress={onClearLineTiming}
+          >
+            清除本行时间{mode === 'timing' ? ' (⇧⌫)' : ''}
+          </Button>
+        </Tooltip>
+
+        <span className="sf-divider" aria-hidden />
+
         {!line ? (
           <span className="faint small">选择一行或词元后可在此精确微调时间。</span>
         ) : selectedSeg ? (
@@ -1092,20 +1191,36 @@ function StageFooterBar(props: {
 
       <span className="spacer" />
 
-      <div className="sf-hints" aria-label="快捷键提示">
+      <div className="sf-hints" aria-label="当前打轴状态与快捷键提示">
         {mode === 'timing' ? (
           <>
-            <span><kbd>Space</kbd> 播放/暂停</span>
+            {openBeatLabel ? (
+              <span className="sf-live-pill is-live">
+                <span className="sf-live-dot" aria-hidden />
+                <span>
+                  录制中 <b>{openBeatLabel}</b>
+                  {nextBeatLabel ? (
+                    <>
+                      {' '}
+                      → 下一拍 <b>{nextBeatLabel}</b>
+                    </>
+                  ) : null}
+                </span>
+              </span>
+            ) : nextBeatLabel ? (
+              <span className="sf-live-pill">
+                <span>
+                  待打 <b>{nextBeatLabel}</b>
+                </span>
+              </span>
+            ) : null}
             <span><kbd>J</kbd>/<kbd>K</kbd> 连打</span>
-            <span><kbd>L</kbd> 收尾 ●</span>
-            <span><kbd>⌫</kbd>/<kbd>G</kbd> 回退复听</span>
+            <span><kbd>L</kbd> 收尾</span>
+            <span><kbd>⌫</kbd>/<kbd>G</kbd> 撤回一拍</span>
             <span><kbd>F2</kbd> 注音</span>
-            <span><kbd>Q</kbd>/<kbd>W</kbd> 变速</span>
-            <span><kbd>Z</kbd>/<kbd>X</kbd> 寻轨</span>
           </>
         ) : (
           <>
-            <span><kbd>Space</kbd> 播放</span>
             <span><kbd>F2</kbd> 注音</span>
             <span><kbd>L</kbd> 停顿 ○</span>
             <span><kbd>↵</kbd> 断行</span>

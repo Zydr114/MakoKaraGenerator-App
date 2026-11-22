@@ -30,7 +30,7 @@ const DEFAULT_STOP_TIMEOUT_MS = 120_000;
 function loadExpectedProductVersion() {
   const candidates = [
     path.join(__dirname, '..', 'contract-manifest.json'),
-    path.join(__dirname, '..', '..', 'frontend', 'docs', 'backend', 'contract', 'contract-manifest.json'),
+    path.join(__dirname, '..', '..', 'backend', 'web', 'contract-manifest.json'),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {

@@ -34,7 +34,7 @@ opening、active、spare、retiring 和排水失败的隔离对象，最多一�
 | `CloseStream` | `streamId`, `expectedStreamRevision` | 幂等有界排空；关闭后拒绝新控制与帧。 |
 | `ReadStreamState` | `streamId` | owner/host 校验后返回权威状态、epochs、最后应用控制和有限计数。 |
 
-新增路由及 DTO 已由 Server/Contracts 冻结并生成到 `backend/web/`，App 前端副本在 `frontend/docs/backend/`；原 PNG API、尺寸限制和导出合同不变。重复 request ID 使用现有 receipt 的相同负载幂等、不同负载冲突；revision 不匹配失败，不得先改变旧代。每 client、host 的 stream 数、固定资源、Worker 数和双代过渡内存须有明确硬预算；能力和分配之前检查 dimensions、实际 allocation 与总额，失败清理引用。第一版参数仅在能力响应声明实测支持的值，不能假定 1440p 可用。
+新增路由及 DTO 已由 Server/Contracts 冻结并生成到 `backend/web/`（单一真值源）；原 PNG API、尺寸限制和导出合同不变。重复 request ID 使用现有 receipt 的相同负载幂等、不同负载冲突；revision 不匹配失败，不得先改变旧代。每 client、host 的 stream 数、固定资源、Worker 数和双代过渡内存须有明确硬预算；能力和分配之前检查 dimensions、实际 allocation 与总额，失败清理引用。第一版参数仅在能力响应声明实测支持的值，不能假定 1440p 可用。
 
 已冻结的 HTTP 形状（现有授权 middleware 和 `RequestMetadataDto` 保持适用）：
 

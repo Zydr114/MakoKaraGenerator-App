@@ -13,7 +13,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const ELECTRON_VERSION = '45.2.1';
 const APP_NAME = 'MakoKaraGenerator';
 const RELEASE_ROOT = join(ROOT, '.local/release');
-const CONTRACT = 'frontend/docs/backend/contract/contract-manifest.json';
+const CONTRACT = 'backend/web/contract-manifest.json';
 const ELECTRON_RESOURCES = [
   'LICENSE', 'LICENSES.chromium.html', 'chrome_100_percent.pak', 'chrome_200_percent.pak', 'icudtl.dat',
   'locales/en-US.pak', 'resources.pak', 'snapshot_blob.bin', 'v8_context_snapshot.bin', 'vk_swiftshader_icd.json',

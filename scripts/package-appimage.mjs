@@ -142,7 +142,7 @@ function stageAppResources(appLibDir, frontendDist, backendDist, productVersion)
     ) + '\n',
     'utf8',
   );
-  copyFileSync(join(ROOT, 'frontend/docs/backend/contract/contract-manifest.json'), join(appResourcesDir, 'contract-manifest.json'));
+  copyFileSync(join(ROOT, 'backend/web/contract-manifest.json'), join(appResourcesDir, 'contract-manifest.json'));
   copyFileSync(join(ROOT, 'desktop/main.cjs'), join(appResourcesDir, 'main.cjs'));
   copyDirectory(join(ROOT, 'desktop/runtime'), join(appResourcesDir, 'runtime'), {
     filter: (name) => name.endsWith('.cjs'),
@@ -218,7 +218,7 @@ async function main() {
     throw new Error(`找不到 appimagetool：${appImageTool}`);
   }
 
-  const contractManifest = JSON.parse(readFileSync(join(ROOT, 'frontend/docs/backend/contract/contract-manifest.json'), 'utf8'));
+  const contractManifest = JSON.parse(readFileSync(join(ROOT, 'backend/web/contract-manifest.json'), 'utf8'));
   const productVersion = contractManifest.productVersion;
   const validated = backendHost.validateDesktopDeployment(state.dist, ELECTRON_VERSION);
   if (!backendHost.compatibleProductVersion(validated.deployment.version, productVersion)) {

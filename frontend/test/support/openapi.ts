@@ -1,4 +1,4 @@
-// 冻结 OpenAPI（docs/backend/contract/openapi.json）的最小校验器，只用于测试。
+// 冻结 OpenAPI（backend/web/openapi.json）的最小校验器，只用于测试。
 // 只实现该文件实际用到的 JSON Schema 关键字：type、properties、required、additionalProperties、prefixItems、items、$ref、enum、const、
 // pattern、oneOf、anyOf、allOf、not、if／then／else、minimum、maximum、exclusiveMinimum、minLength、maxLength、
 // minItems、maxItems、uniqueItems、contains／minContains／maxContains、dependentRequired、format(date-time)。
@@ -14,7 +14,7 @@ export interface SchemaIssue {
   message: string;
 }
 
-export const OPENAPI_PATH = fileURLToPath(new URL('../../docs/backend/contract/openapi.json', import.meta.url));
+export const OPENAPI_PATH = fileURLToPath(new URL('../../../backend/web/openapi.json', import.meta.url));
 
 export class OpenApiContract {
   readonly doc: { paths: Record<string, Record<string, unknown>>; components: { schemas: Record<string, Schema> } };

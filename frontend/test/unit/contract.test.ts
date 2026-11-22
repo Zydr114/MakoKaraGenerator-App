@@ -3,6 +3,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   BACKEND_ERROR_CODES,
@@ -31,25 +32,25 @@ import {
 import { OPENAPI_PATH, OpenApiContract } from '../support/openapi';
 
 const contract = OpenApiContract.load();
-const contractDir = new URL('../../docs/backend/contract/', import.meta.url);
+const contractDir = new URL('../../../backend/web/', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('contract-manifest.json', contractDir), 'utf8')) as {
   contractVersion: string;
   productVersion: string;
   artifacts: Record<string, string>;
 };
 
-describe('冻结合同副本', () => {
+describe('冻结合同', () => {
   it('版本与 src/protocol 固定的版本一致', () => {
     expect(manifest.contractVersion).toBe(CONTRACT_VERSION);
     expect(manifest.productVersion).toBe(CONTRACT_PRODUCT_VERSION);
   });
 
-  it('副本文件的 SHA-256 与 manifest 一致（防止手改副本）', () => {
+  it('合同文件的 SHA-256 与 manifest 一致（防止手改合同）', () => {
     for (const [name, sha] of Object.entries(manifest.artifacts)) {
-      const local = new URL(name.split('/').pop()!, contractDir);
+      const local = new URL(name.replace(/^web\//, ''), contractDir);
       expect(createHash('sha256').update(readFileSync(local)).digest('hex'), name).toBe(sha);
     }
-    expect(OPENAPI_PATH.endsWith('openapi.json')).toBe(true);
+    expect(OPENAPI_PATH).toBe(fileURLToPath(new URL('openapi.json', contractDir)));
   });
 });
 

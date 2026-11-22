@@ -19,7 +19,7 @@ export const DEFAULT_BOOTSTRAP_FILE = join(DEV_DIR, 'backend.json');
 export const DEFAULT_PROFILE = join(DEV_DIR, 'backend-profile');
 export const DEV_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
-/** 本项目固定消费的后端合同版本（docs/backend/contract/contract-manifest.json）。 */
+/** 本项目固定消费的后端合同版本（backend/web/contract-manifest.json）。 */
 export const EXPECTED_PRODUCT_VERSION = backendHost.EXPECTED_PRODUCT_VERSION;
 
 /**

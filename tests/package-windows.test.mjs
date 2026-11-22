@@ -112,7 +112,7 @@ test('Windows ZIP stages a renamed runtime, matched deployment, and only product
     put(electronDist, file, pe());
   }
   put(root, 'frontend/dist/index.html', '<html></html>');
-  put(root, 'frontend/docs/backend/contract/contract-manifest.json', JSON.stringify({ productVersion: version }));
+  put(root, 'backend/web/contract-manifest.json', JSON.stringify({ productVersion: version }));
   put(root, 'desktop/main.cjs', '');
   put(root, 'desktop/assets/icon-128.png', 'icon');
   put(root, 'desktop/runtime/windows-portable.cjs', '');

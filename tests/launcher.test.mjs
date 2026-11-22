@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const privateFs = require('../desktop/runtime/private-fs.cjs');
 
 const root = resolve(import.meta.dirname, '..');
-const productVersion = JSON.parse(readFileSync(join(root, 'frontend/docs/backend/contract/contract-manifest.json'), 'utf8')).productVersion;
+const productVersion = JSON.parse(readFileSync(join(root, 'backend/web/contract-manifest.json'), 'utf8')).productVersion;
 const distRoot = join(root, '.local/backend-dist');
 await mkdir(distRoot, { recursive: true });
 const dist = await mkdtemp(join(distRoot, 'launcher-test-'));

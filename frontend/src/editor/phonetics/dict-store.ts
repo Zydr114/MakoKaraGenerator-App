@@ -439,9 +439,44 @@ export class JapaneseDictStore {
     } = {},
   ): Promise<DictCacheStatus> {
     const fetchFn = options.fetchImpl ?? globalThis.fetch;
+    const useLocalProxy = !options.fetchImpl && typeof globalThis.location !== 'undefined' && /^https?:/i.test(globalThis.location.origin);
     const baseUrl = normalizeBaseUrl(baseUrlInput ?? '');
     const signal = options.signal;
     const report = (p: DictDownloadProgress) => options.onProgress?.(p);
+
+    const fetchDictAsset = async (targetUrl: string): Promise<Response> => {
+      if (useLocalProxy) {
+        try {
+          const targetOrigin = new URL(targetUrl).origin;
+          if (targetOrigin !== globalThis.location.origin) {
+            const proxied = await fetchFn(
+              `${globalThis.location.origin}/__mako/dict-proxy?url=${encodeURIComponent(targetUrl)}`,
+              { ...(signal ? { signal } : {}) },
+            );
+            // If the host exposes /__mako/dict-proxy (marked with X-Mako-Dict-Proxy: 1), always trust its status (including upstream 404).
+            if (proxied.headers.get('x-mako-dict-proxy') === '1' || proxied.status !== 404) {
+              return proxied;
+            }
+          }
+        } catch (err) {
+          if (signal?.aborted) throw err;
+          // Fall through to direct fetch when local proxy is unreachable.
+        }
+      }
+      return fetchFn(targetUrl, { ...(signal ? { signal } : {}) });
+    };
+
+    const readHttpErrorDetail = async (res: Response): Promise<string> => {
+      try {
+        if (res.headers.get('content-type')?.includes('application/json')) {
+          const body = (await res.json()) as { error?: unknown };
+          if (typeof body?.error === 'string' && body.error.trim()) return body.error.trim();
+        }
+      } catch {
+        // Ignore JSON parse errors.
+      }
+      return `HTTP ${res.status}`;
+    };
 
     report({
       phase: 'manifest',
@@ -453,9 +488,10 @@ export class JapaneseDictStore {
       percent: 0,
     });
 
-    const manifestRes = await fetchFn(`${baseUrl}/${MANIFEST_FILE}`, { ...(signal ? { signal } : {}) });
+    const manifestRes = await fetchDictAsset(`${baseUrl}/${MANIFEST_FILE}`);
     if (!manifestRes.ok) {
-      throw new Error(`下载词典清单失败（HTTP ${manifestRes.status}）。请检查网络、代理或切换镜像地址。`);
+      const detail = await readHttpErrorDetail(manifestRes);
+      throw new Error(`下载词典清单失败（${detail}）。请检查网络、代理或切换镜像地址。`);
     }
     const manifest = validateManifestShape(await manifestRes.json());
     const totalBytes = manifest.totalBytes;
@@ -467,13 +503,14 @@ export class JapaneseDictStore {
       const expected = manifest.files[filename]!;
       if (signal?.aborted) throw new DOMException('词典下载已取消。', 'AbortError');
 
-      // Try `<baseUrl>/dict/<filename>` first, fallback to `<baseUrl>/<filename>`.
-      let res = await fetchFn(`${baseUrl}/dict/${filename}`, { ...(signal ? { signal } : {}) });
+      // Prefer flat `<baseUrl>/<filename>` (GitHub Releases layout), fallback to `<baseUrl>/dict/<filename>`.
+      let res = await fetchDictAsset(`${baseUrl}/${filename}`);
       if (res.status === 404) {
-        res = await fetchFn(`${baseUrl}/${filename}`, { ...(signal ? { signal } : {}) });
+        res = await fetchDictAsset(`${baseUrl}/dict/${filename}`);
       }
       if (!res.ok) {
-        throw new Error(`下载词典文件 ${filename} 失败（HTTP ${res.status}）。`);
+        const detail = await readHttpErrorDetail(res);
+        throw new Error(`下载词典文件 ${filename} 失败（${detail}）。`);
       }
 
       let bytes: Uint8Array;

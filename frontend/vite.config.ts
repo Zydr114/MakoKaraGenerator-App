@@ -1,10 +1,49 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
-import { makoBootstrapPlugin } from './scripts/vite-bootstrap-plugin.ts';
+import { checkBootstrapRequest, makoBootstrapPlugin } from './scripts/vite-bootstrap-plugin.ts';
+
+const requireFromConfig = createRequire(import.meta.url);
+const dictProxy = requireFromConfig('../desktop/runtime/dict-proxy.cjs') as {
+  handleDictProxyRequest: (req: unknown, res: unknown) => Promise<void>;
+};
+
+/** 开发服务器同源词典下载代理：与生产 web-server.cjs 保持一致，避免开发期拉取 GitHub Releases 触发浏览器 CORS 拦截。 */
+function makoDictProxyPlugin(allowedHosts: readonly string[]): Plugin {
+  return {
+    name: 'mako-dev-dict-proxy',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/__mako/dict-proxy', (req, res) => {
+        const header = (name: string) => {
+          const v = req.headers[name];
+          return Array.isArray(v) ? v[0] : v;
+        };
+        const rejected = checkBootstrapRequest(
+          {
+            method: req.method,
+            remoteAddress: req.socket.remoteAddress,
+            host: header('host'),
+            origin: header('origin'),
+            secFetchSite: header('sec-fetch-site'),
+          },
+          allowedHosts,
+        );
+        if (rejected) {
+          res.statusCode = rejected.status;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: rejected.reason }));
+          return;
+        }
+        void dictProxy.handleDictProxyRequest(req, res);
+      });
+    },
+  };
+}
 
 /**
  * AGPL v3 合规门禁：禁止将 @patdx/kuromoji 自带的 IPADIC 词典资产（dict/*.dat.gz）
@@ -58,6 +97,7 @@ export default defineConfig({
       file: process.env.MAKO_APP_BOOTSTRAP_FILE ?? fileURLToPath(new URL('./.dev/backend.json', import.meta.url)),
       allowedHosts: DEV_HOSTS,
     }),
+    makoDictProxyPlugin(DEV_HOSTS),
   ],
   optimizeDeps: {
     exclude: ['@patdx/kuromoji/dict'],

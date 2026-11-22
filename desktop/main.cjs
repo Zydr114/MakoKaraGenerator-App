@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, Menu, MessageChannelMain, dialog, ipcMain, screen, sharedTexture } = require('electron');
+const { app, BrowserWindow, Menu, MessageChannelMain, dialog, ipcMain, net, screen, sharedTexture } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash, randomBytes } = require('node:crypto');
@@ -545,6 +545,7 @@ if(singleInstanceGranted)(async()=>{
       port: 5180,
       allowFallbackPort: true,
       getBootstrap: () => backendProcess?.info,
+      dictFetch: (url, init) => net.fetch(url, init),
     });
     const consumerId = randomBytes(16).toString('hex');
     const consumerSecret = randomBytes(32).toString('hex');

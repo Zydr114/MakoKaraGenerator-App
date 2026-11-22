@@ -84,10 +84,10 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             AuthorCompilationResponse result = registry.ReadAuthorCompilationResult("client", job.JobId).Response!;
             Assert.Equal(draft.CurrentSourceRevision, result.SourceRevision);
             Assert.True(result.Succeeded);
-            if (action == "delete") Assert.Equal(BackendErrorCode.ResourceNotFound, registry.ReadAuthorDraft("client", draft.DraftId).Error!.Code);
+            if (action == "delete") Assert.Equal(BackendErrorCode.ResourceNotFound, (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Error!.Code);
             else
             {
-                AuthorDraftResponse current = registry.ReadAuthorDraft("client", draft.DraftId).Response!;
+                AuthorDraftResponse current = (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Response!;
                 Assert.Equal(changed!.DraftRevision, current.DraftRevision);
                 Assert.Equal(changed.SourceRevision, current.CurrentSourceRevision);
                 Assert.Null(current.LastCompilation);
@@ -153,7 +153,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             Assert.True(created.Accepted, created.Error?.Message);
             AuthorDraftResponse draft = created.Response!;
             Assert.True(registry.HasAuthorDraft("client"));
-            Assert.Equal(BackendErrorCode.ResourceUnauthorized, registry.ReadAuthorDraft("other", draft.DraftId).Error!.Code);
+            Assert.Equal(BackendErrorCode.ResourceUnauthorized, (await registry.ReadAuthorDraftAsync("other", draft.DraftId)).Error!.Code);
 
             BackendOperationResult<AuthorCompilationResponse> compiled = await registry.CompileAuthorDraftAsync("client", draft.DraftId,
                 new(draft.DraftRevision, Metadata(registry, "compile")));
@@ -175,7 +175,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             Assert.False(persisted.Succeeded);
             Assert.Contains(persisted.Diagnostics, diagnostic => diagnostic.Path == "src/PackEffect.cs");
 
-            AuthorDraftResponse reopened = registry.ReadAuthorDraft("client", draft.DraftId).Response!;
+            AuthorDraftResponse reopened = (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Response!;
             BackendOperationResult<AuthorAdoptSourceRevisionResponse> adopted = await registry.AdoptAuthorSourceRevisionAsync("client", draft.DraftId,
                 new(reopened.DraftRevision, draft.CurrentSourceRevision, Metadata(registry, "adopt")));
             Assert.True(adopted.Accepted, adopted.Error?.Message);
@@ -183,7 +183,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
                 new(adopted.Response!.DraftRevision, Metadata(registry, "delete")));
             Assert.True(deleted.Accepted, deleted.Error?.Message);
             Assert.False(registry.HasAuthorDraft("client"));
-            Assert.Equal(BackendErrorCode.ResourceNotFound, registry.ReadAuthorDraft("client", draft.DraftId).Error!.Code);
+            Assert.Equal(BackendErrorCode.ResourceNotFound, (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Error!.Code);
         }
         finally
         {
@@ -210,7 +210,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             RequestMetadataDto sourceMetadata = Metadata(registry, "source");
             AuthorSourceRevisionRequest cas = new(first.DraftRevision, [new("src/PackEffect.cs", "public class Broken { invalid !!! }")], sourceMetadata);
             AuthorSourceRevisionResponse changed = (await registry.SaveAuthorSourceRevisionAsync("client", first.DraftId, cas)).Response!;
-            AuthorDraftResponse after = registry.ReadAuthorDraft("client", first.DraftId).Response!;
+            AuthorDraftResponse after = (await registry.ReadAuthorDraftAsync("client", first.DraftId)).Response!;
             BackendOperationResult<AuthorCompilationResponse> foreignCompile = await registry.CompileAuthorDraftAsync("other", first.DraftId, new(after.DraftRevision, Metadata(registry, "foreign-compile")));
             Assert.Equal(BackendErrorCode.ResourceUnauthorized, foreignCompile.Error!.Code);
             BackendOperationResult<AuthorDraftDeleteResponse> foreignDelete = await registry.DeleteAuthorDraftAsync("other", first.DraftId, new(after.DraftRevision, Metadata(registry, "foreign-delete")));
@@ -218,7 +218,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             BackendOperationResult<AuthorSourceRevisionResponse> conflict = await registry.SaveAuthorSourceRevisionAsync("client", first.DraftId,
                 new(first.DraftRevision, cas.Files, Metadata(registry, "stale")));
             Assert.Equal(BackendErrorCode.RevisionConflict, conflict.Error!.Code);
-            Assert.Equal(after.DraftRevision, registry.ReadAuthorDraft("client", first.DraftId).Response!.DraftRevision);
+            Assert.Equal(after.DraftRevision, (await registry.ReadAuthorDraftAsync("client", first.DraftId)).Response!.DraftRevision);
             RequestMetadataDto deleteMetadata = Metadata(registry, "delete");
             AuthorDraftDeleteResponse deleted = (await registry.DeleteAuthorDraftAsync("client", first.DraftId, new(after.DraftRevision, deleteMetadata))).Response!;
             AuthorDraftDeleteResponse retried = (await registry.DeleteAuthorDraftAsync("client", first.DraftId, new(after.DraftRevision, deleteMetadata))).Response!;
@@ -236,7 +236,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
         ProjectSessionRegistry registry = NewRegistry("host", resources, directory.FilePath("state"), null);
         try
         {
-            Assert.Equal(BackendErrorCode.InvalidRequest, registry.ReadAuthorDraft("client", "../draft").Error!.Code);
+            Assert.Equal(BackendErrorCode.InvalidRequest, (await registry.ReadAuthorDraftAsync("client", "../draft")).Error!.Code);
             RequestMetadataDto metadata = Metadata(registry, "bad");
             BackendOperationResult<AuthorAdoptSourceRevisionResponse> bad = await registry.AdoptAuthorSourceRevisionAsync("client", "draft-00000000000000000000000000000000",
                 new("sha256:" + new string('0', 64), "sha256:../" + new string('0', 57), metadata));
@@ -286,11 +286,11 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             string source = "public class Broken { public void M() {\n" + string.Join('\n', Enumerable.Range(0, 400).Select(i => $"unknown_symbol_{i};")) + "\n} }";
             AuthorSourceRevisionResponse revision = (await registry.SaveAuthorSourceRevisionAsync("client", draft.DraftId,
                 new(draft.DraftRevision, [new("src/PackEffect.cs", source)], Metadata(registry, "source")))).Response!;
-            AuthorDraftResponse before = registry.ReadAuthorDraft("client", draft.DraftId).Response!;
+            AuthorDraftResponse before = (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Response!;
             BackendOperationResult<AuthorCompilationResponse> result = await registry.CompileAuthorDraftAsync("client", draft.DraftId,
                 new(revision.DraftRevision, Metadata(registry, "compile")));
             Assert.Equal(BackendErrorCode.ResourceTooLarge, result.Error!.Code);
-            Assert.Equal(before.DraftRevision, registry.ReadAuthorDraft("client", draft.DraftId).Response!.DraftRevision);
+            Assert.Equal(before.DraftRevision, (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Response!.DraftRevision);
             Assert.Null(registry.ReadAuthorCompilation("client", draft.DraftId).Response);
         }
         finally { await registry.DisposeAsync(); }
@@ -311,7 +311,7 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
         {
             AuthorDraftResponse created = (await registry.CreateAuthorDraftAsync("client",
                 new(asset.AssetId, "scale", "author", Metadata(registry, "create")))).Response!;
-            AuthorDraftListResponse listed = registry.ReadAuthorDrafts("client").Response!;
+            AuthorDraftListResponse listed = (await registry.ReadAuthorDraftsAsync("client")).Response!;
             AuthorDraftResponse listedDraft = Assert.Single(listed.Drafts);
             Assert.Equal(created.DraftId, listedDraft.DraftId);
             Assert.NotNull(listedDraft.Configuration);
@@ -319,8 +319,8 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
             Assert.Contains(listedDraft.SampleOptions!.Samples, sample => sample.SampleId == "workshop-single-line-v1");
             Assert.Contains("tokens", listedDraft.SampleOptions.Samples.SelectMany(sample => sample.Targets).Select(target => target.Binding.Kind));
 
-            AuthorDraftSourcesResponse sources = registry.ReadAuthorSources("client", created.DraftId, created.DraftRevision,
-                created.CurrentSourceRevision).Response!;
+            AuthorDraftSourcesResponse sources = (await registry.ReadAuthorSourcesAsync("client", created.DraftId, created.DraftRevision,
+                created.CurrentSourceRevision)).Response!;
             Assert.Equal(created.CurrentSourceRevision, sources.SourceRevision);
             Assert.Equal("src/PackEffect.cs", Assert.Single(sources.Files).Path);
             Assert.Contains("PackEffect", sources.Files[0].Text, StringComparison.Ordinal);
@@ -339,14 +339,14 @@ public sealed class BackendAuthorWorkflowTests(ITestOutputHelper output)
 
             Assert.Equal(BackendErrorCode.RevisionConflict, (await registry.SaveAuthorConfigurationAsync("client", created.DraftId,
                 new(created.DraftRevision, input, Metadata(registry, "configuration-stale")))).Error!.Code);
-            Assert.Equal(BackendErrorCode.RevisionConflict, registry.ReadAuthorSources("client", created.DraftId,
-                created.DraftRevision, created.CurrentSourceRevision).Error!.Code);
-            Assert.Equal(BackendErrorCode.ResourceUnauthorized, registry.ReadAuthorSources("other", created.DraftId,
-                updated.DraftRevision, created.CurrentSourceRevision).Error!.Code);
+            Assert.Equal(BackendErrorCode.RevisionConflict, (await registry.ReadAuthorSourcesAsync("client", created.DraftId,
+                created.DraftRevision, created.CurrentSourceRevision)).Error!.Code);
+            Assert.Equal(BackendErrorCode.ResourceUnauthorized, (await registry.ReadAuthorSourcesAsync("other", created.DraftId,
+                updated.DraftRevision, created.CurrentSourceRevision)).Error!.Code);
 
             await registry.DisposeAsync();
             registry = NewRegistry("host-reopen", resources, state, null);
-            AuthorDraftResponse reopened = registry.ReadAuthorDraft("client", created.DraftId).Response!;
+            AuthorDraftResponse reopened = (await registry.ReadAuthorDraftAsync("client", created.DraftId)).Response!;
             Assert.Equal(updated.DraftRevision, reopened.DraftRevision);
             Assert.Equal(updated.Configuration.Name, reopened.Configuration!.Name);
             Assert.Equal(updated.Configuration.ParametersJson, reopened.Configuration.ParametersJson);

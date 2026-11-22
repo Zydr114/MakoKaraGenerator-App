@@ -19,12 +19,12 @@ public sealed class BackendAuthorSvgWorkflowTests
     public async Task SVG作者真实编译报告绑定失败源且修复后才生成产物(bool atlas, bool asynchronous)
     {
         await using BackendAuthorSvgWorkflowFixture fixture = await CreateAsync(atlas);
-        AuthorDraftResponse original = fixture.Read();
+        AuthorDraftResponse original = await fixture.ReadAsync();
         Assert.Equal(3, original.PackageVersion);
         Assert.Equal("2.0.0", original.SdkVersion);
         Assert.True(original.CanCompile);
 
-        AuthorDraftSourcesResponse sources = Accepted(fixture.Registry.ReadAuthorSources("client", original.DraftId,
+        AuthorDraftSourcesResponse sources = Accepted(await fixture.Registry.ReadAuthorSourcesAsync("client", original.DraftId,
             original.DraftRevision, original.CurrentSourceRevision));
         AuthorSourceFileDto[] editedSources = [.. sources.Files.Select(file => file with { Text = file.Text + "\n// real author save" })];
         AuthorSourceRevisionResponse sourceSaved = Accepted(await fixture.Registry.SaveAuthorSourceRevisionAsync("client", original.DraftId,
@@ -35,9 +35,9 @@ public sealed class BackendAuthorSvgWorkflowTests
             new(original.DraftRevision, editedSources, fixture.Metadata()));
         Assert.False(conflict.Accepted);
         Assert.Equal(BackendErrorCode.RevisionConflict, conflict.Error!.Code);
-        Assert.Equal(sourceSaved.SourceRevision, fixture.Read().CurrentSourceRevision);
+        Assert.Equal(sourceSaved.SourceRevision, (await fixture.ReadAsync()).CurrentSourceRevision);
 
-        AuthorPackageFilesResponse files = fixture.ReadFiles();
+        AuthorPackageFilesResponse files = await fixture.ReadFilesAsync();
         AuthorPackageFileDto svg = Assert.Single(files.Files, file => file.Role == "svg");
         AuthorPackageFileDto descriptor = Assert.Single(files.Files, file => file.Role == "svgResource");
         Assert.True(svg.Editable); Assert.Equal(GoodSvg, svg.Text);
@@ -54,7 +54,7 @@ public sealed class BackendAuthorSvgWorkflowTests
         Assert.NotEqual(sourceSaved.SourceRevision, badDraft.CurrentSourceRevision);
         Assert.Equal(original.CurrentSourceRevision, badDraft.Configuration!.SourceRevision);
         Assert.Null(badDraft.AdoptedSourceRevision);
-        AuthorPackageFilesResponse badFiles = fixture.ReadFiles();
+        AuthorPackageFilesResponse badFiles = await fixture.ReadFilesAsync();
         Assert.Equal(BadSvg, badFiles.Files.Single(file => file.Path == SvgPath).Text);
         Assert.Equal(120, JsonNode.Parse(badFiles.Files.Single(file => file.Path == DescriptorPath).Text!)!["viewport"]!["width"]!.GetValue<int>());
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(BadSvg))),
@@ -74,9 +74,9 @@ public sealed class BackendAuthorSvgWorkflowTests
         AuthorCompilationResponse persisted = Accepted(fixture.Registry.ReadAuthorCompilation("client", original.DraftId));
         Assert.Equal(failed.SourceRevision, persisted.SourceRevision);
         Assert.Equal(diagnostic, Assert.Single(persisted.Diagnostics));
-        Assert.Equal(original.CurrentSourceRevision, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(original.CurrentSourceRevision, (await fixture.ReadAsync()).Configuration!.SourceRevision);
 
-        AuthorDraftResponse repaired = Accepted(await fixture.SaveFilesAsync(fixture.ReadFiles(),
+        AuthorDraftResponse repaired = Accepted(await fixture.SaveFilesAsync(await fixture.ReadFilesAsync(),
             file => file.Path == SvgPath ? GoodSvg : file.Text!));
         Assert.NotEqual(badDraft.CurrentSourceRevision, repaired.CurrentSourceRevision);
         Assert.Equal(failed.SourceRevision, repaired.LastCompilation!.SourceRevision);
@@ -89,7 +89,7 @@ public sealed class BackendAuthorSvgWorkflowTests
         Assert.Equal(repaired.CurrentSourceRevision, success.SourceRevision);
         Assert.Equal(repaired.DraftRevision, success.DraftRevision);
         Assert.False(success.Stale);
-        AuthorDraftResponse current = fixture.Read();
+        AuthorDraftResponse current = await fixture.ReadAsync();
         Assert.True(current.LastCompilation!.Succeeded);
         Assert.Equal(success.SourceRevision, current.LastCompilation.SourceRevision);
         Assert.Equal(original.CurrentSourceRevision, current.Configuration!.SourceRevision);
@@ -99,10 +99,10 @@ public sealed class BackendAuthorSvgWorkflowTests
             original.DraftId, current.DraftRevision));
         Assert.False(history.Revisions.Single(item => item.SourceRevision == failed.SourceRevision).Compilation!.Succeeded);
         Assert.True(history.Revisions.Single(item => item.SourceRevision == success.SourceRevision).Compilation!.Succeeded);
-        Assert.Equal(BadSvg, fixture.ReadFiles(failed.SourceRevision).Files.Single(file => file.Path == SvgPath).Text);
+        Assert.Equal(BadSvg, (await fixture.ReadFilesAsync(failed.SourceRevision)).Files.Single(file => file.Path == SvgPath).Text);
         EffectPackageContents downloaded = await fixture.DownloadAsync();
         Assert.Equal(BinaryBytes, downloaded.Files.Single(file => file.Path == BinaryPath).Content.ToArray());
-        AuthorPackageFileDto finalBinary = fixture.ReadFiles().Files.Single(file => file.Path == BinaryPath);
+        AuthorPackageFileDto finalBinary = (await fixture.ReadFilesAsync()).Files.Single(file => file.Path == BinaryPath);
         Assert.Equal(binary.Sha256, finalBinary.Sha256); Assert.Equal(binary.SizeBytes, finalBinary.SizeBytes);
     }
 
@@ -114,12 +114,12 @@ public sealed class BackendAuthorSvgWorkflowTests
     public async Task SVG包编辑必须提交全部SVG文本且拒绝后不推进修订(bool atlas, string omittedPath)
     {
         await using BackendAuthorSvgWorkflowFixture fixture = await CreateAsync(atlas);
-        AuthorDraftResponse before = fixture.Read();
-        var rejected = await fixture.SaveFilesAsync(fixture.ReadFiles(), file => file.Text!, omittedPath);
+        AuthorDraftResponse before = await fixture.ReadAsync();
+        var rejected = await fixture.SaveFilesAsync(await fixture.ReadFilesAsync(), file => file.Text!, omittedPath);
         Assert.False(rejected.Accepted);
         Assert.Equal(BackendErrorCode.InvalidRequest, rejected.Error!.Code);
         Assert.Equal("textFiles", rejected.Error.Field);
-        AuthorDraftResponse after = fixture.Read();
+        AuthorDraftResponse after = await fixture.ReadAsync();
         Assert.Equal(before.DraftRevision, after.DraftRevision);
         Assert.Equal(before.CurrentSourceRevision, after.CurrentSourceRevision);
         Assert.Equal(before.Configuration!.SourceRevision, after.Configuration!.SourceRevision);

@@ -79,7 +79,7 @@ public sealed partial class ProjectSessionRegistry
                 {
                     AuthorDraftDocument updated = sameOwner && document.SchemaVersion == 1 ? document : document with
                     { OwnerClientId = clientId, SchemaVersion = 1, OwnershipRevision = NewOwnershipRevision() };
-                    AuthorDraftResponse response = ToAuthorResponse(updated);
+                    AuthorDraftResponse response = await ToAuthorResponseAsync(updated, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);
                     if (!ReferenceEquals(updated, document))
                     {
                         await _authorStorageGate.WaitAsync(_authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false);

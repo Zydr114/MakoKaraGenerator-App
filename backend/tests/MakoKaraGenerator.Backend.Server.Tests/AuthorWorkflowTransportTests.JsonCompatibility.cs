@@ -107,7 +107,7 @@ public sealed partial class AuthorWorkflowTransportTests
         using HttpResponseMessage adopted = await fixture.Http.PostAsync($"/api/v1/drafts/{original.DraftId}/adopt-source-revision", body);
         Assert.Equal(HttpStatusCode.OK, adopted.StatusCode);
         AuthorAdoptSourceRevisionResponse receipt = (await adopted.Content.ReadFromJsonAsync<AuthorAdoptSourceRevisionResponse>())!;
-        AuthorDraftResponse current = fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response!;
+        AuthorDraftResponse current = (await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response!;
         Assert.Equal(receipt.DraftRevision, current.DraftRevision);
         Assert.Equal(original.CurrentSourceRevision, current.AdoptedSourceRevision);
         Assert.Equal(original.CurrentSourceRevision, current.CurrentSourceRevision);

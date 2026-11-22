@@ -17,7 +17,7 @@ public sealed class BackendAuthorHistoryExportTests
         AuthorCompilationResponse baseCompilation = Accepted(await fixture.Registry.CompileAuthorDraftAsync("client", draft.DraftId,
             new(draft.DraftRevision, fixture.Metadata())));
 
-        AuthorDraftSourcesResponse source = Accepted(fixture.Registry.ReadAuthorSources("client", draft.DraftId,
+        AuthorDraftSourcesResponse source = Accepted(await fixture.Registry.ReadAuthorSourcesAsync("client", draft.DraftId,
             draft.DraftRevision, draft.CurrentSourceRevision));
         AuthorSourceRevisionResponse saved = Accepted(await fixture.Registry.SaveAuthorSourceRevisionAsync("client", draft.DraftId,
             new(draft.DraftRevision, [new("src/PackEffect.cs", source.Files[0].Text + "\n// history-a")], fixture.Metadata())));
@@ -57,11 +57,11 @@ public sealed class BackendAuthorHistoryExportTests
         Assert.Equal(draft.PackageId, currentArchive.PackageId);
         Assert.Equal(draft.CurrentSourceRevision, currentArchive.Revision);
 
-        AuthorDraftSourcesResponse source = Accepted(fixture.Registry.ReadAuthorSources("client", draft.DraftId,
+        AuthorDraftSourcesResponse source = Accepted(await fixture.Registry.ReadAuthorSourcesAsync("client", draft.DraftId,
             draft.DraftRevision, draft.CurrentSourceRevision));
         AuthorSourceRevisionResponse saved = Accepted(await fixture.Registry.SaveAuthorSourceRevisionAsync("client", draft.DraftId,
             new(draft.DraftRevision, [new("src/PackEffect.cs", source.Files[0].Text + "\n// export-a")], fixture.Metadata())));
-        AuthorDraftResponse changed = Accepted(fixture.Registry.ReadAuthorDraft("client", draft.DraftId));
+        AuthorDraftResponse changed = Accepted(await fixture.Registry.ReadAuthorDraftAsync("client", draft.DraftId));
         Assert.Equal(BackendErrorCode.RevisionConflict,
             (await fixture.Registry.OpenAuthorPackageAsync("client", draft.DraftId, draft.DraftRevision,
                 draft.CurrentSourceRevision)).Error!.Code);

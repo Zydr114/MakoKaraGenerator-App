@@ -15,9 +15,11 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class WorkerValidationIntegrationTests(ITestOutputHelper output)
 {
     [Fact]
-    public void 真实Worker能力探针成功后缓存package_validation资格()
+    public async Task 真实Worker能力探针成功后缓存package_validation资格()
     {
         var executor = new WorkerBackendValidationExecutor(Options());
+        Assert.False(executor.PackageValidationAvailable);
+        await executor.ProbeCapabilitiesAsync();
         Assert.True(executor.PackageValidationAvailable);
         Assert.True(executor.PackageValidationAvailable);
     }

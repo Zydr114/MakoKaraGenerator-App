@@ -91,8 +91,16 @@ string? configuredValidationTimeout = Environment.GetEnvironmentVariable("MAKO_B
 if (configuredValidationTimeout is not null && (!int.TryParse(configuredValidationTimeout, NumberStyles.None,
     CultureInfo.InvariantCulture, out validationTimeoutSeconds) || validationTimeoutSeconds is < 1 or > 60))
     throw new InvalidOperationException("正式验证超时必须为1至60秒。");
-sessions.ConfigureValidationTasks(previewWorker.Options is null ? null : new WorkerBackendValidationExecutor(previewWorker.Options,
-    TimeSpan.FromSeconds(validationTimeoutSeconds)), operationTimeoutSeconds: validationTimeoutSeconds);
+WorkerBackendValidationExecutor? validationExecutor = previewWorker.Options is null
+    ? null
+    : new WorkerBackendValidationExecutor(previewWorker.Options, TimeSpan.FromSeconds(validationTimeoutSeconds));
+if (validationExecutor is not null)
+{
+    using CancellationTokenSource validationProbeDeadline = new(TimeSpan.FromSeconds(Math.Min(validationTimeoutSeconds, 15)));
+    try { await validationExecutor.ProbeCapabilitiesAsync(validationProbeDeadline.Token).ConfigureAwait(false); }
+    catch (OperationCanceledException) { }
+}
+sessions.ConfigureValidationTasks(validationExecutor, operationTimeoutSeconds: validationTimeoutSeconds);
 int? exportTimeoutSeconds = OptionalExportInt("MAKO_BACKEND_EXPORT_TIMEOUT_SECONDS");
 BackendExportOptions exportOptions = new()
 {

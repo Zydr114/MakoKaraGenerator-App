@@ -15,24 +15,29 @@ public sealed partial class ProjectSessionRegistry
     private static readonly UTF8Encoding AuthorPackageUtf8 = new(false, true);
 
     /// <summary>读取精确草稿修订下完整包清单和全部文件描述；非文本原字节不经此接口返回。</summary>
-    public BackendOperationResult<AuthorPackageFilesResponse> ReadAuthorPackageFiles(string clientId, string draftId,
-        string expectedDraftRevision, string sourceRevision)
+    public async Task<BackendOperationResult<AuthorPackageFilesResponse>> ReadAuthorPackageFilesAsync(string clientId, string draftId,
+        string expectedDraftRevision, string sourceRevision, CancellationToken cancellationToken = default)
     {
         if (!TryReadAuthorDraft(clientId, draftId, out AuthorDraftDocument? document, out BackendErrorResponse? error))
             return BackendOperationResult<AuthorPackageFilesResponse>.Rejected(error!);
         SemaphoreSlim gate = _authorDraftLocks.GetOrAdd(draftId, static _ => new(1, 1));
-        gate.Wait(_authorStop?.Token ?? CancellationToken.None);
+        using CancellationTokenSource? linked = CreateAuthorReadTokenSource(cancellationToken, out CancellationToken token);
+        bool entered = false;
         try
         {
+            await gate.WaitAsync(token).ConfigureAwait(false);
+            entered = true;
             if (!TryReadAuthorDraft(clientId, draftId, out document, out error))
                 return BackendOperationResult<AuthorPackageFilesResponse>.Rejected(error!);
-            return ReadAuthorPackageFilesLocked(document!, expectedDraftRevision, sourceRevision);
+            return await ReadAuthorPackageFilesLockedAsync(document!, expectedDraftRevision, sourceRevision, token).ConfigureAwait(false);
         }
-        finally { gate.Release(); }
+        catch (OperationCanceledException) when (_authorStop?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+        { return AuthorReject<AuthorPackageFilesResponse>(BackendErrorCode.SessionClosing, "作者工作流正在停止。"); }
+        finally { if (entered) gate.Release(); }
     }
 
-    private BackendOperationResult<AuthorPackageFilesResponse> ReadAuthorPackageFilesLocked(AuthorDraftDocument document,
-        string expectedDraftRevision, string sourceRevision)
+    private async Task<BackendOperationResult<AuthorPackageFilesResponse>> ReadAuthorPackageFilesLockedAsync(AuthorDraftDocument document,
+        string expectedDraftRevision, string sourceRevision, CancellationToken cancellationToken)
     {
         if (!ValidRevision(expectedDraftRevision))
             return AuthorReject<AuthorPackageFilesResponse>(BackendErrorCode.InvalidRequest, "草稿修订无效。", "expectedDraftRevision");
@@ -42,8 +47,8 @@ public sealed partial class ProjectSessionRegistry
             return AuthorReject<AuthorPackageFilesResponse>(BackendErrorCode.RevisionConflict, "作者草稿修订已经改变，请重新读取草稿。", "expectedDraftRevision");
         try
         {
-            EffectPackageContents package = LoadPackageAsync(document.DraftId, sourceRevision,
-                _authorStop?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
+            EffectPackageContents package = await LoadPackageAsync(document.DraftId, sourceRevision,
+                cancellationToken).ConfigureAwait(false);
             long textBytes = package.Manifest.Length;
             int textFiles = 0;
             List<AuthorPackageFileDto> fileList = [];
@@ -209,7 +214,8 @@ public sealed partial class ProjectSessionRegistry
                 };
                 AuthorDraftDocument updated = updatedBase with { DraftRevision = ComputeDraftRevision(updatedBase, null) };
                 if (updated == document)
-                    return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(document));
+                    return BackendOperationResult<AuthorDraftResponse>.Success(
+                        await ToAuthorResponseAsync(document, lifetime).ConfigureAwait(false));
                 await _authorStorageGate.WaitAsync(lifetime).ConfigureAwait(false);
                 try
                 {
@@ -217,7 +223,8 @@ public sealed partial class ProjectSessionRegistry
                         return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceQuotaExceeded, "客户端作者草稿存储达到上限。", "textFiles");
                 }
                 finally { _authorStorageGate.Release(); }
-                return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(updated));
+                return BackendOperationResult<AuthorDraftResponse>.Success(
+                    await ToAuthorResponseAsync(updated, lifetime).ConfigureAwait(false));
             }
             catch (EffectPackageException packageError)
             { return AuthorReject<AuthorDraftResponse>(BackendErrorCode.InvalidRequest, packageError.Message, packageError.Path, packageError.Code); }

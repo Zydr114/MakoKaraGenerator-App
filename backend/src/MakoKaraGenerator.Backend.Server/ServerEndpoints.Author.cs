@@ -8,9 +8,9 @@ internal static partial class ServerEndpoints
     private static void ConfigureAuthorEndpoints(WebApplication app)
     {
         app.MapPost("/api/v1/drafts", CreateAuthorDraftAsync);
-        app.MapGet("/api/v1/drafts", ReadAuthorDrafts);
-        app.MapGet("/api/v1/drafts/{id}", ReadAuthorDraft);
-        app.MapGet("/api/v1/drafts/{id}/sources", ReadAuthorSources);
+        app.MapGet("/api/v1/drafts", ReadAuthorDraftsAsync);
+        app.MapGet("/api/v1/drafts/{id}", ReadAuthorDraftAsync);
+        app.MapGet("/api/v1/drafts/{id}/sources", ReadAuthorSourcesAsync);
         app.MapGet("/api/v1/drafts/{id}/source-inspection", ReadAuthorSourceInspectionAsync);
         app.MapPut("/api/v1/drafts/{id}/configuration", SaveAuthorConfigurationAsync);
         app.MapGet("/api/v1/drafts/{id}/compilation", ReadAuthorCompilation);
@@ -30,19 +30,20 @@ internal static partial class ServerEndpoints
         return Result(await tracker.RunAsync(() => registry.CreateAuthorDraftAsync(Client(request), input!, CancellationToken.None)), 201);
     }
 
-    private static IResult ReadAuthorDraft(string id, HttpRequest request, ProjectSessionRegistry registry) =>
-        Result(registry.ReadAuthorDraft(Client(request), id));
+    private static async Task<IResult> ReadAuthorDraftAsync(string id, HttpRequest request, ProjectSessionRegistry registry) =>
+        Result(await registry.ReadAuthorDraftAsync(Client(request), id, request.HttpContext.RequestAborted));
 
-    private static IResult ReadAuthorDrafts(HttpRequest request, ProjectSessionRegistry registry) =>
-        Result(registry.ReadAuthorDrafts(Client(request)));
+    private static async Task<IResult> ReadAuthorDraftsAsync(HttpRequest request, ProjectSessionRegistry registry) =>
+        Result(await registry.ReadAuthorDraftsAsync(Client(request), request.HttpContext.RequestAborted));
 
-    private static IResult ReadAuthorSources(string id, HttpRequest request, ProjectSessionRegistry registry)
+    private static async Task<IResult> ReadAuthorSourcesAsync(string id, HttpRequest request, ProjectSessionRegistry registry)
     {
         if (!request.Query.TryGetValue("expectedDraftRevision", out var expected) || string.IsNullOrWhiteSpace(expected))
             return Error(new(BackendErrorCode.InvalidRequest, "必须提供expectedDraftRevision查询参数。", "expectedDraftRevision"));
         if (!request.Query.TryGetValue("sourceRevision", out var source) || string.IsNullOrWhiteSpace(source))
             return Error(new(BackendErrorCode.InvalidRequest, "必须提供sourceRevision查询参数。", "sourceRevision"));
-        return Result(registry.ReadAuthorSources(Client(request), id, expected.ToString(), source.ToString()));
+        return Result(await registry.ReadAuthorSourcesAsync(Client(request), id, expected.ToString(), source.ToString(),
+            request.HttpContext.RequestAborted));
     }
 
     private static async Task<IResult> SaveAuthorConfigurationAsync(string id, HttpRequest request,

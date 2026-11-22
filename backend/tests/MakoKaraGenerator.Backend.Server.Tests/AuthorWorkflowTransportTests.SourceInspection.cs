@@ -73,7 +73,7 @@ public sealed partial class AuthorWorkflowTransportTests
         {
             expectedDraftRevision = original.DraftRevision, sourceRevision = original.CurrentSourceRevision, metadata = fixture.Metadata(),
         })) Assert.Equal(HttpStatusCode.OK, legacy.StatusCode);
-        AuthorDraftResponse current = fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response!;
+        AuthorDraftResponse current = (await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response!;
         using (HttpResponseMessage explicitNull = await fixture.Http.PostAsJsonAsync(route,
             new AuthorAdoptSourceRevisionRequest(current.DraftRevision, current.CurrentSourceRevision, fixture.Metadata(), Configuration: null)))
             Assert.Equal(HttpStatusCode.OK, explicitNull.StatusCode);
@@ -84,7 +84,7 @@ public sealed partial class AuthorWorkflowTransportTests
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             AuthorAdoptSourceRevisionResponse adopted = (await response.Content.ReadFromJsonAsync<AuthorAdoptSourceRevisionResponse>())!;
-            AuthorDraftResponse after = fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response!;
+            AuthorDraftResponse after = (await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response!;
             Assert.Equal(adopted.DraftRevision, after.DraftRevision);
             Assert.Equal(configuration.Name, after.Name);
             Assert.Equal(configuration.Name, after.Configuration!.Name);
@@ -93,7 +93,7 @@ public sealed partial class AuthorWorkflowTransportTests
             Assert.Equal(configuration.FixedSeed, after.Configuration.FixedSeed);
             Assert.Equal(current.CurrentSourceRevision, after.Configuration.SourceRevision);
         }
-        AuthorDraftResponse persisted = fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response!;
+        AuthorDraftResponse persisted = (await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response!;
         foreach (string forbidden in new[] { "packageId", "sourceRevision", "kind", "bindingKinds" })
         {
             var invalid = request with { ExpectedDraftRevision = persisted.DraftRevision, Metadata = fixture.Metadata() };
@@ -102,7 +102,7 @@ public sealed partial class AuthorWorkflowTransportTests
             using HttpResponseMessage response = await fixture.Http.PostAsync(route,
                 new StringContent(json.ToJsonString(), Encoding.UTF8, "application/json"));
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-            Assert.Equal(JsonSerializer.Serialize(persisted), JsonSerializer.Serialize(fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response));
+            Assert.Equal(JsonSerializer.Serialize(persisted), JsonSerializer.Serialize((await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response));
         }
         foreach (string required in new[] { "name", "exportId", "parametersJson", "relativeTarget", "readScope", "branchInput", "fixedSeed", "overlayLayer" })
         {
@@ -113,7 +113,7 @@ public sealed partial class AuthorWorkflowTransportTests
                 new StringContent(json.ToJsonString(), Encoding.UTF8, "application/json"));
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             Assert.Equal("configuration." + required, (await response.Content.ReadFromJsonAsync<BackendErrorResponse>())!.Field);
-            Assert.Equal(JsonSerializer.Serialize(persisted), JsonSerializer.Serialize(fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, original.DraftId).Response));
+            Assert.Equal(JsonSerializer.Serialize(persisted), JsonSerializer.Serialize((await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, original.DraftId)).Response));
         }
         using (HttpResponseMessage duplicate = await fixture.Http.PostAsync(route, new StringContent(
             "{\"configuration\":{\"name\":\"a\",\"name\":\"b\"}}", Encoding.UTF8, "application/json")))
@@ -142,6 +142,6 @@ public sealed partial class AuthorWorkflowTransportTests
         Assert.Equal(HttpStatusCode.OK, compile.StatusCode);
         AuthorCompilationResponse compiled = (await compile.Content.ReadFromJsonAsync<AuthorCompilationResponse>())!;
         Assert.True(compiled.Succeeded, string.Join('\n', compiled.Diagnostics.Select(d => d.Message)));
-        return fixture.Projects.ReadAuthorDraft(fixture.Client.ClientId, draft.DraftId).Response!;
+        return (await fixture.Projects.ReadAuthorDraftAsync(fixture.Client.ClientId, draft.DraftId)).Response!;
     }
 }

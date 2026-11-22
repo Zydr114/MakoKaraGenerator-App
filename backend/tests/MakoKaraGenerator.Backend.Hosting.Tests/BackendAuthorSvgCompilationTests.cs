@@ -54,7 +54,7 @@ public sealed class BackendAuthorSvgCompilationTests
             Assert.Equal(package.Revision, result.SourceRevision); Assert.Equal(draft.DraftRevision, result.DraftRevision);
             Assert.False(result.Stale); Assert.NotEqual("none", result.ArtifactHash);
             Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.IsError);
-            AuthorDraftResponse current = registry.ReadAuthorDraft("client", draft.DraftId).Response!;
+            AuthorDraftResponse current = (await registry.ReadAuthorDraftAsync("client", draft.DraftId)).Response!;
             Assert.Equal(draft.CurrentSourceRevision, current.CurrentSourceRevision);
             Assert.Equal(result.SourceRevision, current.LastCompilation!.SourceRevision);
             Assert.True(current.LastCompilation.Succeeded);

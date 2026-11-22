@@ -84,11 +84,15 @@ public sealed partial class ProjectSessionRegistry
     }
 
     /// <summary>读取当前客户端拥有的作者草稿。</summary>
-    public BackendOperationResult<AuthorDraftResponse> ReadAuthorDraft(string clientId, string draftId)
+    public async Task<BackendOperationResult<AuthorDraftResponse>> ReadAuthorDraftAsync(string clientId, string draftId,
+        CancellationToken cancellationToken = default)
     {
         if (!TryReadAuthorDraft(clientId, draftId, out AuthorDraftDocument? document, out BackendErrorResponse? error))
             return BackendOperationResult<AuthorDraftResponse>.Rejected(error!);
-        try { return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(document!)); }
+        using CancellationTokenSource? linked = CreateAuthorReadTokenSource(cancellationToken, out CancellationToken token);
+        try { return BackendOperationResult<AuthorDraftResponse>.Success(await ToAuthorResponseAsync(document!, token).ConfigureAwait(false)); }
+        catch (OperationCanceledException) when (_authorStop?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+        { return AuthorReject<AuthorDraftResponse>(BackendErrorCode.SessionClosing, "作者工作流正在停止。"); }
         catch (EffectPackageException packageError)
         { return AuthorReject<AuthorDraftResponse>(BackendErrorCode.CommandRejected, packageError.Message, packageError.Path, packageError.Code); }
         catch (ArgumentException argumentError)
@@ -98,15 +102,18 @@ public sealed partial class ProjectSessionRegistry
     }
 
     /// <summary>读取当前客户端拥有的全部可恢复作者草稿摘要。</summary>
-    public BackendOperationResult<AuthorDraftListResponse> ReadAuthorDrafts(string clientId)
+    public async Task<BackendOperationResult<AuthorDraftListResponse>> ReadAuthorDraftsAsync(string clientId,
+        CancellationToken cancellationToken = default)
     {
         if (!AuthorReady(out BackendErrorResponse? unavailable)) return BackendOperationResult<AuthorDraftListResponse>.Rejected(unavailable!);
+        using CancellationTokenSource? linked = CreateAuthorReadTokenSource(cancellationToken, out CancellationToken token);
         List<AuthorDraftResponse> drafts = [];
         try
         {
             foreach (string directory in Directory.EnumerateDirectories(_authorRoot!, "draft-*", SearchOption.TopDirectoryOnly)
                 .OrderBy(path => Path.GetFileName(path), StringComparer.Ordinal))
             {
+                token.ThrowIfCancellationRequested();
                 string draftId = Path.GetFileName(directory);
                 if (!ValidDraftId(draftId)) continue;
                 if (!TryReadAuthorDraft(clientId, draftId, out AuthorDraftDocument? document, out BackendErrorResponse? error))
@@ -114,10 +121,12 @@ public sealed partial class ProjectSessionRegistry
                     if (error?.Code == BackendErrorCode.ResourceUnauthorized) continue;
                     return BackendOperationResult<AuthorDraftListResponse>.Rejected(error!);
                 }
-                drafts.Add(ToAuthorResponse(document!));
+                drafts.Add(await ToAuthorResponseAsync(document!, token).ConfigureAwait(false));
             }
             return BackendOperationResult<AuthorDraftListResponse>.Success(new([.. drafts]));
         }
+        catch (OperationCanceledException) when (_authorStop?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+        { return AuthorReject<AuthorDraftListResponse>(BackendErrorCode.SessionClosing, "作者工作流正在停止。"); }
         catch (EffectPackageException packageError)
         { return AuthorReject<AuthorDraftListResponse>(BackendErrorCode.CommandRejected, packageError.Message, packageError.Path, packageError.Code); }
         catch (ArgumentException argumentError)
@@ -127,8 +136,8 @@ public sealed partial class ProjectSessionRegistry
     }
 
     /// <summary>读取精确草稿修订下的固定 C# 文件集合；旧修订只要闭包仍保留即可读取。</summary>
-    public BackendOperationResult<AuthorDraftSourcesResponse> ReadAuthorSources(string clientId, string draftId,
-        string expectedDraftRevision, string sourceRevision)
+    public async Task<BackendOperationResult<AuthorDraftSourcesResponse>> ReadAuthorSourcesAsync(string clientId, string draftId,
+        string expectedDraftRevision, string sourceRevision, CancellationToken cancellationToken = default)
     {
         if (!TryReadAuthorDraft(clientId, draftId, out AuthorDraftDocument? document, out BackendErrorResponse? error))
             return BackendOperationResult<AuthorDraftSourcesResponse>.Rejected(error!);
@@ -136,10 +145,10 @@ public sealed partial class ProjectSessionRegistry
         if (!ValidRevision(sourceRevision)) return AuthorReject<AuthorDraftSourcesResponse>(BackendErrorCode.InvalidRequest, "源码修订无效。", "sourceRevision");
         if (!string.Equals(document!.DraftRevision, expectedDraftRevision, StringComparison.Ordinal))
             return AuthorReject<AuthorDraftSourcesResponse>(BackendErrorCode.RevisionConflict, "作者草稿修订已经改变，请重新读取草稿。", "expectedDraftRevision");
+        using CancellationTokenSource? linked = CreateAuthorReadTokenSource(cancellationToken, out CancellationToken token);
         try
         {
-            EffectPackageContents package = LoadPackageAsync(document.DraftId, sourceRevision, _authorStop?.Token ?? CancellationToken.None)
-                .GetAwaiter().GetResult();
+            EffectPackageContents package = await LoadPackageAsync(document.DraftId, sourceRevision, token).ConfigureAwait(false);
             AuthorSourceFileDto[] files = [.. package.Files.Where(file => file.Role == "csharp")
                 .OrderBy(file => file.Path, StringComparer.Ordinal)
                 .Select(file => new AuthorSourceFileDto(file.Path, file.ReadUtf8()))];
@@ -147,6 +156,8 @@ public sealed partial class ProjectSessionRegistry
             return BackendOperationResult<AuthorDraftSourcesResponse>.Success(new(document.DraftId, document.DraftRevision,
                 sourceRevision, package.PackageId, package.Revision, files));
         }
+        catch (OperationCanceledException) when (_authorStop?.IsCancellationRequested == true && !cancellationToken.IsCancellationRequested)
+        { return AuthorReject<AuthorDraftSourcesResponse>(BackendErrorCode.SessionClosing, "作者工作流正在停止。"); }
         catch (DirectoryNotFoundException)
         { return AuthorReject<AuthorDraftSourcesResponse>(BackendErrorCode.ResourceNotFound, "源码修订不存在。", "sourceRevision"); }
         catch (EffectPackageException packageError)
@@ -183,7 +194,8 @@ public sealed partial class ProjectSessionRegistry
                         return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceQuotaExceeded, "客户端作者草稿存储达到上限。", "configuration");
                 }
                 finally { _authorStorageGate.Release(); }
-                return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(updated));
+                return BackendOperationResult<AuthorDraftResponse>.Success(
+                    await ToAuthorResponseAsync(updated, _authorStop?.Token ?? CancellationToken.None).ConfigureAwait(false));
             }
             catch (DirectoryNotFoundException)
             { return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceNotFound, "源码修订不存在。", "configuration.sourceRevision"); }
@@ -246,7 +258,8 @@ public sealed partial class ProjectSessionRegistry
                         AuthorDraftDocument document = CreateDocument(draftId, clientId, request.Name.Trim(), package, request.ExportId);
                         if (!TryPersistAuthorDocument(document, package))
                             return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceQuotaExceeded, "客户端作者草稿存储达到上限。", "drafts");
-                        return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(document));
+                        return BackendOperationResult<AuthorDraftResponse>.Success(
+                            await ToAuthorResponseAsync(document, lifetime).ConfigureAwait(false));
                     }
                     finally { _authorStorageGate.Release(); }
                 }
@@ -650,19 +663,38 @@ public sealed partial class ProjectSessionRegistry
         { error = new(BackendErrorCode.ProjectLoadFailed, "作者草稿状态无法读取。", "draftId", "AuthorDraftStateUnreadable"); return false; }
     }
 
-    private AuthorDraftResponse ToAuthorResponse(AuthorDraftDocument document)
+    private CancellationTokenSource? CreateAuthorReadTokenSource(CancellationToken cancellationToken, out CancellationToken token)
+    {
+        CancellationToken stop = _authorStop?.Token ?? CancellationToken.None;
+        if (!cancellationToken.CanBeCanceled)
+        {
+            token = stop;
+            return null;
+        }
+        if (!stop.CanBeCanceled)
+        {
+            token = cancellationToken;
+            return null;
+        }
+        CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(stop, cancellationToken);
+        token = linked.Token;
+        return linked;
+    }
+
+    private async Task<AuthorDraftResponse> ToAuthorResponseAsync(AuthorDraftDocument document,
+        CancellationToken cancellationToken = default)
     {
         AuthorDraftConfigurationDto? configuration = null;
         AuthorDraftSampleOptionsDto? samples = null;
         AuthorDraftConfigurationDocument saved = document.Configuration ?? DefaultConfiguration(document);
-        EffectPackageContents package = LoadPackageAsync(document.DraftId, saved.SourceRevision,
-            _authorStop?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
+        EffectPackageContents package = await LoadPackageAsync(document.DraftId, saved.SourceRevision,
+            cancellationToken).ConfigureAwait(false);
         ScriptConfiguration script = BuildConfiguration(package, saved);
         configuration = ToConfigurationDto(script);
         samples = BuildSampleOptions(script);
         EffectPackageContents currentPackage = string.Equals(saved.SourceRevision, document.CurrentSourceRevision, StringComparison.Ordinal)
-            ? package : LoadPackageAsync(document.DraftId, document.CurrentSourceRevision,
-                _authorStop?.Token ?? CancellationToken.None).GetAwaiter().GetResult();
+            ? package : await LoadPackageAsync(document.DraftId, document.CurrentSourceRevision,
+                cancellationToken).ConfigureAwait(false);
         return new(document.DraftId, document.DraftRevision, document.Name, document.PackageId, document.BaseSourceRevision,
             document.CurrentSourceRevision, document.ExportId, document.AdoptedSourceRevision,
             _authorCompiler is not null && currentPackage.Files.Any(file => file.Role == "csharp"), true,

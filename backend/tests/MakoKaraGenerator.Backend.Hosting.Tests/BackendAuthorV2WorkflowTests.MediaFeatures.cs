@@ -46,7 +46,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
 
     private static async Task<MediaFeatureInput> SampleInputAsync(Fixture fixture, bool transparentOutput)
     {
-        AuthorDraftResponse draft = fixture.Read();
+        AuthorDraftResponse draft = await fixture.ReadAsync();
         PreviewSourceDto source = new("authorDraft", draft.DraftId, draft.DraftRevision,
             new(TemplatePreviewLimits.SingleLineSampleId, "token"), draft.Configuration!.SourceRevision);
         BackendOperationResult<AuthorPreviewCapture> captured = await fixture.Registry.CaptureAuthorPreviewAsync("client", source, "gpu",

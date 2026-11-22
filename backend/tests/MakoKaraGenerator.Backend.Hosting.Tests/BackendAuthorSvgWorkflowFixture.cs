@@ -25,16 +25,16 @@ internal sealed class BackendAuthorSvgWorkflowFixture : IAsyncDisposable
     private BackendAuthorSvgWorkflowFixture(TemporaryDirectory directory, ProjectSessionRegistry registry, string draftId)
     { _directory = directory; Registry = registry; _draftId = draftId; }
 
-    internal AuthorDraftResponse Read()
-        => Accepted(Registry.ReadAuthorDraft("client", _draftId));
+    internal async Task<AuthorDraftResponse> ReadAsync()
+        => Accepted(await Registry.ReadAuthorDraftAsync("client", _draftId));
 
     internal RequestMetadataDto Metadata()
         => new(Guid.NewGuid().ToString("N"), Registry.HostInstanceId, Registry.ServerTimeUtc.AddMinutes(1));
 
-    internal AuthorPackageFilesResponse ReadFiles(string? sourceRevision = null)
+    internal async Task<AuthorPackageFilesResponse> ReadFilesAsync(string? sourceRevision = null)
     {
-        AuthorDraftResponse draft = Read();
-        return Accepted(Registry.ReadAuthorPackageFiles("client", _draftId, draft.DraftRevision,
+        AuthorDraftResponse draft = await ReadAsync();
+        return Accepted(await Registry.ReadAuthorPackageFilesAsync("client", _draftId, draft.DraftRevision,
             sourceRevision ?? draft.CurrentSourceRevision));
     }
 
@@ -47,7 +47,7 @@ internal sealed class BackendAuthorSvgWorkflowFixture : IAsyncDisposable
 
     internal async Task<EffectPackageContents> DownloadAsync()
     {
-        AuthorDraftResponse draft = Read();
+        AuthorDraftResponse draft = await ReadAsync();
         using EffectPackageDownloadLease lease = Accepted(await Registry.OpenAuthorPackageAsync("client", _draftId,
             draft.DraftRevision, draft.CurrentSourceRevision));
         string path = _directory.FilePath("download-" + Guid.NewGuid().ToString("N") + ".mkfx");

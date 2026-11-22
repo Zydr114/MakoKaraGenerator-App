@@ -8,7 +8,7 @@ internal static partial class ServerEndpoints
 {
     private static void ConfigureAuthorPackageFilesEndpoints(WebApplication app)
     {
-        app.MapGet("/api/v1/drafts/{id}/package-files", ReadAuthorPackageFiles);
+        app.MapGet("/api/v1/drafts/{id}/package-files", ReadAuthorPackageFilesAsync);
         app.MapPut("/api/v1/drafts/{id}/package-files", SaveAuthorPackageFilesAsync);
         app.MapPost("/api/v1/drafts/{id}/package-file-replacement-inspection", InspectAuthorPackageFileReplacementAsync);
     }
@@ -24,13 +24,14 @@ internal static partial class ServerEndpoints
         return Result(await registry.InspectAuthorPackageFileReplacementAsync(Client(request), id, input!, request.HttpContext.RequestAborted));
     }
 
-    private static IResult ReadAuthorPackageFiles(string id, HttpRequest request, ProjectSessionRegistry registry)
+    private static async Task<IResult> ReadAuthorPackageFilesAsync(string id, HttpRequest request, ProjectSessionRegistry registry)
     {
         if (request.Query.Count != 2 || request.Query.Any(pair => pair.Key is not ("expectedDraftRevision" or "sourceRevision")
             || pair.Value.Count != 1 || string.IsNullOrWhiteSpace(pair.Value[0])))
             return Error(new(BackendErrorCode.InvalidRequest, "查询必须恰好包含单次expectedDraftRevision和sourceRevision。", "query"));
-        return Result(registry.ReadAuthorPackageFiles(Client(request), id,
-            request.Query["expectedDraftRevision"][0]!, request.Query["sourceRevision"][0]!));
+        return Result(await registry.ReadAuthorPackageFilesAsync(Client(request), id,
+            request.Query["expectedDraftRevision"][0]!, request.Query["sourceRevision"][0]!,
+            request.HttpContext.RequestAborted));
     }
 
     private static async Task<IResult> SaveAuthorPackageFilesAsync(string id, HttpRequest request,

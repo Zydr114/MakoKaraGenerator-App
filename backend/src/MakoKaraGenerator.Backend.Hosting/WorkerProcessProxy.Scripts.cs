@@ -64,7 +64,7 @@ public sealed partial class WorkerProcessProxy
         TimeSpan timeout, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(retained);
-        lock (_preparedScriptInputs)
+        lock (_preparedScriptInputsGate)
             if (!ReferenceEquals(retained.Owner, this) || !_preparedScriptInputs.Contains(retained.Input))
                 throw new InvalidOperationException("固定输入已释放或不属于此代理。");
         var capabilities = retained.OpenKind == ProjectRuntimeInputWorkerContract.OpenKind
@@ -85,6 +85,7 @@ public sealed partial class WorkerProcessProxy
     private static readonly Lazy<ScriptCompiler> FallbackScriptCompiler = new(() => new(
         Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"),
         Path.Combine(Path.GetTempPath(), "makokara-host-script-artifacts-" + Environment.ProcessId)));
+    private readonly object _preparedScriptInputsGate = new();
     private readonly List<ScriptPreparedInputLease> _preparedScriptInputs = [];
 
     private sealed class PreparedScriptCall(WorkerProcessProxy owner, ScriptPreparedInputLease input, EffectPackageProfile[] requiredProfiles) : IDisposable
@@ -128,13 +129,13 @@ public sealed partial class WorkerProcessProxy
         CancellationToken token, ProjectSnapshot? fixedSnapshot = null, bool image = false, Action<EffectPackageProfile[]>? captureProfiles = null)
     {
         using var preparation = CancellationTokenSource.CreateLinkedTokenSource(token);
-        lock (_lifecycleGate)
+        lock (_stateGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _scriptPreparations.Add(preparation);
         }
         try { return await PrepareScriptInputCoreAsync(source, fixedSnapshot, image, captureProfiles, preparation.Token).ConfigureAwait(false); }
-        finally { lock (_lifecycleGate) _scriptPreparations.Remove(preparation); }
+        finally { lock (_stateGate) _scriptPreparations.Remove(preparation); }
     }
 
     private async Task<ScriptPreparedInputLease> PrepareScriptInputCoreAsync(ReadOnlyMemory<byte> source,
@@ -194,11 +195,11 @@ public sealed partial class WorkerProcessProxy
     }
 
     private void RetainPreparedScriptInput(ScriptPreparedInputLease input)
-    { lock (_preparedScriptInputs) if (!_preparedScriptInputs.Contains(input)) _preparedScriptInputs.Add(input); }
+    { lock (_preparedScriptInputsGate) if (!_preparedScriptInputs.Contains(input)) _preparedScriptInputs.Add(input); }
 
     private void ReleasePreparedScriptInputs(bool processExited = false)
     {
-        lock (_preparedScriptInputs)
+        lock (_preparedScriptInputsGate)
         {
             List<Exception> failures = [];
             for (int index = _preparedScriptInputs.Count - 1; index >= 0; index--)

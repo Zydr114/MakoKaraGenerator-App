@@ -69,6 +69,8 @@ public sealed partial class ProjectSessionRegistry
         if (!selection.Accepted) return BackendOperationResult<JobResponse>.Rejected(selection.Error!);
         IBackendValidationExecutor executor = selection.Response!.Executor;
         request = request with { RenderBackend = selection.Response.RenderBackend };
+        if (executor is WorkerBackendValidationExecutor workerExecutor)
+            await workerExecutor.ProbeCapabilitiesAsync(cancellationToken).ConfigureAwait(false);
         if (executor is IBackendRuntimeValidationExecutor { RuntimeValidationAvailable: true } runtimeExecutor)
             return await StartRuntimeValidationCoreAsync(clientId, session, request, runtimeExecutor, executor).ConfigureAwait(false);
         bool imageBackground = false;

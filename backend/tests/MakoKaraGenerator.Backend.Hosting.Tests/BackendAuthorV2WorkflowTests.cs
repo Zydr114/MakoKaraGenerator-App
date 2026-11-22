@@ -26,11 +26,11 @@ public sealed partial class BackendAuthorV2WorkflowTests
     public async Task SDK2保存和失败编译不采用且配置写入不能绕过编译门禁()
     {
         await using Fixture fixture = await Fixture.CreateAsync();
-        AuthorDraftResponse original = fixture.Read();
+        AuthorDraftResponse original = await fixture.ReadAsync();
         Assert.Equal(3, original.PackageVersion);
         Assert.Equal("2.0.0", original.SdkVersion);
         AuthorSourceRevisionResponse saved = await fixture.SaveSourceAsync("public class Broken { invalid !!! }");
-        AuthorDraftResponse current = fixture.Read();
+        AuthorDraftResponse current = await fixture.ReadAsync();
         Assert.Equal(saved.SourceRevision, current.CurrentSourceRevision);
         Assert.Equal(original.CurrentSourceRevision, current.Configuration!.SourceRevision);
         Assert.Null(current.AdoptedSourceRevision);
@@ -42,12 +42,12 @@ public sealed partial class BackendAuthorV2WorkflowTests
             new(current.DraftRevision, Configuration(current.Configuration!, saved.SourceRevision), fixture.Metadata()));
         Assert.False(bypass.Accepted);
         Assert.Equal("AuthorSourceCompilationRequired", bypass.Error!.FailureCode);
-        Assert.Equal(current.DraftRevision, fixture.Read().DraftRevision);
+        Assert.Equal(current.DraftRevision, (await fixture.ReadAsync()).DraftRevision);
 
         AuthorCompilationResponse failed = await fixture.CompileAsync();
         Assert.False(failed.Succeeded);
         Assert.Equal(saved.SourceRevision, failed.SourceRevision);
-        Assert.Equal(original.CurrentSourceRevision, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(original.CurrentSourceRevision, (await fixture.ReadAsync()).Configuration!.SourceRevision);
         Assert.False((await fixture.AdoptAsync(saved.SourceRevision)).Accepted);
     }
 
@@ -55,15 +55,15 @@ public sealed partial class BackendAuthorV2WorkflowTests
     public async Task SDK2编译成功后显式采用且撤销到原包也必须先编译()
     {
         await using Fixture fixture = await Fixture.CreateAsync();
-        string baseline = fixture.Read().CurrentSourceRevision;
+        string baseline = (await fixture.ReadAsync()).CurrentSourceRevision;
         AuthorSourceRevisionResponse saved = await fixture.SaveSourceAsync(PureSource + "\n// edited");
         AuthorCompilationResponse compilation = await fixture.CompileAsync();
         Assert.True(compilation.Succeeded, Diagnostics(compilation));
-        Assert.Equal(baseline, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(baseline, (await fixture.ReadAsync()).Configuration!.SourceRevision);
         BackendOperationResult<AuthorAdoptSourceRevisionResponse> adopted = await fixture.AdoptAsync(saved.SourceRevision);
         Assert.True(adopted.Accepted, adopted.Error?.Message);
         Assert.Equal(baseline, adopted.Response!.PreviousSourceRevision);
-        Assert.Equal(saved.SourceRevision, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(saved.SourceRevision, (await fixture.ReadAsync()).Configuration!.SourceRevision);
 
         BackendOperationResult<AuthorAdoptSourceRevisionResponse> uncompiledUndo = await fixture.AdoptAsync(baseline);
         Assert.False(uncompiledUndo.Accepted);
@@ -71,19 +71,19 @@ public sealed partial class BackendAuthorV2WorkflowTests
         AuthorCompilationResponse baselineCompilation = await fixture.CompileAsync(baseline);
         Assert.True(baselineCompilation.Succeeded, Diagnostics(baselineCompilation));
         Assert.True(baselineCompilation.Stale);
-        Assert.Equal(saved.SourceRevision, fixture.Read().Configuration!.SourceRevision);
-        Assert.Equal(baseline, fixture.Read().LastCompilation!.SourceRevision);
-        Assert.True(fixture.Read().LastCompilation!.Stale);
+        Assert.Equal(saved.SourceRevision, (await fixture.ReadAsync()).Configuration!.SourceRevision);
+        Assert.Equal(baseline, (await fixture.ReadAsync()).LastCompilation!.SourceRevision);
+        Assert.True((await fixture.ReadAsync()).LastCompilation!.Stale);
         Assert.True((await fixture.AdoptAsync(baseline)).Accepted);
         Assert.True((await fixture.AdoptAsync(saved.SourceRevision)).Accepted);
-        Assert.Equal(saved.SourceRevision, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(saved.SourceRevision, (await fixture.ReadAsync()).Configuration!.SourceRevision);
 
-        AuthorDraftResponse beforeConflict = fixture.Read();
+        AuthorDraftResponse beforeConflict = await fixture.ReadAsync();
         Assert.True((await fixture.AdoptAsync(baseline)).Accepted);
         BackendOperationResult<AuthorAdoptSourceRevisionResponse> stale = await fixture.Registry.AdoptAuthorSourceRevisionAsync("client",
             beforeConflict.DraftId, new(beforeConflict.DraftRevision, saved.SourceRevision, fixture.Metadata()));
         Assert.Equal(BackendErrorCode.RevisionConflict, stale.Error!.Code);
-        Assert.Equal(baseline, fixture.Read().Configuration!.SourceRevision);
+        Assert.Equal(baseline, (await fixture.ReadAsync()).Configuration!.SourceRevision);
     }
 
     [Fact]
@@ -92,9 +92,9 @@ public sealed partial class BackendAuthorV2WorkflowTests
         await using Fixture fixture = await Fixture.CreateAsync();
         AuthorCompilationResponse compiled = await fixture.CompileAsync();
         Assert.True(compiled.Succeeded, Diagnostics(compiled));
-        AuthorDraftResponse before = fixture.Read();
-        AuthorPackageFilesResponse files = fixture.Registry.ReadAuthorPackageFiles("client", before.DraftId,
-            before.DraftRevision, before.CurrentSourceRevision).Response!;
+        AuthorDraftResponse before = await fixture.ReadAsync();
+        AuthorPackageFilesResponse files = (await fixture.Registry.ReadAuthorPackageFilesAsync("client", before.DraftId,
+            before.DraftRevision, before.CurrentSourceRevision)).Response!;
         BackendOperationResult<AuthorDraftResponse> saved = await fixture.Registry.SaveAuthorPackageFilesAsync("client", before.DraftId,
             new(before.DraftRevision, files.ManifestJson,
                 [.. files.Files.Where(file => file.Editable).Select(file => new AuthorPackageTextFileDto(file.Path, file.Text! + "\n// package edit"))],
@@ -111,9 +111,9 @@ public sealed partial class BackendAuthorV2WorkflowTests
     public async Task SDK2异步编译旧目标不验证新源码且后续保存不改变固定输入()
     {
         await using Fixture fixture = await Fixture.CreateAsync();
-        AuthorDraftResponse original = fixture.Read();
+        AuthorDraftResponse original = await fixture.ReadAsync();
         await fixture.SaveSourceAsync(PureSource + "\n// latest before queue");
-        AuthorDraftResponse acceptedDraft = fixture.Read();
+        AuthorDraftResponse acceptedDraft = await fixture.ReadAsync();
         BackendTaskScheduler scheduler = new(new(MaxRunning: 1));
         typeof(ProjectSessionRegistry).GetField("_taskScheduler", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
             .SetValue(fixture.Registry, scheduler);
@@ -131,7 +131,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
         Assert.True(result.Response.Stale);
         Assert.Equal(original.CurrentSourceRevision, result.Response.SourceRevision);
         Assert.Equal(acceptedDraft.DraftRevision, result.Response.DraftRevision);
-        AuthorDraftResponse current = fixture.Read();
+        AuthorDraftResponse current = await fixture.ReadAsync();
         Assert.Equal(latest.SourceRevision, current.CurrentSourceRevision);
         Assert.Null(current.LastCompilation);
         AuthorSourceRevisionsResponse history = (await fixture.Registry.ReadAuthorSourceRevisionsAsync("client", current.DraftId, current.DraftRevision)).Response!;
@@ -152,7 +152,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
             }
             """;
         await using Fixture fixture = await Fixture.CreateAsync(sdk1OnlySource);
-        AuthorDraftResponse before = fixture.Read();
+        AuthorDraftResponse before = await fixture.ReadAsync();
         AuthorCompilationResponse compiled = await fixture.CompileAsync();
         Assert.False(compiled.Succeeded);
         Assert.Contains(compiled.Diagnostics, diagnostic => diagnostic.IsError);
@@ -163,7 +163,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
         AuthorCompilationResponse entryRejected = await invalidEntryFixture.CompileAsync();
         Assert.False(entryRejected.Succeeded);
         Assert.Contains(entryRejected.Diagnostics, diagnostic => diagnostic.Code == "PackageEntryInvalid" && diagnostic.IsError);
-        Assert.False((await invalidEntryFixture.AdoptAsync(invalidEntryFixture.Read().CurrentSourceRevision)).Accepted);
+        Assert.False((await invalidEntryFixture.AdoptAsync((await invalidEntryFixture.ReadAsync()).CurrentSourceRevision)).Accepted);
         string foreign = "sha256:" + new string('a', 64);
         BackendOperationResult<AuthorCompilationResponse> sync = await fixture.Registry.CompileAuthorDraftAsync("client", before.DraftId,
             new(before.DraftRevision, fixture.Metadata(), SourceRevision: foreign));
@@ -179,7 +179,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
         await using Fixture fixture = await Fixture.CreateAsync();
         RejectingValidationExecutor executor = new();
         fixture.Registry.ConfigureValidationTasks(executor, new() { MaxRunning = 1 });
-        AuthorDraftResponse draft = fixture.Read();
+        AuthorDraftResponse draft = await fixture.ReadAsync();
         BackendOperationResult<JobResponse> result = await fixture.Registry.StartAuthorValidationAsync("client", draft.DraftId,
             new(draft.DraftRevision, TemplatePreviewLimits.SingleLineSampleId, "token", Metadata: fixture.Metadata()));
         Assert.False(result.Accepted);
@@ -223,7 +223,7 @@ public sealed partial class BackendAuthorV2WorkflowTests
     public async Task 作者试样准备输入开启图像素检查()
     {
         await using Fixture fixture = await Fixture.CreateAsync();
-        AuthorDraftResponse draft = fixture.Read();
+        AuthorDraftResponse draft = await fixture.ReadAsync();
         PreviewSourceDto source = new("authorDraft", draft.DraftId, draft.DraftRevision,
             new(TemplatePreviewLimits.SingleLineSampleId, "token"), draft.Configuration!.SourceRevision);
         BackendOperationResult<AuthorPreviewCapture> captured = await fixture.Registry.CaptureAuthorPreviewAsync("client", source, "gpu", true);
@@ -236,27 +236,27 @@ public sealed partial class BackendAuthorV2WorkflowTests
     {
         private readonly TemporaryDirectory _directory;
         internal ProjectSessionRegistry Registry { get; }
-        private readonly string _draftId;
+        internal string DraftId { get; }
         private Fixture(TemporaryDirectory directory, ProjectSessionRegistry registry, string draftId)
-        { _directory = directory; Registry = registry; _draftId = draftId; }
+        { _directory = directory; Registry = registry; DraftId = draftId; }
         internal RequestMetadataDto Metadata() => new(Guid.NewGuid().ToString("N"), Registry.HostInstanceId, Registry.ServerTimeUtc.AddMinutes(1));
-        internal AuthorDraftResponse Read() => Registry.ReadAuthorDraft("client", _draftId).Response!;
+        internal async Task<AuthorDraftResponse> ReadAsync() => (await Registry.ReadAuthorDraftAsync("client", DraftId)).Response!;
         internal async Task<AuthorSourceRevisionResponse> SaveSourceAsync(string source)
         {
-            BackendOperationResult<AuthorSourceRevisionResponse> result = await Registry.SaveAuthorSourceRevisionAsync("client", _draftId,
-                new(Read().DraftRevision, [new("src/PackEffect.cs", source)], Metadata()));
+            BackendOperationResult<AuthorSourceRevisionResponse> result = await Registry.SaveAuthorSourceRevisionAsync("client", DraftId,
+                new((await ReadAsync()).DraftRevision, [new("src/PackEffect.cs", source)], Metadata()));
             Assert.True(result.Accepted, result.Error?.Message);
             return result.Response!;
         }
         internal async Task<AuthorCompilationResponse> CompileAsync(string? sourceRevision = null)
         {
-            BackendOperationResult<AuthorCompilationResponse> result = await Registry.CompileAuthorDraftAsync("client", _draftId,
-                new(Read().DraftRevision, Metadata(), SourceRevision: sourceRevision));
+            BackendOperationResult<AuthorCompilationResponse> result = await Registry.CompileAuthorDraftAsync("client", DraftId,
+                new((await ReadAsync()).DraftRevision, Metadata(), SourceRevision: sourceRevision));
             Assert.True(result.Accepted, result.Error?.Message);
             return result.Response!;
         }
-        internal Task<BackendOperationResult<AuthorAdoptSourceRevisionResponse>> AdoptAsync(string sourceRevision) => Registry.AdoptAuthorSourceRevisionAsync("client",
-            _draftId, new(Read().DraftRevision, sourceRevision, Metadata()));
+        internal async Task<BackendOperationResult<AuthorAdoptSourceRevisionResponse>> AdoptAsync(string sourceRevision) => await Registry.AdoptAuthorSourceRevisionAsync("client",
+            DraftId, new((await ReadAsync()).DraftRevision, sourceRevision, Metadata()));
         internal static async Task<Fixture> CreateAsync(string source = PureSource, Action<JsonObject>? configureManifest = null)
         {
             TemporaryDirectory directory = new();

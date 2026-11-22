@@ -26,14 +26,14 @@ public sealed class BackendAuthorPackageFilesTests
         BackendOperationResult<AuthorCompilationResponse> compilation = await fixture.Registry.CompileAuthorDraftAsync("client",
             fixture.Draft.DraftId, new(fixture.Draft.DraftRevision, fixture.Metadata()));
         Assert.True(compilation.Accepted, compilation.Error?.Message);
-        AuthorDraftResponse before = fixture.Registry.ReadAuthorDraft("client", fixture.Draft.DraftId).Response!;
+        AuthorDraftResponse before = (await fixture.Registry.ReadAuthorDraftAsync("client", fixture.Draft.DraftId)).Response!;
         Assert.NotNull(before.LastCompilation);
-        AuthorDraftSourcesResponse sources = fixture.Registry.ReadAuthorSources("client", before.DraftId,
-            before.DraftRevision, before.CurrentSourceRevision).Response!;
+        AuthorDraftSourcesResponse sources = (await fixture.Registry.ReadAuthorSourcesAsync("client", before.DraftId,
+            before.DraftRevision, before.CurrentSourceRevision)).Response!;
         BackendOperationResult<AuthorSourceRevisionResponse> saved = await fixture.Registry.SaveAuthorSourceRevisionAsync("client",
             before.DraftId, new(before.DraftRevision, sources.Files, fixture.Metadata()));
         Assert.True(saved.Accepted, saved.Error?.Message);
-        AuthorDraftResponse after = fixture.Registry.ReadAuthorDraft("client", before.DraftId).Response!;
+        AuthorDraftResponse after = (await fixture.Registry.ReadAuthorDraftAsync("client", before.DraftId)).Response!;
         Assert.Equal(before.DraftRevision, saved.Response!.DraftRevision);
         Assert.Equal(before.CurrentSourceRevision, saved.Response.SourceRevision);
         Assert.Equal(before.LastCompilation, after.LastCompilation);
@@ -43,15 +43,15 @@ public sealed class BackendAuthorPackageFilesTests
     public async Task 包文件编辑允许文本变更并保留非文本且失败不落盘()
     {
         await using Fixture fixture = await Fixture.CreateAsync(EffectPackageFixture.Contents(), "scale");
-        AuthorPackageFilesResponse current = fixture.Registry.ReadAuthorPackageFiles("client", fixture.Draft.DraftId,
-            fixture.Draft.DraftRevision, fixture.Draft.CurrentSourceRevision).Response!;
+        AuthorPackageFilesResponse current = (await fixture.Registry.ReadAuthorPackageFilesAsync("client", fixture.Draft.DraftId,
+            fixture.Draft.DraftRevision, fixture.Draft.CurrentSourceRevision)).Response!;
         AuthorPackageTextFileDto[] textFiles = [.. current.Files.Where(file => file.Editable)
             .Select(file => new AuthorPackageTextFileDto(file.Path, file.Text! + "\n// edited"))];
         BackendOperationResult<AuthorDraftResponse> changed = await fixture.Registry.SaveAuthorPackageFilesAsync("client",
             fixture.Draft.DraftId, new(current.DraftRevision, current.ManifestJson, textFiles, Metadata: fixture.Metadata()));
         Assert.True(changed.Accepted, changed.Error?.Message);
-        AuthorPackageFilesResponse edited = fixture.Registry.ReadAuthorPackageFiles("client", fixture.Draft.DraftId,
-            changed.Response!.DraftRevision, changed.Response.CurrentSourceRevision).Response!;
+        AuthorPackageFilesResponse edited = (await fixture.Registry.ReadAuthorPackageFilesAsync("client", fixture.Draft.DraftId,
+            changed.Response!.DraftRevision, changed.Response.CurrentSourceRevision)).Response!;
         Assert.NotEqual(current.PackageRevision, edited.PackageRevision);
         Assert.Equal(current.Files.Where(file => !file.Editable).Select(file => (file.Path, file.Role, file.Sha256)),
             edited.Files.Where(file => !file.Editable).Select(file => (file.Path, file.Role, file.Sha256)));
@@ -71,7 +71,7 @@ public sealed class BackendAuthorPackageFilesTests
                 Metadata: fixture.Metadata()));
         Assert.False(rejected.Accepted);
         Assert.Equal(BackendErrorCode.InvalidRequest, rejected.Error!.Code);
-        Assert.Equal(edited.DraftRevision, fixture.Registry.ReadAuthorDraft("client", fixture.Draft.DraftId).Response!.DraftRevision);
+        Assert.Equal(edited.DraftRevision, (await fixture.Registry.ReadAuthorDraftAsync("client", fixture.Draft.DraftId)).Response!.DraftRevision);
     }
 
     private sealed class Fixture : IAsyncDisposable

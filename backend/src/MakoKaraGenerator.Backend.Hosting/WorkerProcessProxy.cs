@@ -120,6 +120,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
                     ? _packageRenderVerifiedProcess
                     : null;
     private readonly WorkerProcessOptions _options;
+    private readonly object _stateGate = new();
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _callGate = new(1, 1);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -169,13 +170,18 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         if (!SupportsExportGuards) throw new WorkerProtocolException("Export requires a verified private Worker process guard and media file limit.", "WorkerExportUnavailable");
     }
 
+    private void ThrowIfDisposed()
+    {
+        lock (_stateGate) ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
     /// <summary>启动并完成协议握手。</summary>
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            ThrowIfDisposed();
             if (_process is { HasExited: false }) return;
             if (_gpuWarmupProcess is not null)
                 throw new WorkerProtocolException("预热 GPU Worker 已终止，禁止透明重启复用其业务名额。", GpuWorkerWarmupContract.FailureCode);
@@ -698,7 +704,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         // Stop is a cleanup operation: a canceled caller must not skip the gate and
         // leave an already started worker running. The token is still honored by the
         // graceful shutdown below, which forcefully reaps the process tree if it wins.
-        lock (_lifecycleGate)
+        lock (_stateGate)
         {
             _activeCallCancellation?.Cancel();
             foreach (var preparation in _scriptPreparations.ToArray()) preparation.Cancel();
@@ -715,7 +721,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        lock (_lifecycleGate)
+        lock (_stateGate)
         {
             _disposed = true;
             if (_disposeTask is null || _disposeTask.IsFaulted || _disposeTask.IsCanceled) _disposeTask = StopAsync();
@@ -737,7 +743,19 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         { throw new WorkerInvocationNotStartedException(cancellationToken); }
         using CancellationTokenSource callCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        lock (_lifecycleGate) { _activeCallCancellation = callCancellation; }
+        try
+        {
+            lock (_stateGate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                _activeCallCancellation = callCancellation;
+            }
+        }
+        catch
+        {
+            _callGate.Release();
+            throw;
+        }
         cancellationToken = callCancellation.Token;
         Task<WorkerMessage>? read = null;
         Process? invocationProcess = null;
@@ -875,7 +893,7 @@ public sealed partial class WorkerProcessProxy : IAsyncDisposable
         }
         finally
         {
-            lock (_lifecycleGate) { _activeCallCancellation = null; }
+            lock (_stateGate) { _activeCallCancellation = null; }
             _callGate.Release();
         }
 

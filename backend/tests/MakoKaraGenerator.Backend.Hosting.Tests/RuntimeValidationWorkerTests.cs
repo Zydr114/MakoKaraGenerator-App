@@ -22,6 +22,7 @@ public sealed class RuntimeValidationWorkerTests
         using TemporaryDirectory directory = new();
         byte[] source = await Source(directory, kind);
         var executor = new WorkerBackendValidationExecutor(WorkerPath());
+        await executor.ProbeCapabilitiesAsync();
         Assert.True(executor.RuntimeValidationAvailable);
         var progress = new List<BackendJobProgressDto>();
         ValidationReportDto report = await executor.ExecuteRuntimeAsync(source, 4, new ProgressSink(progress));
@@ -46,6 +47,7 @@ public sealed class RuntimeValidationWorkerTests
         Assert.Equal(ProjectRuntimeInputCodec.Profile, prepared.SourceProfile);
         Assert.True(prepared.SourceBytes.Length < 64 * 1024);
         var executor = new WorkerBackendValidationExecutor(WorkerPath());
+        await executor.ProbeCapabilitiesAsync();
         Assert.True(executor.RuntimeValidationAvailable);
         var report = await executor.ExecuteRuntimeAsync(prepared.SourceBytes, 4);
         Assert.True(report.Succeeded);

@@ -53,17 +53,17 @@ public sealed class BackendScriptConfigurationTests
         var compiledOriginal = Accepted(await f.Registry.CompileAuthorDraftAsync("client", f.Draft.DraftId,
             new(f.Draft.DraftRevision, f.Metadata())));
         Assert.True(compiledOriginal.Succeeded);
-        var originalDraft = Accepted(f.Registry.ReadAuthorDraft("client", f.Draft.DraftId));
+        var originalDraft = Accepted(await f.Registry.ReadAuthorDraftAsync("client", f.Draft.DraftId));
         var adopted = Accepted(await f.Registry.AdoptAuthorSourceRevisionAsync("client", originalDraft.DraftId,
             new(originalDraft.DraftRevision, f.Draft.CurrentSourceRevision, f.Metadata())));
         var saved = Accepted(await f.Registry.SaveAuthorSourceRevisionAsync("client", f.Draft.DraftId,
             new(adopted.DraftRevision, [new("src/PackEffect.cs", "public class Broken { invalid !!! }")], f.Metadata())));
-        var draft = Accepted(f.Registry.ReadAuthorDraft("client", f.Draft.DraftId));
+        var draft = Accepted(await f.Registry.ReadAuthorDraftAsync("client", f.Draft.DraftId));
         Assert.Equal(saved.SourceRevision, draft.CurrentSourceRevision);
         Assert.Equal(f.Draft.CurrentSourceRevision, draft.Configuration!.SourceRevision);
         var compiled = Accepted(await f.Registry.CompileAuthorDraftAsync("client", draft.DraftId, new(draft.DraftRevision, f.Metadata())));
         Assert.False(compiled.Succeeded);
-        draft = Accepted(f.Registry.ReadAuthorDraft("client", draft.DraftId));
+        draft = Accepted(await f.Registry.ReadAuthorDraftAsync("client", draft.DraftId));
         var rejectedAdopt = await f.Registry.AdoptAuthorSourceRevisionAsync("client", draft.DraftId,
             new(draft.DraftRevision, saved.SourceRevision, f.Metadata()));
         Assert.False(rejectedAdopt.Accepted);

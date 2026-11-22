@@ -20,7 +20,7 @@ public sealed class BackendAuthorPackageReplacementTests
     public async Task 替换图片检查给出尺寸并在保存后生成新修订和新哈希()
     {
         await using Fixture fixture = await Fixture.CreateAsync(withFont: false);
-        AuthorPackageFilesResponse before = fixture.Files();
+        AuthorPackageFilesResponse before = await fixture.FilesAsync();
         byte[] replacement = Image(16, 12, SKEncodedImageFormat.Png, SKColors.Red);
         string assetId = await fixture.UploadAsync("new.png", "image/png", replacement);
 
@@ -35,7 +35,7 @@ public sealed class BackendAuthorPackageReplacementTests
         BackendOperationResult<AuthorDraftResponse> saved = await fixture.SaveAsync(before, [new(ImagePath, assetId)]);
         Assert.True(saved.Accepted, saved.Error?.Message);
         Assert.NotEqual(before.SourceRevision, saved.Response!.CurrentSourceRevision);
-        AuthorPackageFilesResponse after = fixture.Files(saved.Response);
+        AuthorPackageFilesResponse after = await fixture.FilesAsync(saved.Response);
         AuthorPackageFileDto image = after.Files.Single(file => file.Path == ImagePath);
         Assert.Equal((Sha(replacement), (long)replacement.Length, "image"), (image.Sha256, image.SizeBytes, image.Role));
         Assert.Contains(Sha(replacement), after.ManifestJson, StringComparison.Ordinal);
@@ -52,7 +52,7 @@ public sealed class BackendAuthorPackageReplacementTests
     public async Task 格式不同目标不对或文件坏了都拒绝且不生成修订()
     {
         await using Fixture fixture = await Fixture.CreateAsync(withFont: false);
-        AuthorPackageFilesResponse before = fixture.Files();
+        AuthorPackageFilesResponse before = await fixture.FilesAsync();
         string jpeg = await fixture.UploadAsync("new.jpg", "image/jpeg", Image(8, 8, SKEncodedImageFormat.Jpeg, SKColors.Blue));
         string png = await fixture.UploadAsync("new.png", "image/png", Image(8, 8, SKEncodedImageFormat.Png, SKColors.Blue));
         string broken = await fixture.UploadAsync("broken.png", "image/png", [0x89, (byte)'P', (byte)'N', (byte)'G', 1, 2, 3, 4]);
@@ -79,21 +79,21 @@ public sealed class BackendAuthorPackageReplacementTests
         }
         BackendOperationResult<AuthorDraftResponse> unknown = await fixture.SaveAsync(before, [new(ImagePath, "asset-" + new string('0', 32))]);
         Assert.Equal("replacedFiles[0].assetId", unknown.Error!.Field);
-        Assert.Equal(before.DraftRevision, fixture.Registry.ReadAuthorDraft("client", fixture.Draft.DraftId).Response!.DraftRevision);
+        Assert.Equal(before.DraftRevision, (await fixture.Registry.ReadAuthorDraftAsync("client", fixture.Draft.DraftId)).Response!.DraftRevision);
     }
 
     [Fact]
     public async Task 按基准修订保存时不可编辑文件取自所看的修订()
     {
         await using Fixture fixture = await Fixture.CreateAsync(withFont: false);
-        AuthorPackageFilesResponse original = fixture.Files();
+        AuthorPackageFilesResponse original = await fixture.FilesAsync();
         byte[] originalImage = Image(8, 8, SKEncodedImageFormat.Png, SKColors.White);
         string assetId = await fixture.UploadAsync("new.png", "image/png", Image(8, 8, SKEncodedImageFormat.Png, SKColors.Green));
         BackendOperationResult<AuthorDraftResponse> replaced = await fixture.SaveAsync(original, [new(ImagePath, assetId)]);
         Assert.True(replaced.Accepted, replaced.Error?.Message);
 
         // 查看原修订、改文本再保存：不带基准时按最新修订核对清单哈希，会被拒绝。
-        AuthorPackageFilesResponse viewed = fixture.Files(replaced.Response!, original.SourceRevision);
+        AuthorPackageFilesResponse viewed = await fixture.FilesAsync(replaced.Response!, original.SourceRevision);
         AuthorPackageTextFileDto[] edited = [.. viewed.Files.Where(file => file.Editable).Select(file => new AuthorPackageTextFileDto(file.Path, file.Text + "\n// old"))];
         BackendOperationResult<AuthorDraftResponse> withoutBase = await fixture.Registry.SaveAuthorPackageFilesAsync("client", fixture.Draft.DraftId,
             new(replaced.Response!.DraftRevision, viewed.ManifestJson, edited, Metadata: fixture.Metadata()));
@@ -102,7 +102,7 @@ public sealed class BackendAuthorPackageReplacementTests
         BackendOperationResult<AuthorDraftResponse> withBase = await fixture.Registry.SaveAuthorPackageFilesAsync("client", fixture.Draft.DraftId,
             new(replaced.Response.DraftRevision, viewed.ManifestJson, edited, Metadata: fixture.Metadata(), BaseSourceRevision: original.SourceRevision));
         Assert.True(withBase.Accepted, withBase.Error?.Message);
-        Assert.Equal(Sha(originalImage), fixture.Files(withBase.Response!).Files.Single(file => file.Path == ImagePath).Sha256);
+        Assert.Equal(Sha(originalImage), (await fixture.FilesAsync(withBase.Response!)).Files.Single(file => file.Path == ImagePath).Sha256);
 
         BackendOperationResult<AuthorDraftResponse> unknownBase = await fixture.Registry.SaveAuthorPackageFilesAsync("client", fixture.Draft.DraftId,
             new(withBase.Response!.DraftRevision, viewed.ManifestJson, edited, Metadata: fixture.Metadata(), BaseSourceRevision: "sha256:" + new string('a', 64)));
@@ -116,7 +116,7 @@ public sealed class BackendAuthorPackageReplacementTests
     public async Task 字体替换检查家族名变化只提醒并且可以保存()
     {
         await using Fixture fixture = await Fixture.CreateAsync(withFont: true);
-        AuthorPackageFilesResponse before = fixture.Files();
+        AuthorPackageFilesResponse before = await fixture.FilesAsync();
         (byte[] replacementTtc, string expectedFamily) = ReplacementCollectionFont();
         string assetId = await fixture.UploadAsync("noto.ttc", "application/octet-stream", replacementTtc);
 
@@ -131,17 +131,17 @@ public sealed class BackendAuthorPackageReplacementTests
 
         BackendOperationResult<AuthorDraftResponse> saved = await fixture.SaveAsync(before, [new(FontPath, assetId)]);
         Assert.True(saved.Accepted, saved.Error?.Message);
-        Assert.Equal(Sha(replacementTtc), fixture.Files(saved.Response!).Files.Single(file => file.Path == FontPath).Sha256);
+        Assert.Equal(Sha(replacementTtc), (await fixture.FilesAsync(saved.Response!)).Files.Single(file => file.Path == FontPath).Sha256);
 
         string ttfPath = new[] { "/usr/share/fonts", "/usr/local/share/fonts", Environment.GetFolderPath(Environment.SpecialFolder.Fonts) }
             .Where(Directory.Exists)
             .SelectMany(root => Directory.EnumerateFiles(root, "*.ttf", SearchOption.AllDirectories))
             .First();
         string ttf = await fixture.UploadAsync("plain.ttf", "application/octet-stream", File.ReadAllBytes(ttfPath));
-        BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> mismatch = await fixture.InspectAsync(fixture.Files(saved.Response), FontPath, ttf);
+        BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> mismatch = await fixture.InspectAsync(await fixture.FilesAsync(saved.Response), FontPath, ttf);
         Assert.Equal("AuthorReplacementFormatMismatch", mismatch.Error!.FailureCode);
         string garbage = await fixture.UploadAsync("bad.ttc", "application/octet-stream", Encoding.ASCII.GetBytes("ttcf-not-really-a-font"));
-        BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> invalid = await fixture.InspectAsync(fixture.Files(saved.Response), FontPath, garbage);
+        BackendOperationResult<AuthorPackageFileReplacementInspectionResponse> invalid = await fixture.InspectAsync(await fixture.FilesAsync(saved.Response), FontPath, garbage);
         Assert.Equal("AuthorReplacementFontInvalid", invalid.Error!.FailureCode);
     }
 
@@ -182,10 +182,10 @@ public sealed class BackendAuthorPackageReplacementTests
 
         internal RequestMetadataDto Metadata() => new(Guid.NewGuid().ToString("N"), Registry.HostInstanceId, Registry.ServerTimeUtc.AddMinutes(1));
 
-        internal AuthorPackageFilesResponse Files(AuthorDraftResponse? draft = null, string? sourceRevision = null)
+        internal async Task<AuthorPackageFilesResponse> FilesAsync(AuthorDraftResponse? draft = null, string? sourceRevision = null)
         {
-            AuthorDraftResponse current = draft ?? Registry.ReadAuthorDraft("client", Draft.DraftId).Response!;
-            BackendOperationResult<AuthorPackageFilesResponse> files = Registry.ReadAuthorPackageFiles("client", current.DraftId,
+            AuthorDraftResponse current = draft ?? (await Registry.ReadAuthorDraftAsync("client", Draft.DraftId)).Response!;
+            BackendOperationResult<AuthorPackageFilesResponse> files = await Registry.ReadAuthorPackageFilesAsync("client", current.DraftId,
                 current.DraftRevision, sourceRevision ?? current.CurrentSourceRevision);
             Assert.True(files.Accepted, files.Error?.Message);
             return files.Response!;

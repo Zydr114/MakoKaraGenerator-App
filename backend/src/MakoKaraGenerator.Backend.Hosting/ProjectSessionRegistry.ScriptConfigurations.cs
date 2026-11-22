@@ -207,7 +207,7 @@ public sealed partial class ProjectSessionRegistry
             document = document with { DraftRevision = ComputeDraftRevision(document, null) };
             if (!TryPersistAuthorDocument(document, source.Package))
                 return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ResourceQuotaExceeded, "客户端作者草稿存储达到上限。", "drafts");
-            return BackendOperationResult<AuthorDraftResponse>.Success(ToAuthorResponse(document));
+            return BackendOperationResult<AuthorDraftResponse>.Success(await ToAuthorResponseAsync(document, token).ConfigureAwait(false));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { return AuthorReject<AuthorDraftResponse>(BackendErrorCode.ProjectLoadFailed, "固定配置无法保存为作者草稿。", "configurationId"); }

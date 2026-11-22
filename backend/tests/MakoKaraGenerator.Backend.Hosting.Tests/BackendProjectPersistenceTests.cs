@@ -16,9 +16,9 @@ public sealed class BackendProjectPersistenceTests
     {
         using Fixture fixture = await Fixture.CreateAsync();
         fixture.Registry.ConfigureAuthorWorkflows(null);
-        BackendOperationResult<AuthorDraftResponse> missing = fixture.Registry.ReadAuthorDraft("client", "draft-" + new string('0', 32));
+        BackendOperationResult<AuthorDraftResponse> missing = await fixture.Registry.ReadAuthorDraftAsync("client", "draft-" + new string('0', 32));
         Assert.Equal(BackendErrorCode.ResourceNotFound, missing.Error!.Code);
-        Assert.Equal(BackendErrorCode.InvalidRequest, fixture.Registry.ReadAuthorDraft("client", "draft-missing").Error!.Code);
+        Assert.Equal(BackendErrorCode.InvalidRequest, (await fixture.Registry.ReadAuthorDraftAsync("client", "draft-missing")).Error!.Code);
         Assert.Throws<InvalidOperationException>(() => fixture.Registry.ConfigureAuthorWorkflows(null));
     }
 

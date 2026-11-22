@@ -31,8 +31,8 @@ public sealed class BackendAuthorRecoveryTests
         AuthorDraftClaimResponse claimed = (await Claim(registry, other.ClientId, found)).Response!;
         Assert.NotEqual(found.OwnershipRevision, claimed.OwnershipRevision);
         Assert.Equal(draft.DraftRevision, claimed.Draft.DraftRevision);
-        Assert.Equal(BackendErrorCode.ResourceUnauthorized, registry.ReadAuthorDraft(owner.ClientId, draft.DraftId).Error!.Code);
-        Assert.True(registry.ReadAuthorDraft(other.ClientId, draft.DraftId).Accepted);
+        Assert.Equal(BackendErrorCode.ResourceUnauthorized, (await registry.ReadAuthorDraftAsync(owner.ClientId, draft.DraftId)).Error!.Code);
+        Assert.True((await registry.ReadAuthorDraftAsync(other.ClientId, draft.DraftId)).Accepted);
         Assert.Equal(BackendErrorCode.RevisionConflict, (await Claim(registry, owner.ClientId, found)).Error!.Code);
         ClientRegistrationResponse third = clients.Register(new string('s', 32), new()).Response!;
         ProfileAuthorDraftDto current = Assert.Single(registry.ReadProfileAuthorDrafts(third.ClientId).Response!.Drafts);
@@ -69,10 +69,10 @@ public sealed class BackendAuthorRecoveryTests
         Assert.NotNull(persisted["ownershipRevision"]);
         persisted["schemaVersion"] = 42;
         await File.WriteAllTextAsync(path, persisted.ToJsonString());
-        Assert.Equal(BackendErrorCode.ProjectLoadFailed, registry.ReadAuthorDraft(newClient, draft.DraftId).Error!.Code);
+        Assert.Equal(BackendErrorCode.ProjectLoadFailed, (await registry.ReadAuthorDraftAsync(newClient, draft.DraftId)).Error!.Code);
         Assert.Equal(BackendErrorCode.ProjectLoadFailed, registry.ReadProfileAuthorDrafts(newClient).Error!.Code);
         await File.WriteAllTextAsync(path, "[]");
-        Assert.Equal(BackendErrorCode.ProjectLoadFailed, registry.ReadAuthorDraft(newClient, draft.DraftId).Error!.Code);
+        Assert.Equal(BackendErrorCode.ProjectLoadFailed, (await registry.ReadAuthorDraftAsync(newClient, draft.DraftId)).Error!.Code);
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public sealed class BackendAuthorRecoveryTests
             await File.WriteAllTextAsync(path, json.ToJsonString());
         }
         Assert.Equal(BackendErrorCode.RequestQuotaExceeded, (await Claim(restartedRegistry, requester, targetItem)).Error!.Code);
-        Assert.True(restartedRegistry.ReadAuthorDraft(owner, target.DraftId).Accepted);
+        Assert.True((await restartedRegistry.ReadAuthorDraftAsync(owner, target.DraftId)).Accepted);
     }
 
     private static ProjectSessionRegistry NewRegistry(ResourceStore resources, string state, ClientRegistry clients)

@@ -1,0 +1,1231 @@
+/* Phase 3：顶部快捷工具条、动态滚动卡拉 OK 打轴画布、原地注音浮窗、全文快编与词典管理弹窗样式。 */
+
+/* ── 顶部歌词快捷工具条 ─────────────────────────────────────────── */
+.lyrics-toolbar {
+  flex: none;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.lt-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--outline-variant);
+  margin: 0 2px;
+}
+
+.lt-furigana-btn {
+  position: relative;
+}
+
+.lt-dict-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: 4px;
+  flex: none;
+}
+
+.lt-dict-dot.ready {
+  background: var(--ok);
+}
+
+.lt-dict-dot.missing {
+  background: var(--warn);
+}
+
+.lt-scroll-select {
+  width: 112px;
+}
+
+.lt-hidden-trigger {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lt-prefs-pop {
+  padding: 14px;
+}
+
+.lt-prefs-dialog {
+  width: 312px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  outline: none;
+}
+
+.lt-fs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lt-fs-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lt-fs-preset {
+  flex: 1;
+  height: 26px;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--on-surface-variant);
+  font: 500 12px / 1 var(--font);
+  cursor: pointer;
+}
+
+.lt-fs-preset:hover {
+  background-image: var(--hover);
+  color: var(--on-surface);
+}
+
+.lt-fs-preset.is-active {
+  border-color: var(--primary);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  font-weight: 600;
+}
+
+.lt-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lt-chip {
+  height: var(--control-sm);
+  max-width: 170px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--on-surface);
+  font: 500 12px / 1 var(--font);
+  cursor: pointer;
+  outline: none;
+}
+
+.lt-chip .ic {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--primary);
+}
+
+.lt-chip .lt-chip-go {
+  color: var(--on-surface-variant);
+}
+
+.lt-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lt-chip[data-hovered] {
+  background-image: var(--hover);
+}
+
+.lt-chip[data-focus-visible] {
+  box-shadow: var(--focus-ring);
+}
+
+/* ── 动态滚动卡拉 OK 打轴画布 ────────────────────────────────────── */
+.lyrics-stage-shell {
+  --stage-fs: 42px;
+  --stage-ctx-fs: calc(var(--stage-fs) * 0.76);
+  --stage-ruby-fs: max(13px, calc(var(--stage-fs) * 0.4));
+  --stage-ctx-ruby-fs: max(11.5px, calc(var(--stage-fs) * 0.31));
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--stage);
+  color: var(--stage-ink);
+  position: relative;
+}
+
+.lyrics-stage-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--stage-line) transparent;
+}
+
+.stage-empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+}
+
+.stage-empty-ic {
+  width: 40px;
+  height: 40px;
+  color: var(--stage-ink3);
+}
+
+.stage-empty h3 {
+  margin: 4px 0 0;
+  font-size: var(--fs-title);
+  font-weight: 600;
+}
+
+.stage-empty p {
+  margin: 0;
+  max-width: 420px;
+}
+
+.stage-track {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 34vh 36px 42vh;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* 无卡片、无边框通透行容器：纯靠颜色/透明度、字号与字重区分上下文 */
+.stage-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0.58;
+  transition: opacity 0.14s ease;
+}
+
+.stage-line[data-rel='past'] {
+  opacity: 0.45;
+}
+
+.stage-line[data-rel='future'] {
+  opacity: 0.62;
+}
+
+.stage-line:hover {
+  opacity: 0.88;
+}
+
+.stage-line.is-selected,
+.stage-line.has-open-beat-line,
+.stage-line[data-singing='1'] {
+  opacity: 1;
+}
+
+.stage-line-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-top: calc(var(--stage-ctx-ruby-fs) + 12px);
+  user-select: none;
+  cursor: pointer;
+}
+
+.stage-line.is-selected .stage-line-gutter,
+.stage-line.has-open-beat-line .stage-line-gutter,
+.stage-line[data-singing='1'] .stage-line-gutter {
+  padding-top: calc(var(--stage-ruby-fs) + 14px);
+}
+
+.slg-num {
+  font: 600 13px / 1 var(--font-mono);
+  color: var(--stage-ink3);
+}
+
+.stage-line.is-selected .slg-num,
+.stage-line.has-open-beat-line .slg-num,
+.stage-line[data-singing='1'] .slg-num {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.slg-time {
+  font-size: 11.5px;
+  color: var(--stage-ink3);
+}
+
+.stage-line.is-selected .slg-time,
+.stage-line.has-open-beat-line .slg-time,
+.stage-line[data-singing='1'] .slg-time {
+  color: var(--stage-ink2);
+}
+
+.slg-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--stage-ink2);
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.stage-line:hover .slg-edit-btn,
+.stage-line.is-selected .slg-edit-btn {
+  opacity: 1;
+}
+
+.slg-edit-btn:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.slg-edit-btn .ic {
+  width: 15px;
+  height: 15px;
+}
+
+.stage-line-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage-empty-line {
+  padding: 14px 4px;
+  font-size: 20px;
+}
+
+/* 词元三层排版（大字号 + 宽字距，兼顾含 Ruby 日文歌词） */
+.stage-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  row-gap: 20px;
+  column-gap: 8px;
+  font-family: var(--font-ja);
+  user-select: none;
+}
+
+.stage-tok {
+  --wipe: 0%;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  border-radius: 10px;
+  transition: background-color 0.08s ease;
+}
+
+.stage-tok.kind-content {
+  padding: 4px 6px 6px;
+  cursor: pointer;
+}
+
+.stage-tok.kind-content:hover {
+  background: color-mix(in srgb, var(--stage-ink) 7%, transparent);
+}
+
+/* 待命态（未开唱或按 L 收尾后）：唯一蓝色主光标落在当前待打字上 */
+.stage-tok.is-sel {
+  background: color-mix(in srgb, var(--primary-container) 82%, transparent);
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+.stage-tok.is-sel.has-seg-sel {
+  background: color-mix(in srgb, var(--primary-container) 48%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+/* 录制连打态（has-open-beat）：最醒目的蓝色主高亮归“正在录制的字”，下一个预备字退为极轻柔的淡色提示 */
+.lyrics-stage-shell.has-open-beat .stage-tok.is-sel:not(.is-open-beat):not(.has-open-rseg) {
+  background: color-mix(in srgb, var(--stage-ink) 7%, transparent);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--primary) 32%, transparent);
+}
+
+.stage-tok.in-multi {
+  background: color-mix(in srgb, var(--primary-container) 82%, transparent);
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+/* 正在录制拍（openBeat）：蓝色主高亮底块 + 醒目底条 + 底部珊瑚红呼吸 LED 点 ● */
+.lyrics-stage-shell.has-open-beat .stage-tok.is-open-beat {
+  background: color-mix(in srgb, var(--primary-container) 88%, transparent);
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+.lyrics-stage-shell.has-open-beat .stage-tok.has-open-rseg {
+  background: color-mix(in srgb, var(--primary-container) 56%, transparent);
+  box-shadow: inset 0 -2.5px 0 var(--primary);
+}
+
+.stage-tok.kind-ws {
+  min-width: 0.55em;
+  padding: 0 2px 24px;
+  font-size: var(--stage-ctx-fs);
+  color: var(--stage-ink3);
+}
+
+.stage-line.is-selected .stage-tok.kind-ws,
+.stage-line.has-open-beat-line .stage-tok.kind-ws,
+.stage-line[data-singing='1'] .stage-tok.kind-ws {
+  font-size: var(--stage-fs);
+}
+
+.stage-tok.kind-ws.is-pause-ws {
+  min-width: 1.05em;
+}
+
+.lyrics-stage-shell.mode-edit .stage-tok.kind-ws {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--stage-ink) 5%, transparent);
+}
+
+.stage-tok.kind-ws.is-pause-ws .st-ws-visual {
+  color: var(--warn);
+  opacity: 0.72;
+  font-size: 14px;
+}
+
+.stage-tok.kind-punct {
+  padding: 4px 2px 24px;
+  opacity: 0.85;
+}
+
+.lyrics-stage-shell.mode-edit .stage-tok.kind-punct {
+  cursor: pointer;
+}
+
+/* Layer 1: 分拍注音（大号清晰 + 未打拍低对比 / 已打拍实色） */
+.st-ruby {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-height: 1.35em;
+  margin-bottom: 4px;
+  font-size: var(--stage-ctx-ruby-fs);
+  line-height: 1.3;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.stage-line.is-selected .st-ruby,
+.stage-line.has-open-beat-line .st-ruby,
+.stage-line[data-singing='1'] .st-ruby {
+  font-size: var(--stage-ruby-fs);
+  font-weight: 600;
+  margin-bottom: 5px;
+  gap: 5px;
+}
+
+.st-rseg {
+  --wipe: 0%;
+  padding: 1px 3px;
+  border-radius: 4px;
+  color: transparent;
+  background: linear-gradient(to right, var(--wipe-on) var(--wipe), var(--stage-ink) var(--wipe));
+  background-clip: text;
+  -webkit-background-clip: text;
+  transition: opacity 0.1s ease, background-color 0.08s ease;
+}
+
+.st-rseg.is-untimed-seg {
+  opacity: 0.48;
+}
+
+.st-rseg.is-sel {
+  opacity: 1;
+  box-shadow: inset 0 -2.5px 0 var(--primary);
+}
+
+.lyrics-stage-shell.has-open-beat .st-rseg.is-sel:not(.is-open-beat) {
+  opacity: 0.82;
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.lyrics-stage-shell.has-open-beat .st-rseg.is-open-beat {
+  opacity: 1;
+  background: linear-gradient(to right, var(--primary) 100%, var(--primary) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  box-shadow: inset 0 -2.5px 0 var(--primary);
+}
+
+/* Layer 2: 扫字正文 */
+.st-base {
+  --wipe: 0%;
+  font-size: var(--stage-ctx-fs);
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: transparent;
+  background: linear-gradient(to right, var(--wipe-on) var(--wipe), var(--wipe-off) var(--wipe));
+  background-clip: text;
+  -webkit-background-clip: text;
+  white-space: pre;
+}
+
+.stage-line.is-selected .st-base,
+.stage-line.has-open-beat-line .st-base,
+.stage-line[data-singing='1'] .st-base {
+  font-size: var(--stage-fs);
+  font-weight: 700;
+}
+
+.stage-tok.kind-content.is-untimed .st-base {
+  background: linear-gradient(to right, var(--wipe-on) var(--wipe), color-mix(in srgb, var(--wipe-off) 76%, transparent) var(--wipe));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+.stage-line.is-selected .stage-tok.kind-content.is-untimed .st-base,
+.stage-line.has-open-beat-line .stage-tok.kind-content.is-untimed .st-base,
+.stage-line[data-singing='1'] .stage-tok.kind-content.is-untimed .st-base {
+  background: linear-gradient(to right, var(--wipe-on) var(--wipe), var(--wipe-off) var(--wipe));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+.stage-tok.kind-punct .st-base {
+  background: linear-gradient(to right, var(--wipe-on) var(--wipe), var(--stage-ink2) var(--wipe));
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+.lyrics-stage-shell.has-open-beat .stage-line .stage-tok.kind-content.is-open-beat .st-base {
+  background: linear-gradient(to right, var(--primary) 100%, var(--primary) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+/* Layer 3: 字下节奏/停顿点 */
+.st-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 16px;
+  margin-top: 5px;
+  line-height: 1;
+}
+
+.st-dot {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.st-dot.dot-untimed {
+  color: var(--stage-ink3);
+  font-size: 11.5px;
+}
+
+.st-dot.dot-timed {
+  color: color-mix(in srgb, var(--wipe-on) 78%, var(--stage-ink2));
+  font-size: 14px;
+}
+
+.st-dot.dot-phrase-hint {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.st-dot.dot-closed {
+  color: var(--ok);
+  font-size: 11.5px;
+}
+
+.st-dot.dot-estimated {
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.st-dot.dot-invalid {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.st-dot.dot-live {
+  color: var(--error);
+  font-size: 13px;
+  animation: stage-pulse 0.65s ease-in-out infinite alternate;
+}
+
+@keyframes stage-pulse {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
+/* Ghost 其他分支只读伴随层 */
+.stage-ghost-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+
+.stage-ghost {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--stage-ink2);
+  opacity: 0.62;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: default;
+  user-select: none;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+
+.stage-ghost:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--stage-ink) 6%, transparent);
+}
+
+.sg-tag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--stage-line) 75%, transparent);
+  color: var(--stage-ink2);
+  font-size: 11px;
+  font-family: var(--font);
+}
+
+.sg-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* 编辑模式多选浮动操作条 */
+.stage-float-bar {
+  position: absolute;
+  top: -18px;
+  left: 110px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--on-surface);
+  box-shadow: var(--shadow-menu);
+  border: 1px solid var(--outline-variant);
+}
+
+.sfb-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-right: 4px;
+}
+
+/* 行内原地正文编辑 */
+.stage-inline-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.sie-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-field);
+  background: var(--panel);
+  color: var(--on-surface);
+  font: 18px var(--font-ja);
+  outline: none;
+}
+
+/* 画布底栏：精确时间微调 + 键位速查 */
+.stage-footer {
+  flex: none;
+  min-height: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: color-mix(in srgb, var(--stage-high) 70%, var(--stage));
+  border-top: 1px solid var(--stage-line);
+}
+
+.sf-timing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.sf-lbl {
+  font-size: 12px;
+  color: var(--stage-ink2);
+}
+
+.sf-name {
+  max-width: 7em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 14px var(--font-ja);
+}
+
+.sf-sep {
+  color: var(--stage-ink3);
+}
+
+.sf-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--stage-line);
+  margin: 0 2px;
+}
+
+.sf-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--stage-line) 65%, transparent);
+  color: var(--stage-ink);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sf-live-pill.is-live {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--stage-ink);
+}
+
+.sf-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--error);
+  flex: none;
+  animation: stage-pulse 0.65s ease-in-out infinite alternate;
+}
+
+.sf-live-pill b {
+  font-family: var(--font-ja);
+  font-weight: 700;
+}
+
+.sf-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--stage-ink2);
+}
+
+.sf-hints kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  margin-right: 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--stage-line) 75%, transparent);
+  color: var(--stage-ink);
+  font: 600 11px / 1.3 var(--font-mono);
+}
+
+/* ── F2 原地悬浮注音框 ──────────────────────────────────────────── */
+.ruby-inline-popover {
+  position: fixed;
+  z-index: 40;
+  width: min(350px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--dialog, var(--panel));
+  color: var(--on-surface);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--outline-variant);
+}
+
+.rip-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rip-base {
+  font: 600 17px / 1.2 var(--font-ja);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rip-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rip-input-row {
+  display: flex;
+}
+
+.rip-input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius-field);
+  background: var(--dialog-field, var(--field));
+  color: var(--on-surface);
+  font: 15px var(--font-ja);
+  outline: none;
+}
+
+.rip-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.rip-preview-kana {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  font: 600 13px var(--font-ja);
+}
+
+.rip-chip {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--surface-high);
+  color: var(--on-surface);
+  font: 13px var(--font-ja);
+}
+
+.rip-preview-hint {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+
+.rip-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── 全文快编视图 ───────────────────────────────────────────────── */
+.quick-edit {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+.qe-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface-high);
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.qe-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.qe-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.qe-editor-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.qe-gutter {
+  flex: none;
+  width: 56px;
+  padding: 12px 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--surface-high) 60%, var(--panel));
+  border-right: 1px solid var(--outline-variant);
+  user-select: none;
+}
+
+.qe-gline {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-right: 8px;
+  font: 12px / 28px var(--font-mono);
+  color: var(--outline);
+}
+
+.qe-gline.st-added {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.qe-gline.st-modified {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.qe-gmark {
+  width: 10px;
+  text-align: center;
+}
+
+.qe-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--on-surface);
+  font: 15px / 28px var(--font-ja);
+  resize: none;
+  outline: none;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.qe-diff-side {
+  flex: none;
+  width: min(360px, 38%);
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--outline-variant);
+  background: color-mix(in srgb, var(--surface-high) 35%, var(--panel));
+}
+
+.qe-diff-head {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--outline-variant);
+  font-size: 13px;
+}
+
+.qe-diff-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+}
+
+.qe-diff-empty {
+  margin: 4px 2px;
+}
+
+.qe-diff-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  border-left: 3px solid var(--outline);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.qe-diff-item.st-added {
+  border-left-color: var(--ok);
+}
+
+.qe-diff-item.st-modified {
+  border-left-color: var(--warn);
+}
+
+.qe-diff-item.st-removed {
+  border-left-color: var(--error);
+}
+
+.qe-diff-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+
+.qe-diff-old {
+  color: var(--error);
+  text-decoration: line-through;
+  font-family: var(--font-ja);
+  word-break: break-word;
+}
+
+.qe-diff-new {
+  color: var(--ok);
+  font-family: var(--font-ja);
+  word-break: break-word;
+}
+
+/* ── 词典管理弹窗 ───────────────────────────────────────────────── */
+.dialog.dict-manager-dialog {
+  width: min(680px, 100%);
+}
+
+.dict-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.dict-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-panel);
+  background: var(--dialog-field);
+}
+
+.dict-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dict-lead-ic {
+  width: 20px;
+  height: 20px;
+  color: var(--primary);
+}
+
+.dict-notice-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--on-surface-variant);
+  line-height: 1.55;
+}
+
+.dict-meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  font-size: var(--fs-sm);
+}
+
+.dict-meta dt {
+  font-size: 11.5px;
+  color: var(--on-surface-variant);
+  margin-bottom: 2px;
+}
+
+.dict-meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.dict-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.dict-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-row);
+  background: var(--dialog-field);
+}
+
+.dict-progress-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dict-error-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  font-size: var(--fs-sm);
+}
+
+.dict-error-box .ic {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.dict-mirror-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dict-mirror-row .tf {
+  width: 100%;
+}
+
+.dict-user-hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dict-user-form {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.dict-user-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dict-user-search {
+  width: 220px;
+}
+
+.dict-user-list {
+  max-height: 240px;
+  overflow: auto;
+  border-radius: var(--radius-row);
+  background: var(--dialog-field);
+  padding: 4px;
+  scrollbar-width: thin;
+}
+
+.dict-user-empty {
+  margin: 14px 12px;
+  text-align: center;
+}
+
+.dict-user-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(120px, 2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.dict-user-row + .dict-user-row {
+  border-top: 1px solid var(--outline-variant);
+}
+
+.dict-user-surface {
+  font: 600 14px var(--font-ja);
+}
+
+.dict-user-segs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dict-seg-chip {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--panel);
+  font: 13px var(--font-ja);
+}
+
+.dict-user-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-line,
+  .stage-tok,
+  .stage-ghost {
+    transition: none;
+  }
+  .st-dot.dot-live {
+    animation: none;
+  }
+}

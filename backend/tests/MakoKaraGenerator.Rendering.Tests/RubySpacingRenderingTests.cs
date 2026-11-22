@@ -202,8 +202,8 @@ public sealed class RubySpacingRenderingTests
             if (previousRight is { } previous) Assert.True(left - previous >= scale - .001, $"gap={left - previous}, required={scale}");
             previousRight = right;
             double actualAnchor = alignment switch { RubyAlignment.Start => left, RubyAlignment.End => right, _ => (left + right) / 2 };
-            var natural = token.BaseGeometry.AdvanceBounds;
-            double localAnchor = alignment switch { RubyAlignment.Start => natural.Left, RubyAlignment.End => natural.Right, _ => natural.Center.X };
+            var span = token.ProgressPath!;
+            double localAnchor = alignment switch { RubyAlignment.Start => span.StartX, RubyAlignment.End => span.EndX, _ => (span.StartX + span.EndX) / 2d };
             var worldAnchor = geometry.Transform(new(localAnchor, geometry.BaselineY));
             Assert.InRange(Math.Abs(actualAnchor - worldAnchor.X), 0, .001);
             var matching = legacy.TokenGeometries.Single(t => t.WithRuby.TokenId == token.WithRuby.TokenId);

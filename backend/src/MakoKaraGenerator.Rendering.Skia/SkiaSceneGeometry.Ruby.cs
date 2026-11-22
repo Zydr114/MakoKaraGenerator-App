@@ -78,7 +78,8 @@ public sealed partial class SkiaSceneGeometry
             TextLayoutOptions options = LayoutOptionsFor(style with { FontSizePx = style.FontSizePx * (float)scale });
             ShapedLine ruby = GetLayout(annotation.Text, options);
             if (ruby.InkBounds is not { } ink) continue;
-            float left = shaped.XAt(offset), right = shaped.XAt(offset + line.Tokens[index].Text.Length);
+            TokenWipeSpan baseSpan = ResolveTokenWipeSpan(shaped, offset, offset + line.Tokens[index].Text.Length);
+            float left = baseSpan.InkLeft, right = baseSpan.InkRight;
             float x = annotation.Alignment switch
             {
                 RubyAlignment.Start => left - ink.Left,

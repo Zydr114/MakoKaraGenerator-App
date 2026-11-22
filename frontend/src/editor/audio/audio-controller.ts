@@ -36,6 +36,15 @@ const UNAVAILABLE_TEXT: Record<string, string> = {
   audioIdentityChanged: '音频文件已变化',
 };
 
+export const MIN_PLAYBACK_RATE = 0.25;
+export const MAX_PLAYBACK_RATE = 2.0;
+
+export function clampPlaybackRate(rate: number): number {
+  if (!Number.isFinite(rate)) return 1;
+  const clamped = Math.max(MIN_PLAYBACK_RATE, Math.min(MAX_PLAYBACK_RATE, rate));
+  return Math.round(clamped * 100) / 100;
+}
+
 export class AudioController {
   readonly state$ = new ObservableValue<AudioState>({ status: 'loading', durationUs: 0, playing: false, rate: 1 });
   /** Explicit seek/loop boundary; GPU clocks must not infer it from time going backwards. */
@@ -49,10 +58,17 @@ export class AudioController {
   constructor() {
     this.audio = new Audio();
     this.audio.preload = 'auto';
-    this.audio.preservesPitch = true;
+    this.enablePitchPreservation();
     const sync = () => this.patch({ playing: !this.audio.paused, durationUs: this.durationFromElement() });
     for (const type of ['play', 'pause', 'ended', 'durationchange', 'loadedmetadata']) this.audio.addEventListener(type, sync);
     this.audio.addEventListener('error', () => this.patch({ status: 'error', error: '浏览器无法播放这个音频。', playing: false }));
+  }
+
+  private enablePitchPreservation(): void {
+    this.audio.preservesPitch = true;
+    const legacy = this.audio as HTMLAudioElement & { webkitPreservesPitch?: boolean; mozPreservesPitch?: boolean };
+    if ('webkitPreservesPitch' in legacy) legacy.webkitPreservesPitch = true;
+    if ('mozPreservesPitch' in legacy) legacy.mozPreservesPitch = true;
   }
 
   /** 读取资源并开始取波形。失败时 state.status 为 error。 */
@@ -185,9 +201,31 @@ export class AudioController {
     this.timelineReset$.set(this.timelineReset$.get()+1);
   }
 
-  setRate(rate: number): void {
-    this.audio.playbackRate = rate;
-    this.patch({ rate });
+  setRate(rate: number): number {
+    const clamped = clampPlaybackRate(rate);
+    this.enablePitchPreservation();
+    this.audio.playbackRate = clamped;
+    this.patch({ rate: clamped });
+    return clamped;
+  }
+
+  /** 按步进值无变调调速（默认 ±0.1× 或 ±0.05×，钳位在 0.25× ~ 2.0×）。 */
+  stepRate(delta: number): number {
+    return this.setRate(this.state.rate + delta);
+  }
+
+  /**
+   * 悔棋回跳辅助：将播放头回退指定毫秒数（不小于 0）；
+   * keepPlaying=true 时确保回跳后继续播放（用于 Backspace/G 悔棋无缝重打）。
+   */
+  rewind(ms: number, keepPlaying = false): number {
+    const deltaUs = Math.max(0, Math.round(ms * 1000));
+    const targetUs = Math.max(0, this.playheadUs() - deltaUs);
+    this.seek(targetUs);
+    if (keepPlaying && this.state.status === 'ready' && this.audio.paused) {
+      void this.play();
+    }
+    return targetUs;
   }
 
   /** 循环播放一个区间；传 undefined 取消。设置时跳到区间起点。 */

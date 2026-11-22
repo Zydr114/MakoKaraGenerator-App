@@ -42,6 +42,7 @@ public static class PureSourceIndexes
         private readonly ImmutableArray<SourcePresentationLoad> _openPresentations;
         private readonly IntervalTable<SourceCursorSegment> _cursors;
         private readonly ImmutableDictionary<CursorTrackId, IntervalTable<SourceCursorSegment>> _tracks;
+        private readonly ImmutableDictionary<(BranchId BranchId, LineId LineId), LyricLine> _sourceLines;
         private readonly Dictionary<long, CachedScene> _scenes = [];
         private CancellationToken _token;
         private int _cachedValues;
@@ -63,6 +64,9 @@ public static class PureSourceIndexes
             _groups = [.. timeline.Scene.Nodes.Where(static node => node.Kind == SceneNodeKind.Group)
                 .Where(node => scope.Matches(new ElementVisible(new SceneElementIdentity.Group(node.Id, node.BranchId), 0,
                     EventSourceOrder.Global, ReplayReason.Initial))).Select(static node => node.Id)];
+            _sourceLines = _snapshot.Lyrics.Branches
+                .SelectMany(branch => branch.Lines.Select(line => (Key: (new BranchId(branch.Id), new LineId(line.Id)), Line: line)))
+                .ToImmutableDictionary(static item => item.Key, static item => item.Line);
             var loads = BuildPresentations(scope);
             _loads = loads.ToImmutableDictionary(static load => load.Binding.BindingId);
             _presentations = new(loads, static load => load.RevealTimeUs, static load => load.HideTimeUs ?? long.MaxValue, token);
@@ -175,7 +179,17 @@ public static class PureSourceIndexes
                     path = line.ProgressPath; world = line.BaseGeometry.BaseWorldMatrix;
                 }
                 if (path is null) throw new EffectOutputException("BaseCursorGeometryUnavailable", "基础播放头没有真实整形进度路径。");
-                double progress = (double)(timeUs - identity.TimeRange.StartUs) / identity.TimeRange.DurationUs;
+                double progress;
+                if (identity.TokenId is { } progressTokenId
+                    && _sourceLines.TryGetValue((identity.BranchId, identity.LineId), out LyricLine? sourceLine)
+                    && sourceLine.Tokens.FirstOrDefault(item => item.Id == progressTokenId.Value) is { } sourceToken)
+                {
+                    progress = LyricSampler.ComputeTokenProgress(sourceLine, sourceToken, timeUs);
+                }
+                else
+                {
+                    progress = (double)(timeUs - identity.TimeRange.StartUs) / identity.TimeRange.DurationUs;
+                }
                 result.Add(new CursorGeometry { TrackId = segment.TrackId, Identity = identity, TimeUs = timeUs,
                     Progress = progress, Path = path, WorldMatrix = world }.At(anchorMode));
             }

@@ -9,12 +9,20 @@ export type TokenSplitRuleName = 'none' | 'mixed' | 'perTextElement' | 'latinWor
 
 // ── S3a 正文、注音、行操作（§6.6） ──
 
+export interface TextDiffLine {
+  text: string;
+  sourceLineId?: string | null;
+}
+
 export type LyricContentCommand =
   | { type: 'lyrics.setLineText'; target: LineTarget; text: string }
   | { type: 'lyrics.setRubyText'; target: TokenTarget; text: string }
   | { type: 'lyrics.addLine'; branchId: string; afterLineId?: string | null }
   | { type: 'lyrics.duplicateLine'; target: LineTarget }
-  | { type: 'lyrics.removeLine'; target: LineTarget };
+  | { type: 'lyrics.removeLine'; target: LineTarget }
+  | { type: 'lyrics.splitLine'; target: LineTarget; tokenIndex: number }
+  | { type: 'lyrics.mergeLines'; target: LineTarget }
+  | { type: 'lyrics.applyTextDiff'; branchId: string; lines: TextDiffLine[] };
 
 /** S3a 标量工程设置（§6.6）。 */
 export type CompositionCommand =
@@ -117,7 +125,8 @@ export type RubySegmentCommand =
   | { type: 'lyrics.setRubySegmentText'; target: RubySegmentTarget; text: string }
   | { type: 'lyrics.addRubySegment'; target: RubyGroupTarget; text: string; afterSegmentId: string | null }
   | { type: 'lyrics.reorderRubySegments'; target: RubyGroupTarget; orderedSegmentIds: string[] }
-  | { type: 'lyrics.setRubySegmentTimes'; changes: { target: RubySegmentTarget; startUs: Micros; endUs: Micros }[] };
+  | { type: 'lyrics.setRubySegmentTimes'; changes: { target: RubySegmentTarget; startUs: Micros; endUs: Micros }[] }
+  | { type: 'lyrics.setRubySegments'; target: TokenTarget; segments: string[] };
 
 // ── 命令响应的可选结果 ──
 

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Text;
 using MakoKaraGenerator.Core.Time;
 
 namespace MakoKaraGenerator.Rendering;
@@ -54,6 +55,41 @@ public readonly record struct RubyTextSegmentSample(
     public TimeRange? Time { get; init; }
 }
 
+/// <summary>多拍注音基础字的分段进度元数据：用于羽化过渡带与扫字高亮在活跃分段子区间上计算不夹值演唱位置。</summary>
+/// <param name="SegmentTime">用于外推的分段时间区间（当前活跃拍，或距离采样时刻最近的边界拍）。</param>
+/// <param name="WeightStart">该分段在基础字进度中的归一化起点（0..1）。</param>
+/// <param name="WeightEnd">该分段在基础字进度中的归一化终点（0..1）。</param>
+/// <param name="InGap">采样时刻是否落于相邻两拍之间的空隙（空隙内基础字进度保持原位等待下一拍）。</param>
+public readonly record struct TokenPiecewiseProgress(
+    TimeRange SegmentTime,
+    double WeightStart,
+    double WeightEnd,
+    bool InGap = false);
+
+/// <summary>无时间空白或标点元素的裁剪跟亮桥接上下文。</summary>
+/// <param name="SourceTokenIndex">绑定到的相邻已定时实义元素在行内的序号。</param>
+/// <param name="SourceUtf16Start">绑定源元素在行文本中的起始下标。</param>
+/// <param name="SourceUtf16Length">绑定源元素的 UTF-16 长度。</param>
+/// <param name="SourceProgress">绑定源元素在当前时刻的进度。</param>
+/// <param name="SourceTime">绑定源元素的时间区间。</param>
+/// <param name="SourceActiveSegment">绑定源元素的多拍分段进度（若有）。</param>
+/// <param name="IsLeading"><see langword="true"/> 表示行首前导桥接（跟随源元素起点）；<see langword="false"/> 表示句中/行尾后随桥接（跟随源元素终点）。</param>
+public readonly record struct TokenUntimedBridge(
+    int SourceTokenIndex,
+    int SourceUtf16Start,
+    int SourceUtf16Length,
+    double SourceProgress,
+    TimeRange? SourceTime,
+    TokenPiecewiseProgress? SourceActiveSegment,
+    bool IsLeading)
+{
+    /// <summary>绑定源元素的结束下标（不含）。</summary>
+    public int SourceUtf16End => SourceUtf16Start + SourceUtf16Length;
+
+    /// <summary>硬切换模式下该桥接元素此刻是否应并入已唱区。</summary>
+    public bool IsHardSung => IsLeading ? SourceProgress > 0d : SourceProgress >= 1d;
+}
+
 /// <summary>某个时刻下一个元素的状态。</summary>
 /// <param name="Index">元素在行内的序号（从 0 开始）。</param>
 /// <param name="Utf16Start">元素在行文本中的起始下标。</param>
@@ -81,6 +117,12 @@ public readonly record struct TokenSample(
     /// <summary>元素自己的时间段，只在进度来自元素时间时提供；进度被置零时为空。</summary>
     /// <remarks>扫字羽化据此按帧时刻求不夹值的演唱位置（P3 设计 §10.1 第 8 条）；脚本可见的演唱采样不变。</remarks>
     public TimeRange? Time { get; init; }
+
+    /// <summary>多拍注音基础字的分段进度上下文；单拍或无多拍注音时为 <see langword="null"/>。</summary>
+    public TokenPiecewiseProgress? ActiveSegment { get; init; }
+
+    /// <summary>无时间空白或标点元素的桥接跟亮上下文；普通元素或无绑定源时为 <see langword="null"/>。</summary>
+    public TokenUntimedBridge? Bridge { get; init; }
 }
 
 /// <summary>
@@ -272,7 +314,61 @@ public static class LyricSampler
         return range.IsValid && range.StartUs >= 0 && range.EndUs > range.StartUs;
     }
 
-    /// <summary>为一行里的每个元素计算进度。</summary>
+    /// <summary>
+    /// 计算指定元素在给定时刻的演唱进度（含多拍注音按字素数权重分段同步），供采样器与 SDK v2 播放头共用。
+    /// </summary>
+    /// <param name="line">所属歌词行。</param>
+    /// <param name="token">目标元素。</param>
+    /// <param name="timeUs">时刻（微秒）。</param>
+    /// <returns>归一化进度（0 到 1）；无可用时间时为 0。</returns>
+    public static double ComputeTokenProgress(LyricLine line, LyricToken token, long timeUs)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        ArgumentNullException.ThrowIfNull(token);
+
+        if (!TryGetUsableRange(token.Time, out long start, out long end))
+        {
+            return 0d;
+        }
+
+        if (TrySamplePiecewise(line, token, timeUs, out double piecewiseProgress, out _))
+        {
+            return piecewiseProgress;
+        }
+
+        return Clamp01(Ratio(timeUs - start, end - start));
+    }
+
+    /// <summary>
+    /// 获取多拍注音元素用于播放头连续区间切分的分段断点（严格落在元素时间区间内部的各注音分段起止时刻）。
+    /// </summary>
+    public static ImmutableArray<long> GetPiecewiseBreakpoints(LyricLine line, LyricToken token)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        ArgumentNullException.ThrowIfNull(token);
+
+        if (!TryGetUsableRange(token.Time, out long tokenStart, out long tokenEnd)
+            || line.RubyAnnotations.IsEmpty)
+        {
+            return [];
+        }
+
+        if (!TryCollectPiecewiseSegments(line, token, tokenStart, tokenEnd, out List<(TimeRange Time, int Weight)> timed, out _))
+        {
+            return [];
+        }
+
+        SortedSet<long> cuts = [];
+        foreach ((TimeRange range, _) in timed)
+        {
+            if (range.StartUs > tokenStart && range.StartUs < tokenEnd) cuts.Add(range.StartUs);
+            if (range.EndUs > tokenStart && range.EndUs < tokenEnd) cuts.Add(range.EndUs);
+        }
+
+        return [.. cuts];
+    }
+
+    /// <summary>为一行里的每个元素计算进度（含多拍注音分段同步与无时间空白/标点桥接）。</summary>
     private static ImmutableArray<TokenSample> SampleTokens(LyricLine line, long timeUs)
     {
         if (line.Tokens.IsEmpty)
@@ -282,22 +378,40 @@ public static class LyricSampler
 
         int count = line.Tokens.Length;
         TokenSample[] samples = new TokenSample[count];
+        LyricTokenKind[] kinds = new LyricTokenKind[count];
         int offset = 0;
 
         for (int i = 0; i < count; i++)
         {
             LyricToken token = line.Tokens[i];
             int length = token.Text.Length;
+            kinds[i] = LyricTokenSemantics.Classify(token.Text);
 
             if (TryGetUsableRange(token.Time, out long start, out long end))
             {
+                double progress;
+                TokenPiecewiseProgress? activeSegment = null;
+                if (TrySamplePiecewise(line, token, timeUs, out double piecewiseProgress, out TokenPiecewiseProgress piece))
+                {
+                    progress = piecewiseProgress;
+                    activeSegment = piece;
+                }
+                else
+                {
+                    progress = Clamp01(Ratio(timeUs - start, end - start));
+                }
+
                 samples[i] = new TokenSample(
                     i,
                     offset,
                     length,
-                    Clamp01(Ratio(timeUs - start, end - start)),
+                    progress,
                     ProgressSource.FromToken,
-                    IsCurrent: timeUs >= start && timeUs < end) { Time = new TimeRange(start, end) };
+                    IsCurrent: timeUs >= start && timeUs < end)
+                {
+                    Time = new TimeRange(start, end),
+                    ActiveSegment = activeSegment,
+                };
             }
             else
             {
@@ -307,7 +421,215 @@ public static class LyricSampler
             offset += length;
         }
 
+        // 整行级无时间空白/标点裁剪跟亮桥接：绝不作用于未定时的实义元素。
+        int firstContentIndex = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (kinds[i] == LyricTokenKind.Content)
+            {
+                firstContentIndex = i;
+                break;
+            }
+        }
+
+        int prevContentIndex = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (kinds[i] == LyricTokenKind.Content)
+            {
+                prevContentIndex = i;
+                continue;
+            }
+
+            if (!LyricTokenSemantics.IsUntimedNonContent(line.Tokens[i]))
+            {
+                continue;
+            }
+
+            if (prevContentIndex >= 0)
+            {
+                TokenSample prev = samples[prevContentIndex];
+                if (prev.Source == ProgressSource.FromToken)
+                {
+                    samples[i] = samples[i] with
+                    {
+                        Bridge = new TokenUntimedBridge(
+                            prev.Index,
+                            prev.Utf16Start,
+                            prev.Utf16Length,
+                            prev.Progress,
+                            prev.Time,
+                            prev.ActiveSegment,
+                            IsLeading: false),
+                    };
+                }
+            }
+            else if (firstContentIndex > i)
+            {
+                TokenSample next = samples[firstContentIndex];
+                if (next.Source == ProgressSource.FromToken)
+                {
+                    samples[i] = samples[i] with
+                    {
+                        Bridge = new TokenUntimedBridge(
+                            next.Index,
+                            next.Utf16Start,
+                            next.Utf16Length,
+                            next.Progress,
+                            next.Time,
+                            next.ActiveSegment,
+                            IsLeading: true),
+                    };
+                }
+            }
+        }
+
         return [.. samples];
+    }
+
+    private static RubyAnnotation? FindRubyForToken(LyricLine line, string tokenId)
+    {
+        foreach (RubyAnnotation annotation in line.RubyAnnotations)
+        {
+            if (annotation.BaseTokenId == tokenId)
+            {
+                return annotation;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryCollectPiecewiseSegments(
+        LyricLine line,
+        LyricToken token,
+        long tokenStart,
+        long tokenEnd,
+        out List<(TimeRange Time, int Weight)> timed,
+        out int totalWeight)
+    {
+        timed = [];
+        totalWeight = 0;
+
+        if (line.RubyAnnotations.IsEmpty)
+        {
+            return false;
+        }
+
+        RubyAnnotation? ruby = FindRubyForToken(line, token.Id);
+        if (ruby is null)
+        {
+            return false;
+        }
+
+        IReadOnlyList<RubyTextSegment> effective = ruby.EffectiveSegments;
+        if (effective.Count < 2)
+        {
+            return false;
+        }
+
+        long previousEnd = tokenStart;
+        foreach (RubyTextSegment segment in effective)
+        {
+            if (segment.TimingStatus is not (TimingStatus.Imported or TimingStatus.Estimated or TimingStatus.Edited or TimingStatus.Confirmed)
+                || !TryGetUsableRange(segment.Time, out long s, out long e))
+            {
+                continue;
+            }
+
+            // 分段同步要求有效计时分段单调不重叠且落在基础字时间包络内，
+            // 既保证播放头与二分断点单调性，也兼容早/晚于基础字或重叠的独立注音测试场景。
+            if (s < previousEnd || e > tokenEnd)
+            {
+                return false;
+            }
+
+            int graphemeCount = 0;
+            foreach (TextElementRange _ in GraphemeSplitter.Enumerate(segment.Text))
+            {
+                graphemeCount++;
+            }
+
+            int weight = Math.Max(1, graphemeCount);
+            timed.Add((new TimeRange(s, e), weight));
+            totalWeight += weight;
+            previousEnd = e;
+        }
+
+        return timed.Count >= 2 && totalWeight > 0;
+    }
+
+    private static bool TrySamplePiecewise(
+        LyricLine line,
+        LyricToken token,
+        long timeUs,
+        out double progress,
+        out TokenPiecewiseProgress activeSegment)
+    {
+        progress = 0d;
+        activeSegment = default;
+
+        if (!TryGetUsableRange(token.Time, out long tokenStart, out long tokenEnd)
+            || !TryCollectPiecewiseSegments(line, token, tokenStart, tokenEnd, out List<(TimeRange Time, int Weight)> timed, out int totalWeight))
+        {
+            return false;
+        }
+
+        double[] wStart = new double[timed.Count];
+        double[] wEnd = new double[timed.Count];
+        int cumulative = 0;
+        for (int i = 0; i < timed.Count; i++)
+        {
+            wStart[i] = i == 0 ? 0d : (double)cumulative / totalWeight;
+            cumulative += timed[i].Weight;
+            wEnd[i] = i == timed.Count - 1 ? 1d : (double)cumulative / totalWeight;
+        }
+
+        for (int i = 0; i < timed.Count; i++)
+        {
+            TimeRange range = timed[i].Time;
+            if (timeUs >= range.StartUs && timeUs < range.EndUs)
+            {
+                double localRatio = Clamp01(Ratio(timeUs - range.StartUs, range.EndUs - range.StartUs));
+                progress = wStart[i] + (wEnd[i] - wStart[i]) * localRatio;
+                activeSegment = new TokenPiecewiseProgress(range, wStart[i], wEnd[i], InGap: false);
+                return true;
+            }
+        }
+
+        if (timeUs < timed[0].Time.StartUs)
+        {
+            progress = 0d;
+            activeSegment = new TokenPiecewiseProgress(timed[0].Time, wStart[0], wEnd[0], InGap: false);
+            return true;
+        }
+
+        if (timeUs >= timed[^1].Time.EndUs)
+        {
+            progress = 1d;
+            activeSegment = new TokenPiecewiseProgress(timed[^1].Time, wStart[^1], wEnd[^1], InGap: false);
+            return true;
+        }
+
+        int lastFinished = -1;
+        for (int i = 0; i < timed.Count; i++)
+        {
+            if (timed[i].Time.EndUs <= timeUs)
+            {
+                lastFinished = i;
+            }
+        }
+
+        if (lastFinished >= 0)
+        {
+            progress = wEnd[lastFinished];
+            activeSegment = new TokenPiecewiseProgress(timed[lastFinished].Time, wStart[lastFinished], wEnd[lastFinished], InGap: true);
+            return true;
+        }
+
+        progress = 0d;
+        activeSegment = new TokenPiecewiseProgress(timed[0].Time, wStart[0], wEnd[0], InGap: false);
+        return true;
     }
 
     private static ImmutableArray<RubyTextSegmentSample> SampleRubySegments(

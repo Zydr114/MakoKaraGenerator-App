@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { createServer } = require('node:http');
 const path = require('node:path');
+const { handleDictProxyRequest } = require('./dict-proxy.cjs');
 const privateFs = require('./private-fs.cjs');
 
 const MIME_TYPES = Object.freeze({
@@ -29,6 +30,7 @@ async function startStaticWebServer(options) {
   const host = options.host ?? '127.0.0.1';
   const allowFallbackPort = options.allowFallbackPort ?? false;
   const getBootstrap = options.getBootstrap;
+  const dictFetch = options.dictFetch;
 
   let actualPort = requestedPort;
   let allowedHosts = new Set([`127.0.0.1:${actualPort}`, `localhost:${actualPort}`]);
@@ -60,6 +62,16 @@ async function startStaticWebServer(options) {
           hostInstanceId: info.hostInstanceId,
           bootstrapToken: info.bootstrapToken,
         }));
+        return;
+      }
+      if (pathname === '/__mako/dict-proxy') {
+        res.setHeader('Cache-Control', 'no-store');
+        const sameOrigin = req.headers.origin === undefined || req.headers.origin === `http://${req.headers.host}`;
+        if (req.method !== 'GET' || req.headers['sec-fetch-site'] !== 'same-origin' || !sameOrigin) {
+          res.writeHead(403).end();
+          return;
+        }
+        await handleDictProxyRequest(req, res, { fetchImpl: dictFetch });
         return;
       }
       if (req.method !== 'GET' && req.method !== 'HEAD') {

@@ -36,11 +36,12 @@ export interface WorkLayoutProps {
   page: LayoutPage;
   /** 页面根节点的类名（workspace、orchestration、appearance、library），冒烟脚本靠它找页面。 */
   className: string;
-  /** 幕后那一块：歌词页是右栏（逐字预览，和底部区连成 L 形），编排、外观是中栏（画布，连成 T 形）。 */
+  /** 幕后那一块：歌词页合并中右栏时中栏即画布；编排、外观也是中栏（连成 T 形或右侧无缝拼接）。 */
   stage: 'center' | 'right';
   left: WorkSide;
   center: ReactNode;
-  right: WorkSide;
+  /** 可选右栏：歌词页重构后合并中右栏给动态画布，不传 right 即铺满右侧全部宽度。 */
+  right?: WorkSide | undefined;
   /** 面板上面的一整条（样式库的返回栏）。 */
   top?: ReactNode;
   /** 底部区：播放条、时间轴等；样式库没有底部区，幕后那一块不往下拼接。 */
@@ -100,16 +101,24 @@ export function WorkLayout(props: WorkLayoutProps) {
     setSizes(latest.current);
   };
 
-  const sideOf = (side: Side) => (side === 'left' ? props.left : props.right);
-  const placement = (side: Side): Placement =>
-    isOverlaySide(mode, side) ? (open === side ? 'overlay' : 'rail') : sideOf(side).collapsed ? 'rail' : 'docked';
+  const hasRight = props.right !== undefined;
+  const sideOf = (side: Side): WorkSide | undefined => (side === 'left' ? props.left : props.right);
+  const placement = (side: Side): Placement | 'none' => {
+    const def = sideOf(side);
+    if (!def) return 'none';
+    return isOverlaySide(mode, side) ? (open === side ? 'overlay' : 'rail') : def.collapsed ? 'rail' : 'docked';
+  };
   const toggle = (side: Side) => {
+    const def = sideOf(side);
+    if (!def) return;
     if (isOverlaySide(mode, side)) setOpen((current) => (current === side ? null : side));
-    else sideOf(side).onCollapsedChange?.(false);
+    else def.onCollapsedChange?.(false);
   };
   const hide = (side: Side) => {
+    const def = sideOf(side);
+    if (!def) return;
     if (isOverlaySide(mode, side)) setOpen(null);
-    else sideOf(side).onCollapsedChange?.(true);
+    else def.onCollapsedChange?.(true);
   };
   // 给内容的收起接口保持同一个对象，免得 memo 过的内容跟着重渲染。
   const hideRef = useRef(hide);
@@ -120,7 +129,7 @@ export function WorkLayout(props: WorkLayoutProps) {
   const right = placement('right');
   const hasDock = props.dock !== undefined;
   const joined = !hasDock ? null : props.stage === 'center' ? 'center' : right === 'docked' ? 'right' : null;
-  const rightWidth = props.right.width ?? sizes.right;
+  const rightWidth = props.right?.width ?? sizes.right;
   const style = {
     '--left': `${left === 'docked' ? sizes.left : RAIL_WIDTH}px`,
     '--right': `${right === 'docked' ? rightWidth : RAIL_WIDTH}px`,
@@ -132,8 +141,9 @@ export function WorkLayout(props: WorkLayoutProps) {
   const timelineNow = () => dock.current?.querySelector('.timeline-canvas canvas')?.getBoundingClientRect().height ?? TIMELINE_LIMITS.min;
 
   // 栏的内容一直挂着（收起时只是隐藏），换断点、开关覆盖面板都不丢状态。
-  const sideTile = (side: Side, where: Placement) => {
+  const sideTile = (side: Side, where: Placement | 'none') => {
     const def = sideOf(side);
+    if (!def || where === 'none') return null;
     return (
       <div
         className={cls('work-side', side, where, props.stage === side && 'stage-zone', joined === side && 'joins')}
@@ -145,14 +155,15 @@ export function WorkLayout(props: WorkLayoutProps) {
     );
   };
 
-  const rail = (side: Side, where: Placement) => {
-    if (where === 'docked') return null;
+  const rail = (side: Side, where: Placement | 'none') => {
+    const def = sideOf(side);
+    if (!def || where === 'none' || where === 'docked') return null;
     const expanded = where === 'overlay';
     const toward = (side === 'left') === expanded ? 'chevron_left' : 'chevron_right';
     return (
-      <AriaButton className={cls('work-rail', side, expanded && 'on')} aria-label={sideOf(side).label} aria-expanded={expanded} onPress={() => toggle(side)}>
+      <AriaButton className={cls('work-rail', side, expanded && 'on')} aria-label={def.label} aria-expanded={expanded} onPress={() => toggle(side)}>
         <Icon name={toward} />
-        <span className="rail-label">{sideOf(side).label}</span>
+        <span className="rail-label">{def.label}</span>
       </AriaButton>
     );
   };
@@ -166,7 +177,7 @@ export function WorkLayout(props: WorkLayoutProps) {
         </div>
       )}
       {props.top && <div className="work-top">{props.top}</div>}
-      <div className={cls('work', !hasDock && 'no-dock')} style={style}>
+      <div className={cls('work', !hasDock && 'no-dock', !hasRight && 'no-right')} style={style}>
         {rail('left', left)}
         {sideTile('left', left)}
         {left === 'docked' && (
@@ -185,7 +196,7 @@ export function WorkLayout(props: WorkLayoutProps) {
           />
         )}
         <div className={cls('work-center', props.stage === 'center' && 'stage-zone', joined === 'center' && 'joins')}>{props.center}</div>
-        {right === 'docked' && props.right.width === undefined && (
+        {props.right && right === 'docked' && props.right.width === undefined && (
           <Splitter
             className="col right"
             orientation="vertical"
@@ -203,11 +214,11 @@ export function WorkLayout(props: WorkLayoutProps) {
         {sideTile('right', right)}
         {rail('right', right)}
         {hasDock && (
-          <div ref={dock} className={cls('work-dock', 'stage-zone', joined && `join-${joined}`)}>
+          <div ref={dock} className={cls('work-dock', 'stage-zone', joined && `join-${joined}`, !hasRight && joined === 'center' && 'join-no-right')}>
             {joined === 'center' && (
               <>
                 <i className="fillet l" aria-hidden />
-                <i className="fillet r" aria-hidden />
+                {hasRight && <i className="fillet r" aria-hidden />}
               </>
             )}
             {joined === 'right' && <i className="fillet l" aria-hidden />}

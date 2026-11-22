@@ -19,7 +19,7 @@ internal static class SnapshotJsonContract
         [typeof(LyricsDocument)] = ["PrimaryBranchId", "Branches", "SchemaVersion"],
         [typeof(LyricBranch)] = ["Id", "Name", "Role", "Language", "TimingMode", "StyleOverride", "Lines"],
         [typeof(LyricLine)] = ["PrimaryLineId", "RubyAnnotations", "Id", "Text", "Time", "TimingStatus", "StyleOverride", "Tokens"],
-        [typeof(LyricToken)] = ["Id", "Text", "Time", "TimingStatus", "StyleOverride"],
+        [typeof(LyricToken)] = ["Id", "Text", "Time", "TimingStatus", "StyleOverride", "PhraseEndHint"],
         [typeof(RubyAnnotation)] = ["Id", "BaseTokenId", "Text", "Segments", "Language", "RelativeScale", "GapPx", "Alignment"],
         [typeof(RubyTextSegment)] = ["Id", "Text", "Time", "TimingStatus"],
         [typeof(LyricStyle)] = ["Typography", "Ruby", "Unsung", "Sung", "Wipe", "VerticalCenterRatio", "HorizontalAlignment", "Opacity", "Scale"],

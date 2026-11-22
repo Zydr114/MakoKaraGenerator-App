@@ -22,7 +22,7 @@ const errors = [];
 let page;
 // 界面改版后的查询（frontend/scripts/ui-query.mjs）：按角色和名称找控件。
 const REVISION = `Number((document.querySelector('.status-bar')?.textContent.match(/修订 (\\d+)/) ?? [])[1])`;
-const timeInputs = `[...document.querySelectorAll('.timebar .tb-time input')]`;
+const timeInputs = `[...document.querySelectorAll('.stage-footer .tb-time input')]`;
 const startTime = `(${timeInputs}[0]?.value ?? null)`;
 const playhead = `(document.querySelector('.transport-time span')?.textContent ?? '')`;
 const previewTitle = `(document.querySelector('.preview-panel .preview-title .pane-title-text')?.textContent ?? '')`;
@@ -35,8 +35,8 @@ try {
   await shell.newProject(page, { audio: wav, lyrics: lrc, name: `App integration ${Date.now()}` });
   await page.waitFor(`document.querySelectorAll('.line-list [role=row]').length === 2`, '两行歌词进入工作区', 120000);
   console.log('PASS 上传WAV/LRC并新建临时工程');
-  await page.eval(`[...document.querySelectorAll('.tk-row .tk')].find((c) => c.querySelector('.tk-t').textContent === '朝').click()`);
-  await page.waitFor(`document.querySelector('.timebar b')?.textContent === '朝'`, '选择元素');
+  await page.eval(`[...document.querySelectorAll('.stage-tok.kind-content')].find((c) => c.querySelector('.st-base')?.textContent === '朝').click()`);
+  await page.waitFor(`document.querySelector('.stage-footer .sf-name')?.textContent === '朝'`, '选择元素');
   await page.eval(uiJs(`const el = ${timeInputs}[0]; el.focus(); __ui.setValue(el, '0:00.600');`));
   await page.eval(uiJs(`const el = ${timeInputs}[1]; el.focus(); __ui.setValue(el, '0:00.900'); __ui.key(el, 'Enter');`));
   await page.waitFor(`${REVISION} === 1`, '修改修订1');

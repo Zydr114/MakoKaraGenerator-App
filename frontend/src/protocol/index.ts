@@ -6,7 +6,7 @@
 /** 后端 BackendProtocol.Version。 */
 export const PROTOCOL_VERSION = '1';
 /** 本项目固定消费的冻结 API 合同版本与对应产品版本。 */
-export const CONTRACT_VERSION = '1.58.0';
+export const CONTRACT_VERSION = '1.59.0';
 export const CONTRACT_PRODUCT_VERSION = '0.116.1';
 
 export * from './int64';

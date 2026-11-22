@@ -121,6 +121,68 @@ public sealed record LyricPresentationDefinition
         var result = this with { Programs = programs, LineOverrides = lines };
         return result == this ? this : result;
     }
+    /// <summary>显式清除行或分支时间时清理失去行时间的片段成员、调度边界与前奏引用；保留容器与单句覆盖。</summary>
+    public LyricPresentationDefinition RemoveUntimedReferences(LyricsDocument lyrics)
+    {
+        var programs = Programs.Select(program =>
+        {
+            var branch = lyrics.Branches.FirstOrDefault(source => source.Id == program.BranchId);
+            if (branch is null) return program;
+            var timedIds = branch.Lines
+                .Where(line => line.Time is { IsValid: true })
+                .Select(line => line.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            var lineIndexById = new Dictionary<string, int>(branch.Lines.Length, StringComparer.Ordinal);
+            for (int i = 0; i < branch.Lines.Length; i++)
+                lineIndexById[branch.Lines[i].Id] = i;
+
+            var nextClips = ImmutableArray.CreateBuilder<LyricDisplayClip>(program.Clips.Length);
+            foreach (var clip in program.Clips)
+            {
+                ImmutableArray<string> kept = [.. clip.LineIds.Where(timedIds.Contains)];
+                if (kept.IsEmpty) continue;
+                bool contiguous = true;
+                if (kept.Length != clip.LineIds.Length)
+                {
+                    if (!lineIndexById.TryGetValue(kept[0], out int firstIndex))
+                    {
+                        contiguous = false;
+                    }
+                    else
+                    {
+                        for (int i = 1; i < kept.Length; i++)
+                        {
+                            if (!lineIndexById.TryGetValue(kept[i], out int idx) || idx != firstIndex + i)
+                            {
+                                contiguous = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!contiguous) continue;
+
+                LyricClipScheduleContext? nextContext = clip.ScheduleContext;
+                if (nextContext is { } ctx)
+                {
+                    bool invalid = ctx.LineIds.Any(id => !timedIds.Contains(id))
+                        || (ctx.PreviousLineId is not null && !timedIds.Contains(ctx.PreviousLineId))
+                        || (ctx.NextLineId is not null && !timedIds.Contains(ctx.NextLineId));
+                    if (invalid || kept.Length != clip.LineIds.Length)
+                        nextContext = null;
+                }
+
+                nextClips.Add(kept.SequenceEqual(clip.LineIds) && nextContext == clip.ScheduleContext
+                    ? clip
+                    : clip with { LineIds = kept, ScheduleContext = nextContext });
+            }
+
+            ImmutableArray<LyricLeadIn> nextLeadIns = [.. program.LeadIns.Where(cue => timedIds.Contains(cue.TargetLineId))];
+            return program with { Clips = nextClips.ToImmutable(), LeadIns = nextLeadIns };
+        }).ToImmutableArray();
+        var result = this with { Programs = programs };
+        return result == this ? this : result;
+    }
     /// <summary>按容器、程序及覆盖内容比较。</summary>
     public bool Equals(LyricPresentationDefinition? other) => other is not null && Nodes.SequenceEqual(other.Nodes)
         && Programs.SequenceEqual(other.Programs) && LineOverrides.SequenceEqual(other.LineOverrides);

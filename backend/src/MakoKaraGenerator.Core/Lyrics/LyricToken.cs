@@ -42,6 +42,12 @@ public sealed record LyricToken
     /// </remarks>
     public LyricStyleOverride? StyleOverride { get; init; }
 
+    /// <summary>
+    /// 句中收尾提示覆写：<see langword="null"/> 表示按邻接语境自动推导；
+    /// <see langword="true"/> 强制显示收尾提示 ○；<see langword="false"/> 强制抑制收尾提示。
+    /// </summary>
+    public bool? PhraseEndHint { get; init; }
+
     /// <summary>元素的时长（微秒）。</summary>
     /// <exception cref="InvalidOperationException">元素没有时间，或时间区间非法时抛出。</exception>
     public long DurationUs
@@ -92,6 +98,7 @@ public sealed record LyricToken
     /// <param name="time">时间区间，默认没有时间。</param>
     /// <param name="timingStatus">时间来源状态，默认为 <see cref="TimingStatus.Missing"/>。</param>
     /// <param name="styleOverride">元素级样式覆盖，默认不覆盖。</param>
+    /// <param name="phraseEndHint">句中收尾提示覆写，默认由邻接语境自动推导。</param>
     /// <returns>新的元素实例。</returns>
     /// <exception cref="ArgumentException">标识为空白，或"时间 + 状态"组合不自洽时抛出。</exception>
     /// <exception cref="ArgumentNullException"><paramref name="text"/> 为 <see langword="null"/> 时抛出。</exception>
@@ -100,7 +107,8 @@ public sealed record LyricToken
         string text,
         TimeRange? time = null,
         TimingStatus timingStatus = TimingStatus.Missing,
-        LyricStyleOverride? styleOverride = null)
+        LyricStyleOverride? styleOverride = null,
+        bool? phraseEndHint = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(text);
@@ -119,6 +127,7 @@ public sealed record LyricToken
             Time = time,
             TimingStatus = timingStatus,
             StyleOverride = styleOverride,
+            PhraseEndHint = phraseEndHint,
         };
     }
 }

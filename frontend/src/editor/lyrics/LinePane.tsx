@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { AppearanceStore } from '../appearance/appearance-store';
+import { lineTarget } from '../model/appearance-targets';
 import { BRANCH_ROLE_TEXT, lineNumbers } from '../model/branches';
 import { batchHistoryText } from '../model/edit-batches';
+import { linePlacement } from '../model/line-placement';
+import type { OrchestrationStore } from '../orchestration/orchestration-store';
 import type { EditorSession, EditorState } from '../session/editor-session';
 import { Button as AriaButton } from 'react-aria-components';
 import { Button, IconButton } from '../ui/Button';
@@ -14,6 +18,7 @@ import { lineActionItems, type LineAction, type LineActions } from './line-actio
 import { LineList, statusCounts, type LineNote } from './LineList';
 import { ResplitBranchDialog } from './ResplitDialogs';
 import { SourcesSheet } from './SourcesSheet';
+import { lineHasAnyTiming } from './timing-keymap';
 import './lyrics.css';
 
 const SHOW_TRANSLATIONS_KEY = 'mako.editor.showTranslationsInLineList';
@@ -23,7 +28,16 @@ const SHOW_TRANSLATIONS_KEY = 'mako.editor.showTranslationsInLineList';
  * 下面是行列表，最下面一行是行数与时间状态的统计。多选时列表上方出现批量操作条。
  * 单行的操作（插入、复制、删除、重切、关联）在行编辑区标题栏的“行操作”里；右键一行在指针处弹出同样的菜单。
  */
-export function LinePane(props: { session: EditorSession; state: EditorState; onUndo: () => void; actions: LineActions }) {
+export function LinePane(props: {
+  session: EditorSession;
+  state: EditorState;
+  onUndo: () => void;
+  actions: LineActions;
+  appearance?: AppearanceStore | null;
+  orchestration?: OrchestrationStore | null;
+  onOpenPage?: (page: 'appearance' | 'orchestration') => void;
+  onClearBranchTiming?: () => void;
+}) {
   const { session, state, actions } = props;
   const [multi, setMulti] = useState(false);
   const [marked, setMarked] = useState<ReadonlySet<string>>(new Set());
@@ -140,11 +154,26 @@ export function LinePane(props: { session: EditorSession; state: EditorState; on
               if (id === 'resplit') setResplitBranchOpen(true);
               else if (id === 'translations') toggleTranslations();
               else if (id === 'link') actions.openLink(state.branchId);
+              else if (id === 'clearBranchTiming') props.onClearBranchTiming?.();
             }}
           >
             <MenuItem id="resplit" icon="call_split" disabled={state.lines.length === 0 || !session.supportsCommand('lyrics.resplitBranch')}>
               按规则重切整个来源…
             </MenuItem>
+            {props.onClearBranchTiming && (
+              <MenuItem
+                id="clearBranchTiming"
+                icon="delete"
+                danger
+                disabled={
+                  state.lines.length === 0 ||
+                  !state.lines.some(lineHasAnyTiming) ||
+                  !session.supportsCommand('lyrics.clearBranchTiming')
+                }
+              >
+                清除全部时间戳（保留文本与分段）…
+              </MenuItem>
+            )}
             {isPrimary ? (
               <MenuSection selectionMode="multiple" selectedKeys={showTranslations ? ['translations'] : []}>
                 <MenuItem id="translations" disabled={branches.length < 2}>
@@ -247,10 +276,40 @@ export function LinePane(props: { session: EditorSession; state: EditorState; on
         onClose={() => setMenu(null)}
         onAction={(id) => {
           const line = state.lines.find((l) => l.id === menu?.lineId);
-          if (line) actions.run(id as LineAction, line);
+          if (!line) return;
+          if (id === 'goAppearance' && props.appearance && props.onOpenPage) {
+            props.appearance.setTargets([lineTarget(line)]);
+            props.onOpenPage('appearance');
+            return;
+          }
+          if (id === 'goOrchestration' && props.orchestration && props.onOpenPage) {
+            const orchModel = props.orchestration.state$.get().model;
+            const placement = orchModel ? linePlacement(orchModel, line, state.lines) : undefined;
+            props.orchestration.setBranch(line.branchId);
+            if (placement?.clipId) props.orchestration.selectClip(placement.clipId);
+            else if (placement?.containerId) props.orchestration.select(placement.containerId);
+            props.onOpenPage('orchestration');
+            return;
+          }
+          actions.run(id as LineAction, line);
         }}
       >
         {lineActionItems(session, isPrimary)}
+        {props.onOpenPage && (props.appearance || props.orchestration) && (
+          <>
+            <MenuSeparator />
+            {props.appearance && (
+              <MenuItem id="goAppearance" icon="palette">
+                在外观页查看样式…
+              </MenuItem>
+            )}
+            {props.orchestration && (
+              <MenuItem id="goOrchestration" icon="dashboard">
+                在编排页查看位置…
+              </MenuItem>
+            )}
+          </>
+        )}
       </ContextMenu>
       <ResplitBranchDialog session={session} branchId={state.branchId} open={resplitBranchOpen} onClose={() => setResplitBranchOpen(false)} />
       <SourcesSheet

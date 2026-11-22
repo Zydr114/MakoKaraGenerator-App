@@ -9,7 +9,7 @@ import { useObservable } from '../ui/hooks';
 import { CONNECTION_TEXT, renderDeviceText } from './StatusChip';
 import './shell.css';
 
-/** 主要第三方组件及其许可（静态清单，界面改版 §2.5）。 */
+/** 主要第三方组件及其许可（静态清单，界面改版 §2.5 + 歌词重构 Phase 4 补齐）。 */
 const THIRD_PARTY: readonly (readonly [name: string, license: string])[] = [
   ['React', 'MIT'],
   ['React Aria Components', 'Apache-2.0'],
@@ -17,6 +17,9 @@ const THIRD_PARTY: readonly (readonly [name: string, license: string])[] = [
   ['Material Symbols', 'Apache-2.0'],
   ['Roboto Flex', 'OFL-1.1'],
   ['CodeMirror', 'MIT'],
+  ['wanakana', 'MIT'],
+  ['@patdx/kuromoji（仅分词引擎，已剔除 IPADIC 词典）', 'Apache-2.0（内嵌 doublearray MIT）'],
+  ['NAIST-jdic 0.6.3b（按需下载离线词典资产）', 'BSD-3-Clause'],
 ];
 
 /** 桌面外壳里运行时是 Electron 的版本。 */

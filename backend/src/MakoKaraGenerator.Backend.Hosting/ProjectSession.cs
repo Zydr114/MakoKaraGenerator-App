@@ -519,6 +519,12 @@ public sealed partial class ProjectSession
                     break;
 
                 default:
+                    if (TryExecuteLyricRefactorCommand(before, request.Command, out after, out contentChangeSet, out timingResult, out feedback, out rubyResult, out BackendErrorResponse? refactorError))
+                    {
+                        if (refactorError is not null) return Finish(ProjectCommandExecutionResult.Rejected(refactorError));
+                        changes = ProjectTimingChangeSet.None;
+                        break;
+                    }
                     if (TryExecuteRubyCommand(before, request.Command, out after, out contentChangeSet, out rubyResult, out BackendErrorResponse? rubyError))
                     {
                         if (rubyError is not null) return Finish(ProjectCommandExecutionResult.Rejected(rubyError));

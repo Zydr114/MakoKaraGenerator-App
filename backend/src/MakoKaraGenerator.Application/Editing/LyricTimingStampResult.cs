@@ -6,13 +6,14 @@ namespace MakoKaraGenerator.Application.Editing;
 public sealed record LyricTimingStampResult
 {
     internal LyricTimingStampResult(bool accepted, Project project, ProjectTimingChangeSet changeSet,
-        LyricTimingEditError? error = null, bool estimatedPlaceholder = false)
+        LyricTimingEditError? error = null, bool estimatedPlaceholder = false, bool? closeGuardApplied = null)
     {
         Accepted = accepted;
         Project = project;
         ChangeSet = changeSet;
         Error = error;
         EstimatedPlaceholder = estimatedPlaceholder;
+        CloseGuardApplied = closeGuardApplied;
     }
 
     /// <summary>是否通过稳定目标、时间边界和领域校验；无变化也属于接受。</summary>
@@ -32,4 +33,7 @@ public sealed record LyricTimingStampResult
 
     /// <summary>起点打点是否使用了程序生成的一帧估算终点。</summary>
     public bool EstimatedPlaceholder { get; }
+
+    /// <summary>连打时上一拍是否触发了忘按 L 跨间奏兜底截断（非连打命令时为 null）。</summary>
+    public bool? CloseGuardApplied { get; }
 }

@@ -446,6 +446,9 @@ internal sealed class LyricTokenDto
 
     /// <summary>元素级样式覆盖（schema v2 起）。目前只有颜色会参与绘制。</summary>
     public LyricStyleOverrideDto? StyleOverride { get; set; }
+
+    /// <summary>句中收尾提示覆写（lyrics schema v21 起）；null 表示按邻接语境自动推导。</summary>
+    public bool? PhraseEndHint { get; set; }
 }
 
 /// <summary>归一化行位置的磁盘表示。</summary>

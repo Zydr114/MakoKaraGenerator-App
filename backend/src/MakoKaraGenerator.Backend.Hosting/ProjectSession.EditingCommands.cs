@@ -45,6 +45,15 @@ public sealed partial class ProjectSession
         RemoveRubySegmentCommandDto => command.Type == "lyrics.removeRubySegment",
         ReorderRubySegmentsCommandDto => command.Type == "lyrics.reorderRubySegments",
         SetRubySegmentTimesCommandDto => command.Type == "lyrics.setRubySegmentTimes",
+        StrikeBeatCommandDto => command.Type == "lyrics.strikeBeat",
+        CloseBeatCommandDto => command.Type == "lyrics.closeBeat",
+        TogglePhraseEndHintCommandDto => command.Type == "lyrics.togglePhraseEndHint",
+        SplitLineCommandDto => command.Type == "lyrics.splitLine",
+        MergeLinesCommandDto => command.Type == "lyrics.mergeLines",
+        SetRubySegmentsCommandDto => command.Type == "lyrics.setRubySegments",
+        ApplyTextDiffCommandDto => command.Type == "lyrics.applyTextDiff",
+        ClearLineTimingCommandDto => command.Type == "lyrics.clearLineTiming",
+        ClearBranchTimingCommandDto => command.Type == "lyrics.clearBranchTiming",
         StampTokenStartCommandDto => command.Type == "lyrics.stampTokenStart",
         StampTokenEndCommandDto => command.Type == "lyrics.stampTokenEnd",
         ClearTokenTimeCommandDto => command.Type == "lyrics.clearTokenTime",
@@ -224,6 +233,7 @@ public sealed partial class ProjectSession
     {
         static string? CanonicalTime(string? text) => TryParseMicroseconds(text, out long value)
             ? value.ToString(CultureInfo.InvariantCulture) : text;
+        if (IsLyricRefactorCommand(command)) return CanonicalLyricRefactorCommand(command);
         if (IsRubyCommand(command)) return CanonicalRubyCommand(command);
         if (IsLeadInEditing(command)) return CanonicalLeadInEditingCommand(command);
         return command switch

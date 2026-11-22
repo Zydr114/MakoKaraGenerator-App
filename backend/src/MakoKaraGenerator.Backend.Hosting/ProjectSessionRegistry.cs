@@ -395,6 +395,8 @@ public sealed partial class ProjectSessionRegistry : IDisposable, IAsyncDisposab
 
     private static BackendErrorResponse? ValidateCommandIntent(ProjectCommandDto? command)
     {
+        if (command is { } refactorIntent && ProjectSession.CheckLyricRefactorIntent(refactorIntent) is { } refactorError)
+            return refactorError;
         if (command is { } rubyIntent && ProjectSession.CheckRubyIntent(rubyIntent) is { } rubyError)
             return rubyError;
         if (command is ResplitLineCommandDto { Segments.Length: > TokenEditingLimits.MaxSegments })

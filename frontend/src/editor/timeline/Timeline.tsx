@@ -3,6 +3,7 @@
 // （一次批量命令、一次撤销）。
 
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { LyricBeatTarget } from '../../protocol';
 import type { AudioController } from '../audio/audio-controller';
 import type { LineTrack } from '../model/line-tracks';
 import { isTimed, type EditorLine, type Selection } from '../model/lyrics';
@@ -215,6 +216,8 @@ export function Timeline(props: {
   help?: string;
   /** 工具栏最前面的内容：播放条（界面改版 §2.6，播放条和时间轴工具栏合成一行）。 */
   leading?: ReactNode;
+  /** 歌词打轴连打期间当前正在演唱、尚未按 L 收尾的活动拍点：时间轴上即时高亮并跟随播放头延伸。 */
+  liveBeatTarget?: LyricBeatTarget | null | undefined;
 }) {
   const editable = !!props.onCommitTokens && !!props.onCommitLine;
   const rubyShown = !!props.showRuby && hasRuby(props.lines);
@@ -251,7 +254,7 @@ export function Timeline(props: {
     dirty.current = true;
   }, []);
 
-  useEffect(invalidate, [props.lines, props.selection, props.marked, props.tracks, props.lineTracks, props.followSpans, audioState.peaks, audioState.loop, invalidate]);
+  useEffect(invalidate, [props.lines, props.selection, props.marked, props.tracks, props.lineTracks, props.followSpans, props.liveBeatTarget, audioState.peaks, audioState.loop, invalidate]);
   // 后端波形的块陆续到达：到一块重画一次。
   useEffect(() => audioState.peaks?.subscribe(invalidate), [audioState.peaks, invalidate]);
 
@@ -341,7 +344,9 @@ export function Timeline(props: {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const vp = viewport.current;
     const width = vp.widthPx;
-    const { lines, selection, frameRate, marked, tracks, lineTracks, followSpans } = latest.current;
+    const { lines, selection, frameRate, marked, tracks, lineTracks, followSpans, liveBeatTarget } = latest.current;
+    const nowPlayheadUs = props.audio.playheadUs();
+    const isPlaying = props.audio.playing;
     const LANE = lanesRef.current;
     const isSelected = (id: string, fallback: boolean) => (marked ? marked.has(id) : fallback);
     const audio = props.audio.state;
@@ -462,30 +467,44 @@ export function Timeline(props: {
     for (const line of lines) {
       for (const token of line.tokens) {
         const time = overrides.get(token.id) ?? (isTimed(token) ? { startUs: token.startUs, endUs: token.endUs } : undefined);
-        if (!time || !visible(time.startUs, time.endUs)) continue;
+        const isLiveToken = !liveBeatTarget?.segmentId && liveBeatTarget?.lineId === line.id && liveBeatTarget.tokenId === token.id;
+        const effectiveEndUs = time ? (isLiveToken && isPlaying && nowPlayheadUs > time.endUs ? nowPlayheadUs : time.endUs) : undefined;
+        if (!time || effectiveEndUs === undefined || !visible(time.startUs, effectiveEndUs)) continue;
         const x0 = xOf(vp, time.startUs);
-        const x1 = xOf(vp, time.endUs);
+        const x1 = xOf(vp, effectiveEndUs);
         const selected = isSelected(token.id, selection?.tokenId === token.id);
-        ctx.fillStyle = selected ? colors.tokenSelected : token.status === 'estimated' || token.status === 'imported' ? colors.tokenEstimated : colors.token;
+        ctx.fillStyle = selected || isLiveToken ? colors.tokenSelected : token.status === 'estimated' || token.status === 'imported' ? colors.tokenEstimated : colors.token;
         ctx.fillRect(x0 + 0.5, LANE.tokens + 3, Math.max(1, x1 - x0 - 1), TOKENS - 6);
-        label(ctx, token.text, x0, x1, LANE.tokens + TOKENS / 2, selected ? colors.onSelected : colors.text);
+        if (isLiveToken) {
+          ctx.strokeStyle = colors.playhead;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x0 + 1, LANE.tokens + 3.5, Math.max(1, x1 - x0 - 2), TOKENS - 7);
+        }
+        label(ctx, token.text, x0, x1, LANE.tokens + TOKENS / 2, selected || isLiveToken ? colors.onSelected : colors.text);
       }
     }
 
     // 注音轨：有时间的片段画色块；整组没有时间时在文本单元的位置画虚线框，表示跟随文本单元
     for (const band of rubyRef.current) {
       const time = overrides.get(`ruby:${band.id}`) ?? band;
-      if (!visible(time.startUs, time.endUs)) continue;
+      const isLiveRuby = !!liveBeatTarget?.segmentId && liveBeatTarget.lineId === band.lineId && liveBeatTarget.tokenId === band.tokenId && liveBeatTarget.segmentId === band.segmentId;
+      const effectiveEndUs = isLiveRuby && isPlaying && nowPlayheadUs > time.endUs ? nowPlayheadUs : time.endUs;
+      if (!visible(time.startUs, effectiveEndUs)) continue;
       const x0 = xOf(vp, time.startUs);
-      const x1 = xOf(vp, time.endUs);
+      const x1 = xOf(vp, effectiveEndUs);
       const selected = rubyBandSelected(band, selection);
-      if (band.follow) {
+      if (band.follow && !isLiveRuby) {
         dashedBand(ctx, colors, vp, time, LANE.ruby, band.text, selected);
         continue;
       }
-      ctx.fillStyle = selected ? colors.tokenSelected : band.status === 'estimated' || band.status === 'imported' ? colors.tokenEstimated : colors.token;
+      ctx.fillStyle = selected || isLiveRuby ? colors.tokenSelected : band.status === 'estimated' || band.status === 'imported' ? colors.tokenEstimated : colors.token;
       ctx.fillRect(x0 + 0.5, LANE.ruby + 3, Math.max(1, x1 - x0 - 1), RUBY - 6);
-      label(ctx, band.text, x0, x1, LANE.ruby + RUBY / 2, selected ? colors.onSelected : colors.text);
+      if (isLiveRuby) {
+        ctx.strokeStyle = colors.playhead;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x0 + 1, LANE.ruby + 3.5, Math.max(1, x1 - x0 - 2), RUBY - 7);
+      }
+      label(ctx, band.text, x0, x1, LANE.ruby + RUBY / 2, selected || isLiveRuby ? colors.onSelected : colors.text);
     }
 
     // 色块轨（片段轨、前奏轨）

@@ -116,6 +116,7 @@ internal static partial class ProjectDtoMapper
         EndUs = token.Time?.EndUs,
         TimingState = token.TimingStatus.ToString(),
         StyleOverride = ToDto(token.StyleOverride),
+        PhraseEndHint = token.PhraseEndHint,
     };
 
     internal static LyricStyleDto ToDto(LyricStyle style)
@@ -1197,6 +1198,7 @@ internal static partial class ProjectDtoMapper
             Time = time,
             TimingStatus = MapTimingStatus(dto.TimingState, time is not null, path, issues),
             StyleOverride = MapStyleOverride(dto.StyleOverride, path + ".styleOverride", issues),
+            PhraseEndHint = dto.PhraseEndHint,
         };
     }
 

@@ -151,7 +151,15 @@ function stageAppResources(appLibDir, frontendDist, backendDist, productVersion)
     filter: (name) => name.endsWith('.cjs') && !name.endsWith('.test.cjs') && name !== 'ordinary-exec.cjs',
   });
 
-  copyDirectory(frontendDist, join(resourcesDir, 'frontend-dist'), { allowSymlinks: false });
+  copyDirectory(frontendDist, join(resourcesDir, 'frontend-dist'), {
+    allowSymlinks: false,
+    filter: (name, srcPath) => {
+      if (/(?:^|[/\\])(?:kuromoji[/\\]dict|ipadic)|\.dat\.gz$/i.test(srcPath) || /\.dat\.gz$/i.test(name)) {
+        throw new Error(`AppImage 前端产物违规包含 IPADIC/词典资产：${srcPath}`);
+      }
+      return true;
+    },
+  });
   copyDirectory(backendDist, join(resourcesDir, 'backend-dist'), { allowSymlinks: false });
   backendHost.validateDesktopDeployment(join(resourcesDir, 'backend-dist'), ELECTRON_VERSION);
   return appResourcesDir;

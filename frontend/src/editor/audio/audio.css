@@ -56,9 +56,35 @@
   color: var(--stage-ink3);
 }
 
+.transport-rate-group {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
 .transport-rate {
   flex: none;
-  width: 80px;
+  width: 78px;
+}
+.transport-rate-step {
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--stage-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--stage-ink2);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.transport-rate-step[data-hovered] {
+  background: var(--hover);
+  color: var(--stage-ink);
+}
+.transport-rate-step[data-disabled] {
+  opacity: 0.35;
+  cursor: default;
 }
 .transport .switch {
   flex: none;

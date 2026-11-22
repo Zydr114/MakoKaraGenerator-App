@@ -55,8 +55,14 @@ function violations(layer: string, rules: LayerRules): string[] {
 const UI_PACKAGES = (target: string) => /^(react|react-dom|react-aria-components|@material\/material-color-utilities)(\/|$)/.test(target);
 /** 代码编辑器（W8 设计 §2.6）：CodeMirror 只在 SourceEditor.tsx 里用，它只被动态 import，打成单独的分块。 */
 const CODE_EDITOR = 'editor/library/SourceEditor.tsx';
+/** 日语注音引擎（Phase 2）：wanakana 与 @patdx/kuromoji 仅限 editor/phonetics/ 使用，严禁引用 IPADIC dict/。 */
+const PHONETICS_PACKAGES = (target: string, file: string) =>
+  file.startsWith('editor/phonetics/') &&
+  (target === 'wanakana' || target === '@patdx/kuromoji');
 const EDITOR_PACKAGES = (target: string, file: string) =>
-  UI_PACKAGES(target) || (file === CODE_EDITOR && /^(@codemirror\/(state|view|commands|language|legacy-modes|lint)|@lezer\/highlight)(\/|$)/.test(target));
+  UI_PACKAGES(target) ||
+  PHONETICS_PACKAGES(target, file) ||
+  (file === CODE_EDITOR && /^(@codemirror\/(state|view|commands|language|legacy-modes|lint)|@lezer\/highlight)(\/|$)/.test(target));
 
 describe('依赖边界', () => {
   it('src/protocol 只依赖自身', () => {

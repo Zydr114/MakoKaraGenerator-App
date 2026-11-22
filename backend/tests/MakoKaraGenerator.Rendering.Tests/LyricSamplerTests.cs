@@ -347,20 +347,29 @@ public sealed class LyricSamplerTests
     }
 
     [Fact]
-    public void 注音片段按自身绝对时间采样且不改变基础元素进度()
+    public void 注音片段按自身绝对时间采样并按字素权重分段同步基础元素进度()
     {
         LyricLine line = CreateLine("line", "先", 0, 10_000, CreateToken("base", "先", 0, 10_000)) with
         { RubyAnnotations = [RubyAnnotation.Create("ruby", "base", "せん") with
             { Segments = [RubyTextSegment.Create("se", "せ", new(1_000, 2_000), TimingStatus.Imported),
                 RubyTextSegment.Create("n", "ん", new(3_000, 4_000), TimingStatus.Imported)] }] };
         LyricFrameSample sample = LyricSampler.SampleLine(line, 1_500);
-        Assert.Equal(.15d, sample.Tokens[0].Progress);
+        // B1：两拍各 1 字素，第 1 拍进行一半时基础字进度为 0.5 × 0.5 = 0.25。
+        Assert.Equal(.25d, sample.Tokens[0].Progress, 10);
+        Assert.NotNull(sample.Tokens[0].ActiveSegment);
+        Assert.False(sample.Tokens[0].ActiveSegment!.Value.InGap);
         Assert.Equal(.5d, sample.RubySegments[0].Progress); Assert.True(sample.RubySegments[0].IsCurrent);
         Assert.Equal(ProgressSource.FromRubySegment, sample.RubySegments[0].Source);
         Assert.Equal(0d, sample.RubySegments[1].Progress); Assert.False(sample.RubySegments[1].IsCurrent);
         Assert.Equal(1, sample.RubySegments[1].Utf16Start);
+        // 拍间空隙：保持第 1 拍终点权重 0.5 等待下一拍。
         LyricFrameSample gap = LyricSampler.SampleLine(line, 2_500);
+        Assert.Equal(.5d, gap.Tokens[0].Progress, 10);
+        Assert.True(gap.Tokens[0].ActiveSegment!.Value.InGap);
         Assert.True(gap.RubySegments[0].IsSung); Assert.False(gap.RubySegments[1].IsCurrent);
+        // 第 2 拍进行一半时基础字进度为 0.5 + 0.5 × 0.5 = 0.75。
+        LyricFrameSample second = LyricSampler.SampleLine(line, 3_500);
+        Assert.Equal(.75d, second.Tokens[0].Progress, 10);
     }
 
     [Fact]

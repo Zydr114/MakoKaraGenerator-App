@@ -165,7 +165,12 @@ export function stageWindowsApp({ stage, root, electronDist, backendDist, produc
   const stagedBackend = join(resources, 'backend-dist');
   copyTree(backendDist, stagedBackend);
   verifyWindowsDeployment(stagedBackend, productVersion);
-  copyTree(join(root, 'frontend/dist'), join(resources, 'frontend-dist'));
+  copyTree(join(root, 'frontend/dist'), join(resources, 'frontend-dist'), (relative) => {
+    if (/(?:^|\/)(?:kuromoji\/dict|ipadic)|\.dat\.gz$/i.test(relative)) {
+      throw new Error(`Windows package frontend staging rejected forbidden IPADIC/dict asset: ${relative}`);
+    }
+    return true;
+  });
   requireEntry(join(resources, 'frontend-dist/index.html'));
   stageApp(stage, root, productVersion, exeName);
 }

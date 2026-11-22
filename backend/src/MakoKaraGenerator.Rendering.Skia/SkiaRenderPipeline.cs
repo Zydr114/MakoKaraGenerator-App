@@ -764,20 +764,40 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 
         foreach (TokenSample token in sample.Tokens)
         {
-            if (token.Source != ProgressSource.FromToken || token.Progress <= 0d)
+            if (token.Source != ProgressSource.FromToken)
+            {
+                if (token.Bridge is { IsHardSung: true })
+                {
+                    float bridgeLeft = originX + shaped.XAt(token.Utf16Start);
+                    float bridgeRight = originX + shaped.XAt(token.Utf16End);
+                    float low = MathF.Min(bridgeLeft, bridgeRight);
+                    float high = MathF.Max(bridgeLeft, bridgeRight);
+                    if (lineEdges && token.Utf16Start == 0) low = Math.Min(low, bounds.Left);
+                    if (lineEdges && token.Utf16End == shaped.Text.Length) high = Math.Max(high, bounds.Right);
+                    if (high > low)
+                        regions.AddRect(new SKRect(low, bounds.Top, high, bounds.Bottom));
+                }
+
+                continue;
+            }
+
+            if (token.Progress <= 0d)
             {
                 continue;
             }
 
-            float left = originX + shaped.XAt(token.Utf16Start);
-            float right = originX + shaped.XAt(token.Utf16End);
+            TokenWipeSpan span = ResolveTokenWipeSpan(shaped, token.Utf16Start, token.Utf16End);
+            float advLeft = originX + span.AdvanceLeft;
+            float advRight = originX + span.AdvanceRight;
+            float inkLeft = originX + span.InkLeft;
+            float inkRight = originX + span.InkRight;
             float reached = token.IsSung
-                ? right
-                : MakoKaraGenerator.Scripting.TextProgressPath.XAt(left, right, token.Progress);
-            if (lineEdges && token.Utf16Start == 0) left = Math.Min(left, bounds.Left);
+                ? advRight
+                : MakoKaraGenerator.Scripting.TextProgressPath.XAt(inkLeft, inkRight, token.Progress);
+            if (lineEdges && token.Utf16Start == 0) advLeft = Math.Min(advLeft, bounds.Left);
             if (lineEdges && token.IsSung && token.Utf16End == shaped.Text.Length) reached = Math.Max(reached, bounds.Right);
-            if (reached > left)
-                regions.AddRect(new SKRect(left, bounds.Top, reached, bounds.Bottom));
+            if (reached > advLeft)
+                regions.AddRect(new SKRect(advLeft, bounds.Top, reached, bounds.Bottom));
         }
 
         return regions;

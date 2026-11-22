@@ -32,7 +32,9 @@
     <Project Path="tests/MakoKaraGenerator.Backend.Worker.Tests/MakoKaraGenerator.Backend.Worker.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Core.Tests/MakoKaraGenerator.Core.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Export.Tests/MakoKaraGenerator.Export.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Library.Worker/MakoKaraGenerator.Library.Worker.csproj" />
     <Project Path="tests/MakoKaraGenerator.Media.Tests/MakoKaraGenerator.Media.Tests.csproj" />
+    <Project Path="tests/MakoKaraGenerator.Media.Worker/MakoKaraGenerator.Media.Worker.csproj" />
     <Project Path="tests/MakoKaraGenerator.Processes.Tests/MakoKaraGenerator.Processes.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Rendering.Tests/MakoKaraGenerator.Rendering.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj" />

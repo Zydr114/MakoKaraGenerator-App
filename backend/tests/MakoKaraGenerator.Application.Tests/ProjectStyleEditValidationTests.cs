@@ -257,6 +257,8 @@ public sealed class ProjectStyleEditValidationTests
         LyricStyleProperty.IsBold => new StyleEditChange.IsBold(true),
         LyricStyleProperty.IsItalic => new StyleEditChange.IsItalic(true),
         LyricStyleProperty.LetterSpacingPx => new StyleEditChange.LetterSpacing(3),
+        LyricStyleProperty.RubyRelativeScale => new StyleEditChange.RubyRelativeScale(.7),
+        LyricStyleProperty.RubyGapPx => new StyleEditChange.RubyGap(4),
         LyricStyleProperty.UnsungFill => new StyleEditChange.Fill(false, new MaterialSpec.Gradient(Gradient())),
         LyricStyleProperty.SungFill => new StyleEditChange.Fill(true, new MaterialSpec.Solid(RgbaColor.White)),
         LyricStyleProperty.UnsungStrokes => new StyleEditChange.UnsungStrokes(TwoLayers()),

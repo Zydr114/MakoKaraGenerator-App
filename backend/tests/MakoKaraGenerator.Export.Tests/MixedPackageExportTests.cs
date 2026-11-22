@@ -110,7 +110,7 @@ public sealed partial class MixedPackageExportTests
             new() { OutputPath = temp.FilePath("bypass.mov"), IncludeAudio = false, Format = ExportVideoFormat.TransparentProRes4444 });
         Assert.True(report.IsVerified); Assert.Equal(0, report.FailedFrames);
         var warning = Assert.Single(report.Warnings.Where(warning => warning.Contains("TransparentBackgroundDependency", StringComparison.Ordinal)));
-        Assert.Contains("warning", warning); Assert.Contains("background", warning); Assert.Contains("使用原输入", warning);
+        Assert.Contains("warning", warning); Assert.Contains("background", warning); Assert.Contains("使用原输入。", warning); Assert.DoesNotContain("喵", warning);
     }
 
     [Fact]

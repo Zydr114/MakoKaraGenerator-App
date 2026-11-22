@@ -7,8 +7,7 @@ namespace MakoKaraGenerator.Spike.Rendering;
 /// 一个逐字元素的文本区间与时间区间。
 /// </summary>
 /// <remarks>
-/// 画布推进填充需要"这个元素覆盖行文本的哪一段、对应哪段时间"。
-/// 由 <c>MakoKaraGenerator.Timeline.TimelineTokenBlock</c> 投影而来，
+/// 画布推进填充需要"这个元素覆盖行文本的哪一段、对应哪段时间"，
 /// 保证画布与时间轴用的是同一份逐字信息。
 /// </remarks>
 /// <param name="Utf16Start">元素在行文本中的起始下标。</param>

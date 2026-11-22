@@ -350,6 +350,67 @@ public sealed class BoundedEncoderOutputTests
         Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
     }
 
+    [Fact]
+    public async Task CompleteAsync取消时立即终止编码进程并抛出OperationCanceledException()
+    {
+        using TemporaryDirectory directory = new();
+        string readyPath = directory.FilePath("finalizing.ready");
+        string executable = CreatePythonWrapper(directory, "slow-finalize-encoder", $$"""
+            import sys, time
+            sys.stdin.buffer.read()
+            with open({{JsonSerializer.Serialize(readyPath)}}, 'w', encoding='utf-8') as marker:
+                marker.write('ready')
+            time.sleep(30)
+            """);
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
+        {
+            OutputPath = directory.FilePath("canceled.mp4"),
+            Width = 2,
+            Height = 2,
+            FrameRate = FrameRate.Fps30,
+            TotalFrames = 1,
+            Timeout = TimeSpan.FromSeconds(30),
+        }, deadline.Token);
+        await session.WriteFrameAsync(new RenderFrame(new byte[16], new RenderTarget { PixelWidth = 2, PixelHeight = 2 },
+            PixelFormat.Bgra8888Premultiplied, 0), deadline.Token);
+
+        using CancellationTokenSource completeCancellation = new();
+        Task<VideoEncodingResult> completing = session.CompleteAsync(completeCancellation.Token);
+
+        while (!File.Exists(readyPath))
+        {
+            deadline.Token.ThrowIfCancellationRequested();
+            await Task.Delay(20, deadline.Token);
+        }
+
+        completeCancellation.Cancel();
+        OperationCanceledException canceled = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => completing.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token));
+        Assert.Equal(completeCancellation.Token, canceled.CancellationToken);
+
+        await session.DisposeAsync();
+        Assert.False(File.Exists(directory.FilePath("canceled.mp4")));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.encoding.*"));
+    }
+
+    [Fact]
+    public async Task 根路径输出在StartAsync校验阶段抛出ArgumentException()
+    {
+        string rootPath = Path.GetPathRoot(Environment.CurrentDirectory)!;
+        FfmpegMediaEncoder encoder = new();
+
+        ArgumentException error = await Assert.ThrowsAsync<ArgumentException>(() => encoder.StartAsync(new()
+        {
+            OutputPath = rootPath,
+            Width = 2,
+            Height = 2,
+            FrameRate = FrameRate.Fps30,
+            TotalFrames = 1,
+        }));
+        Assert.IsNotType<ArgumentNullException>(error);
+    }
+
     private static string CreatePythonWrapper(TemporaryDirectory directory, string name, string pythonSource)
     {
         if (OperatingSystem.IsWindows())

@@ -35,7 +35,6 @@
 
   <ItemGroup Label="进程与媒体">
     <PackageVersion Include="CliWrap" Version="3.10.5" />
-    <PackageVersion Include="SoundFlow" Version="1.4.1" />
   </ItemGroup>
 
   <ItemGroup Label="测试（跟随 .NET 10 官方 xunit 模板组合）">

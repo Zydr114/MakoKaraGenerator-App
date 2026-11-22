@@ -196,6 +196,104 @@ public sealed class StyleValidationTests
         Assert.False(GradientSupport.IsSupported(unsupported));
     }
 
+    [Theory]
+    [InlineData(0d, null)]
+    [InlineData(-0.5d, null)]
+    [InlineData(double.NaN, null)]
+    [InlineData(null, -1d)]
+    [InlineData(null, double.PositiveInfinity)]
+    public void 基线注音布局非法数值触发InvalidStyleValue(double? scale, double? gapPx)
+    {
+        Project project = BuildProject(null, null) with
+        {
+            LyricStyle = LyricStyle.Default with
+            {
+                Ruby = new RubyLayoutSpec { RelativeScale = scale, GapPx = gapPx },
+            },
+        };
+
+        ValidationReport report = ProjectValidator.Validate(project, ValidationContext.Open);
+
+        Assert.True(report.HasErrors);
+        Assert.Contains(report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location == "lyricStyle.ruby");
+    }
+
+    [Theory]
+    [InlineData(1e-46d)]
+    [InlineData(1e38d)]
+    public void 基线注音比例与正文字号组合溢出或下溢时触发InvalidStyleValue(double scale)
+    {
+        Project project = BuildProject(null, null) with
+        {
+            LyricStyle = LyricStyle.Default with
+            {
+                FontSizePx = 72f,
+                Ruby = new RubyLayoutSpec { RelativeScale = scale },
+            },
+        };
+
+        ValidationReport report = ProjectValidator.Validate(project, ValidationContext.Open);
+
+        Assert.True(report.HasErrors);
+        Assert.Contains(report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location == "lyricStyle.ruby");
+    }
+
+    [Fact]
+    public void 样式覆盖的注音对齐与回退字体非法值被校验器拦截()
+    {
+        LyricStyleOverride badOverride = new()
+        {
+            Ruby = new RubyLayoutSpecOverride
+            {
+                RelativeScale = OptionalValue.Set<double?>(-0.2d),
+                GapPx = OptionalValue.Set<double?>(-1d),
+            },
+            HorizontalAlignment = (LyricHorizontalAlignment)999,
+            Typography = new TypographySpecOverride
+            {
+                FallbackFamilyNames = ["Noto Sans", " ", "Noto Sans"],
+            },
+        };
+        Project project = BuildProject(badOverride, null, applyLineOverride: true);
+
+        ValidationReport report = ProjectValidator.Validate(project, ValidationContext.Open);
+
+        Assert.True(report.HasErrors);
+        Assert.Contains(report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location!.EndsWith(".styleOverride.ruby", StringComparison.Ordinal));
+        Assert.Contains(report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location!.EndsWith(".styleOverride.horizontalAlignment", StringComparison.Ordinal));
+        Assert.Contains(report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location!.EndsWith(".styleOverride.typography.fallbackFamilyNames", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void 样式覆盖中空数组回退字体合法而默认未初始化数组或重复项非法()
+    {
+        Project validProject = BuildProject(
+            new LyricStyleOverride { Typography = new TypographySpecOverride { FallbackFamilyNames = [] } },
+            null,
+            applyLineOverride: true);
+        ValidationReport validReport = ProjectValidator.Validate(validProject, ValidationContext.Open);
+        Assert.DoesNotContain(validReport.Issues, static issue => issue.Code == DiagnosticCode.InvalidStyleValue);
+
+        Project defaultArrayProject = BuildProject(
+            new LyricStyleOverride { Typography = new TypographySpecOverride { FallbackFamilyNames = default(System.Collections.Immutable.ImmutableArray<string>) } },
+            null,
+            applyLineOverride: true);
+        ValidationReport defaultReport = ProjectValidator.Validate(defaultArrayProject, ValidationContext.Open);
+        Assert.Contains(defaultReport.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Location!.EndsWith(".styleOverride.typography.fallbackFamilyNames", StringComparison.Ordinal));
+    }
+
     /// <summary>构造一个带样式覆盖的项目。</summary>
     private static Project BuildProject(
         LyricStyleOverride? lineOverride,

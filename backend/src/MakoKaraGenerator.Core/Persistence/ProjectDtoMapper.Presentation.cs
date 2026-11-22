@@ -38,11 +38,11 @@ internal static partial class ProjectDtoMapper
         return new()
         {
             Nodes = [.. dto.Nodes.Select((node, index) => new SceneContainerDefinition { Id = node.Id ?? string.Empty, Name = node.Name, ParentId = node.ParentId,
-                Placement = MapPlacement(node.Placement, $"project.lyricPresentation.nodes[{index}].placement", issues)!,
+                Placement = MapRequiredPlacement(node.Placement, $"project.lyricPresentation.nodes[{index}].placement", issues),
                 ReferenceRect = new(node.ReferenceWidthRatio, node.ReferenceHeightRatio), Layout = node.Layout is not { } layout ? null : new()
                 { Kind = ParseBranchEnum<LyricContainerLayoutKind>(layout.Kind), DefaultPlacement = MapPlacement(layout.DefaultPlacement, "project.lyricPresentation.nodes.layout.defaultPlacement", issues),
                     SafeArea = MapSafeArea(layout.SafeArea), MaxWidthRatio = layout.MaxWidthRatio, SlotIds = layout.SlotIds is null ? [] : [.. layout.SlotIds],
-                    SlotAnimation = MapSlotAnimation(layout.SlotAnimation) },
+                    SlotAnimation = MapSlotAnimation(layout.SlotAnimation, $"project.lyricPresentation.nodes[{index}].layout.slotAnimation", issues) },
                 Content = MapContent(node.Content, $"project.lyricPresentation.nodes[{index}].content", issues),
                 Attachment = node.Attachment is null ? null : new() { Mode = ParseBranchEnum<SceneAttachmentMode>(node.Attachment.Mode) } })],
             Programs = [.. dto.Programs.Select(program => new LyricDisplayProgram { Id = program.Id ?? string.Empty, BranchId = program.BranchId ?? string.Empty,

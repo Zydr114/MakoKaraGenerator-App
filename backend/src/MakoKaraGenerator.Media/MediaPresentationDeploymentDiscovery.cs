@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -53,20 +54,32 @@ public static partial class MediaPresentationDeploymentDiscovery
         return new MediaPresentationDeployment(gate, helper, executables, loaded);
     }
 
-    private static async Task<string[]> ReadLoaderClosureAsync(string helper, CancellationToken token)
+    private const int MaxLoaderOutputCharacters = 256 * 1024;
+    private const int MaxLoaderErrorCharacters = 16 * 1024;
+
+    internal static async Task<string[]> ReadLoaderClosureAsync(
+        string helper,
+        CancellationToken token,
+        string loaderExecutable = "ldd",
+        TimeSpan? timeout = null,
+        int maxOutputCharacters = MaxLoaderOutputCharacters)
     {
-        var start = new ProcessStartInfo("ldd") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(loaderExecutable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         start.ArgumentList.Add(helper);
         start.Environment["LC_ALL"] = "C";
         using var process = Process.Start(start) ?? throw Unsupported("Loader closure inspection could not start.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(20));
+        deadline.CancelAfter(timeout ?? TimeSpan.FromSeconds(20));
+
+        Task<string>? output = null;
+        Task<string>? errors = null;
         try
         {
-            Task<string> output = process.StandardOutput.ReadToEndAsync(deadline.Token);
-            Task<string> errors = process.StandardError.ReadToEndAsync(deadline.Token);
+            output = BoundedTextReader.ReadToEndAsync(process.StandardOutput, maxOutputCharacters, rejectOverflow: true, deadline.Token);
+            errors = BoundedTextReader.ReadToEndAsync(process.StandardError, MaxLoaderErrorCharacters, rejectOverflow: false, deadline.Token);
+            string text = await output.ConfigureAwait(false);
+            _ = await errors.ConfigureAwait(false);
             await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
-            string text = await output.ConfigureAwait(false); _ = await errors.ConfigureAwait(false);
             if (process.ExitCode != 0) throw Unsupported("Loader closure inspection failed.");
             List<string> paths = [];
             foreach (string raw in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -83,10 +96,60 @@ public static partial class MediaPresentationDeploymentDiscovery
             }
             return [.. paths];
         }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            try { process.Kill(); } catch (InvalidOperationException) { }
+            await TerminateProcessQuietlyAsync(process, deadline, output, errors).ConfigureAwait(false);
+            throw new OperationCanceledException(token);
+        }
+        catch (OperationCanceledException)
+        {
+            await TerminateProcessQuietlyAsync(process, deadline, output, errors).ConfigureAwait(false);
             throw Unsupported("Loader closure inspection timed out.");
+        }
+        catch (IOException)
+        {
+            await TerminateProcessQuietlyAsync(process, deadline, output, errors).ConfigureAwait(false);
+            throw Unsupported("Loader closure inspection output exceeded the allowed size limit.");
+        }
+    }
+
+    private static async Task TerminateProcessQuietlyAsync(
+        Process process,
+        CancellationTokenSource deadline,
+        Task? output,
+        Task? errors)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception error) when (error is InvalidOperationException or Win32Exception or NotSupportedException)
+        {
+        }
+
+        try { deadline.Cancel(); }
+        catch (ObjectDisposedException) { }
+
+        try
+        {
+            using var exitWait = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await process.WaitForExitAsync(exitWait.Token).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is OperationCanceledException or InvalidOperationException)
+        {
+        }
+
+        if (output is not null)
+        {
+            try { await output.ConfigureAwait(false); } catch { }
+        }
+
+        if (errors is not null)
+        {
+            try { await errors.ConfigureAwait(false); } catch { }
         }
     }
 

@@ -7,34 +7,46 @@ using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Core.Tests.Persistence;
 
-/// <summary>歌词旧版本接纳边界与 v16 → v17 迁移的回归。</summary>
+/// <summary>歌词 schema 版本门禁回归测试。</summary>
 public sealed class LyricsSchemaMigrationTests : IDisposable
 {
     private readonly TemporaryDirectory _directory = new();
 
     public void Dispose() => _directory.Dispose();
 
-    [Fact]
-    public void 只有真实v16可进入v17而v1到v15因缺少定义拒绝()
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    public void 非当前歌词schemaVersion被拒绝并报告UnsupportedSchemaVersion(int delta)
     {
-        foreach (int version in Enumerable.Range(1, 15))
+        WriteProject();
+
+        JsonObject lyrics = new()
         {
-            JsonObject document = LegacyLyrics(version);
+            ["schemaVersion"] = LyricsDocument.CurrentSchemaVersion + delta,
+            ["primaryBranchId"] = "primary",
+            ["branches"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["id"] = "primary",
+                    ["name"] = "主歌词",
+                    ["role"] = "Primary",
+                    ["timingMode"] = "Independent",
+                    ["lines"] = new JsonArray(),
+                },
+            },
+        };
+        string reference = ProjectFileFixture.PublishLyrics(_directory.Path, lyrics.ToJsonString(ProjectJson.Options));
+        JsonObject project = JsonNode.Parse(_directory.ReadFile(ProjectJson.ProjectFileName))!.AsObject();
+        project["lyricsFile"] = reference;
+        _directory.WriteFile(ProjectJson.ProjectFileName, project.ToJsonString(ProjectJson.Options));
 
-            Assert.Throws<InvalidOperationException>(() => ProjectSchemaMigrator.Migrate(
-                document,
-                version,
-                LyricsDocument.CurrentSchemaVersion,
-                ProjectSchemaMigrator.LyricsDefault));
-        }
+        ProjectLoadResult result = ProjectStore.Load(_directory.Path);
 
-        JsonObject current = LegacyLyrics(16);
-        MigrationLog log = ProjectSchemaMigrator.Migrate(
-            current, 16, 17, ProjectSchemaMigrator.LyricsDefault);
-        Assert.Equal(17, current["schemaVersion"]!.GetValue<int>());
-        Assert.Throws<InvalidOperationException>(() => ProjectSchemaMigrator.Migrate(
-            current, 17, LyricsDocument.CurrentSchemaVersion, ProjectSchemaMigrator.LyricsDefault));
-        Assert.NotEmpty(log.Entries);
+        Assert.Null(result.Project);
+        Assert.True(result.Report.HasErrors, result.Report.ToSummary());
+        Assert.Contains(result.Report.Issues, static issue => issue.Code == DiagnosticCode.UnsupportedSchemaVersion);
     }
 
     [Fact]
@@ -72,23 +84,6 @@ public sealed class LyricsSchemaMigrationTests : IDisposable
         Assert.True(result.Report.HasErrors, result.Report.ToSummary());
         Assert.Contains(result.Report.Issues, static issue => issue.Code == DiagnosticCode.UnsupportedSchemaVersion);
     }
-
-    private static JsonObject LegacyLyrics(int schemaVersion) => new()
-    {
-        ["schemaVersion"] = schemaVersion,
-        ["primaryBranchId"] = "primary",
-        ["branches"] = new JsonArray
-        {
-            new JsonObject
-            {
-                ["id"] = "primary",
-                ["name"] = "主歌词",
-                ["role"] = "Primary",
-                ["timingMode"] = "Independent",
-                ["lines"] = new JsonArray(),
-            },
-        },
-    };
 
     private void WriteProject()
     {

@@ -26,7 +26,25 @@ internal static partial class ProjectDtoMapper
         EnterFrom = ToDto(profile.EnterFrom), Hold = ToDto(profile.Hold), ExitTo = ToDto(profile.ExitTo),
 
     };
-    private static SlotAnimationSpec? MapSlotAnimation(SlotAnimationDto? dto) => dto is null ? null : new()
+    private static readonly SlotAnimationSpec DefaultSlotAnimation = new();
+
+    private static SceneTransform MapRequiredTransform(
+        SceneTransformDto? dto,
+        SceneTransform fallback,
+        string path,
+        List<ProjectIssue> issues)
+    {
+        if (MapTransform(dto) is { } transform)
+        {
+            return transform;
+        }
+
+        DiagnosticList.Add(issues, DiagnosticCode.InvalidDisplayProgram, IssueSeverity.Error,
+            "缺少槽位动画变换定义，已暂时使用默认值。", path);
+        return fallback;
+    }
+
+    private static SlotAnimationSpec? MapSlotAnimation(SlotAnimationDto? dto, string path, List<ProjectIssue> issues) => dto is null ? null : new()
     {
         RevealMode = ParseBranchEnum<SlotRevealMode>(dto.RevealMode), RevealProgress = dto.RevealProgress,
         RevealDelayUs = dto.RevealDelayUs, RevealLeadUs = dto.RevealLeadUs, MaxVisibleLines = dto.MaxVisibleLines,
@@ -34,7 +52,8 @@ internal static partial class ProjectDtoMapper
         RetentionPolicy = ParseBranchEnum<SlotRetentionPolicy>(dto.RetentionPolicy),
         EnterDurationUs = dto.EnterDurationUs, ExitDurationUs = dto.ExitDurationUs,
         Easing = ParseBranchEnum<AnimationEasing>(dto.Easing), ExitEasing = ParseBranchEnum<AnimationEasing>(dto.ExitEasing),
-        EnterFrom = MapTransform(dto.EnterFrom)!, Hold = MapTransform(dto.Hold)!, ExitTo = MapTransform(dto.ExitTo)!,
-
+        EnterFrom = MapRequiredTransform(dto.EnterFrom, DefaultSlotAnimation.EnterFrom, path + ".enterFrom", issues),
+        Hold = MapRequiredTransform(dto.Hold, DefaultSlotAnimation.Hold, path + ".hold", issues),
+        ExitTo = MapRequiredTransform(dto.ExitTo, DefaultSlotAnimation.ExitTo, path + ".exitTo", issues),
     };
 }

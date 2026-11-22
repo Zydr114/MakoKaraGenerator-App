@@ -104,10 +104,14 @@ public sealed class FfmpegMediaEncoder : IMediaEncoder
         }
 
         string fullPath = Path.GetFullPath(request.OutputPath);
-        if (!request.Overwrite && File.Exists(fullPath)) throw new IOException($"输出文件已存在：{fullPath}");
         string? directory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrEmpty(directory))
+        {
+            throw new ArgumentException($"输出路径必须包含有效的父目录，不能为根路径：{fullPath}", nameof(request));
+        }
+        if (!request.Overwrite && File.Exists(fullPath)) throw new IOException($"输出文件已存在：{fullPath}");
 
-        if (directory is not null && !Directory.Exists(directory))
+        if (!Directory.Exists(directory))
         {
             throw new DirectoryNotFoundException($"输出目录不存在：{directory}");
         }
@@ -306,21 +310,32 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         CommandResult? result = null;
         bool canceledBySizeLimit = false;
 
-        try
+        using (cancellationToken.Register(static state =>
         {
-            result = await Execution.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (_sizeLimitSource.IsCancellationRequested)
+            try { ((CancellationTokenSource)state!).Cancel(); }
+            catch (ObjectDisposedException) { }
+        }, _lifetime))
         {
-            canceledBySizeLimit = true;
-        }
-        catch (OperationCanceledException) when (_timeoutSource?.IsCancellationRequested == true)
-        {
-            await DisposeAsync().ConfigureAwait(false);
+            try
+            {
+                result = await Execution.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (_sizeLimitSource.IsCancellationRequested)
+            {
+                canceledBySizeLimit = true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(cancellationToken);
+            }
+            catch (OperationCanceledException) when (_timeoutSource?.IsCancellationRequested == true)
+            {
+                await DisposeAsync().ConfigureAwait(false);
 
-            throw new IOException(string.Create(
-                CultureInfo.InvariantCulture,
-                $"编码超时（超过 {_request.Timeout ?? VideoExportOptions.DefaultTimeout}）：已终止编码进程。"));
+                throw new IOException(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"编码超时（超过 {_request.Timeout ?? VideoExportOptions.DefaultTimeout}）：已终止编码进程。"));
+            }
         }
 
         if (_sizeMonitor is not null)
@@ -460,7 +475,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         {
             if (File.Exists(_temporaryOutputPath)) File.Delete(_temporaryOutputPath);
         }
-        catch (IOException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
         }
     }
@@ -557,7 +572,15 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
             }
         }
 
-        await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
+            // 编码器在写完帧后提前关掉了输入（例如 -shortest 或已收尾）：
+            // 这不是错误，剩下的交给 CompleteAsync 的退出码判断。
+        }
     }
 
     /// <summary>读编码器的机器可读进度。</summary>

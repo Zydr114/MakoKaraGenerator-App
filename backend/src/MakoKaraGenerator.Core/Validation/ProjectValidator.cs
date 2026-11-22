@@ -44,7 +44,7 @@ public static partial class ProjectValidator
         ValidateComposition(project.Composition, context, issues);
         ValidateStyle(project.LyricStyle, "lyricStyle", issues);
         ValidateLineAnimation(project.EnterAnimation, "enterAnimation", issues);
-        ValidateLyrics(project.Lyrics, project.LyricPresentation, context, issues);
+        ValidateLyrics(project.Lyrics, project.LyricPresentation, project.LyricStyle.FontSizePx, context, issues);
         ValidatePresentation(project, issues);
         ValidateEffects(project, issues);
         ValidatePresetApplications(project, issues);
@@ -116,7 +116,7 @@ public static partial class ProjectValidator
         }
     }
 
-    private static void ValidateLyrics(LyricsDocument lyrics, LyricPresentationDefinition presentation, ValidationContext context, List<ProjectIssue> issues)
+    private static void ValidateLyrics(LyricsDocument lyrics, LyricPresentationDefinition presentation, float baselineFontSizePx, ValidationContext context, List<ProjectIssue> issues)
     {
         if (lyrics.PrimaryBranch is not { Role: LyricBranchRole.Primary }
             || lyrics.Branches.Count(entry => entry.Role == LyricBranchRole.Primary) != 1)
@@ -132,7 +132,8 @@ public static partial class ProjectValidator
             if (!branch.IsValid)
                 Add(issues, DiagnosticCode.InvalidLyricBranch, IssueSeverity.Error,
                     "分支名称、角色、时间策略或布局／动画参数无效。", path);
-            ValidateStyleOverride(branch.StyleOverride, path + ".styleOverride", isToken: false, issues);
+            float branchFontSizePx = branch.StyleOverride?.FontSizePx ?? baselineFontSizePx;
+            ValidateStyleOverride(branch.StyleOverride, path + ".styleOverride", isToken: false, branchFontSizePx, issues);
             for (int lineIndex = 0; lineIndex < branch.Lines.Length; lineIndex++)
             {
                 LyricLine line = branch.Lines[lineIndex];
@@ -175,13 +176,13 @@ public static partial class ProjectValidator
                             $"注音基础字 '{ruby.BaseTokenId}' 不存在。", path + ".rubyAnnotations.baseTokenId");
                 }
             }
-            ValidateBranchLyrics(new LyricsDocument { Lines = branch.Lines }, context, issues,
+            ValidateBranchLyrics(new LyricsDocument { Lines = branch.Lines }, branchFontSizePx, context, issues,
                 followPrimary: branch.TimingMode == LyricBranchTimingMode.FollowPrimary,
                 staticBranch: presentation.Resolve(branch.Id).PolicyFor(branch) == LyricBranchAnimationPolicy.Static, path + ".lines");
         }
     }
 
-    private static void ValidateBranchLyrics(LyricsDocument lyrics, ValidationContext context, List<ProjectIssue> issues,
+    private static void ValidateBranchLyrics(LyricsDocument lyrics, float branchFontSizePx, ValidationContext context, List<ProjectIssue> issues,
         bool followPrimary, bool staticBranch, string lineRoot)
     {
         if (lyrics.Lines.IsEmpty)
@@ -210,7 +211,8 @@ public static partial class ProjectValidator
             ValidateText(line.Text, context, linePath + ".text", issues);
             if (!(followPrimary && line.PrimaryLineId is not null && line.Time is null))
                 ValidateTime(line.Time, line.IsTimeStatusConsistent, context, linePath, issues);
-            ValidateStyleOverride(line.StyleOverride, linePath + ".styleOverride", isToken: false, issues);
+            float lineFontSizePx = line.StyleOverride?.FontSizePx ?? branchFontSizePx;
+            ValidateStyleOverride(line.StyleOverride, linePath + ".styleOverride", isToken: false, lineFontSizePx, issues);
             if (line.TimingStatus.IsUnconfirmed() && line.Time is not null)
             {
                 // 已有时间但尚未被用户确认，需要计入导出前提示（docs/development.md §5.4）。
@@ -234,7 +236,7 @@ public static partial class ProjectValidator
             }
 
             if (!staticBranch || !line.Tokens.IsEmpty)
-                ValidateTokens(line, linePath, context, identifiers, ref unconfirmedCount, issues, staticBranch);
+                ValidateTokens(line, linePath, lineFontSizePx, context, identifiers, ref unconfirmedCount, issues, staticBranch);
         }
 
         if (unconfirmedCount > 0)
@@ -318,6 +320,10 @@ public static partial class ProjectValidator
     {
         if (style.Typography is not { IsValid: true })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "字体排版参数无效。", location + ".typography");
+        if (style.Ruby is not { IsValid: true })
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音布局样式无效：比例必须为有限正数，间距必须为有限非负数。", location + ".ruby");
+        else if (float.IsFinite(style.FontSizePx) && style.FontSizePx > 0f && !style.Ruby.IsValidForFont(style.FontSizePx))
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音比例与正文字号组合会导致字号溢出或下溢。", location + ".ruby");
         ValidateAppearance(style.Unsung, location + ".unsung", issues);
         ValidateSungAppearance(style.Sung, location + ".sung", issues);
         if (style.Wipe is not { IsValid: true })
@@ -338,6 +344,7 @@ public static partial class ProjectValidator
     /// <param name="styleOverride">覆盖。</param>
     /// <param name="location">诊断位置。</param>
     /// <param name="isToken">是否为元素级覆盖。</param>
+    /// <param name="effectiveFontSizePx">当前层级的有效正文字号（像素）。</param>
     /// <param name="issues">诊断收集器。</param>
     /// <remarks>
     /// 元素级覆盖支持颜色族（含渐变）、描边、阴影与不透明度——这些能按元素裁切绘制；
@@ -349,11 +356,31 @@ public static partial class ProjectValidator
         LyricStyleOverride? styleOverride,
         string location,
         bool isToken,
+        float effectiveFontSizePx,
         List<ProjectIssue> issues)
     {
         if (styleOverride is null || styleOverride.IsEmpty)
         {
             return;
+        }
+
+        if (styleOverride.Ruby is { } ruby)
+        {
+            var rubyValues = new RubyLayoutSpec
+            {
+                RelativeScale = ruby.RelativeScale.IsSet ? ruby.RelativeScale.Value : null,
+                GapPx = ruby.GapPx.IsSet ? ruby.GapPx.Value : null,
+            };
+            if (!rubyValues.IsValid)
+            {
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error,
+                    "注音布局覆盖无效：比例必须为有限正数，间距必须为有限非负数。", location + ".ruby");
+            }
+            else if (float.IsFinite(effectiveFontSizePx) && effectiveFontSizePx > 0f && !rubyValues.IsValidForFont(effectiveFontSizePx))
+            {
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error,
+                    "注音比例覆盖与正文字号组合会导致字号溢出或下溢。", location + ".ruby");
+            }
         }
 
         if (styleOverride.Unsung is { } unsung)
@@ -383,6 +410,17 @@ public static partial class ProjectValidator
         if (styleOverride.Wipe is { IsValid: false })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "扫字样式覆盖无效。", location + ".wipe");
 
+        if (styleOverride.Typography?.FallbackFamilyNames is { } fallbackFamilyNames)
+        {
+            if (fallbackFamilyNames.IsDefault
+                || fallbackFamilyNames.Any(string.IsNullOrWhiteSpace)
+                || fallbackFamilyNames.Distinct(StringComparer.Ordinal).Count() != fallbackFamilyNames.Length)
+            {
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error,
+                    "字体回退族名覆盖无效：不得包含空白或重复项。", location + ".typography.fallbackFamilyNames");
+            }
+        }
+
         if (styleOverride.FontSizePx is { } fontSize && (!float.IsFinite(fontSize) || fontSize <= 0f))
         {
             Add(
@@ -406,6 +444,9 @@ public static partial class ProjectValidator
                 $"纵向中心比例覆盖必须落在 0 到 1 之间，当前为 {ratio}。",
                 location + ".verticalCenterRatio");
         }
+
+        if (styleOverride.HorizontalAlignment is { } alignment && !Enum.IsDefined(alignment))
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "水平对齐方式覆盖无效。", location + ".horizontalAlignment");
 
         if (styleOverride.Opacity is { } opacity && (!float.IsFinite(opacity) || opacity is < 0f or > 1f))
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "不透明度覆盖必须在 0 到 1 之间。", location + ".opacity");
@@ -513,6 +554,7 @@ public static partial class ProjectValidator
     private static void ValidateTokens(
         LyricLine line,
         string linePath,
+        float lineFontSizePx,
         ValidationContext context,
         HashSet<string> identifiers,
         ref int unconfirmedCount,
@@ -543,7 +585,8 @@ public static partial class ProjectValidator
             bool untimedNonContent = context == ValidationContext.Export && LyricTokenSemantics.IsUntimedNonContent(token);
             if (!untimedNonContent && (!staticBranch || token.Time is not null))
                 ValidateTime(token.Time, token.IsTimeStatusConsistent, context, tokenPath, issues);
-            ValidateStyleOverride(token.StyleOverride, tokenPath + ".styleOverride", isToken: true, issues);
+            float tokenFontSizePx = token.StyleOverride?.FontSizePx ?? lineFontSizePx;
+            ValidateStyleOverride(token.StyleOverride, tokenPath + ".styleOverride", isToken: true, tokenFontSizePx, issues);
 
             concatenatedText += token.Text;
 

@@ -623,9 +623,17 @@ internal static partial class ProjectDtoMapper
             return fallback;
         }
 
-        TypographySpec typography = dto.Typography is { } typographyDto
-            ? MapTypographySpec(typographyDto, fallback.Typography, "lyricStyle.typography", issues)
-            : MissingStyleObject(fallback.Typography, "lyricStyle.typography", issues);
+        TypographySpec typography;
+        if (dto.Typography is { } typographyDto)
+        {
+            typography = MapTypographySpec(typographyDto, fallback.Typography, "lyricStyle.typography", issues);
+        }
+        else
+        {
+            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error,
+                "缺少排版样式定义（typography），已暂时使用默认值。", "lyricStyle.typography");
+            typography = fallback.Typography;
+        }
         TextAppearance unsung = MapAppearance(dto.Unsung, "lyricStyle.unsung", issues, allowUnsupportedGradients);
         SungAppearance sung = MapSungAppearance(dto.Sung, "lyricStyle.sung", issues, allowUnsupportedGradients);
 
@@ -682,11 +690,6 @@ internal static partial class ProjectDtoMapper
         if (!values.IsValid)
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "注音比例必须为有限正数，间距必须为有限非负数。", location);
         return ruby.IsEmpty ? null : ruby;
-    }
-
-    private static T MissingStyleObject<T>(T fallback, string location, List<ProjectIssue> issues)
-    {
-        return fallback;
     }
 
     private static TypographySpec MapTypographySpec(
@@ -1138,6 +1141,18 @@ internal static partial class ProjectDtoMapper
         TimeRange? time = MapTimeRange(dto.StartUs, dto.EndUs, path, issues);
         TimingStatus status = MapTimingStatus(dto.TimingState, time is not null, path, issues);
         return new RubyTextSegment { Id = id, Text = text, Time = time, TimingStatus = status };
+    }
+
+    private static ScenePlacement MapRequiredPlacement(ScenePlacementDto? dto, string path, List<ProjectIssue> issues)
+    {
+        if (MapPlacement(dto, path, issues) is { } placement)
+        {
+            return placement;
+        }
+
+        Add(issues, DiagnosticCode.InvalidLinePlacement, IssueSeverity.Error,
+            "缺少节点位置定义（placement），已暂时使用默认位置。", path);
+        return ScenePlacement.Default;
     }
 
     private static ScenePlacement? MapPlacement(ScenePlacementDto? dto, string path, List<ProjectIssue> issues)

@@ -124,7 +124,6 @@
 | [SharpVk](https://github.com/FacticiusVir/SharpVk) (`0.4.2`) | .NET Vulkan 互操作绑定 | [LICENSE](https://github.com/FacticiusVir/SharpVk/blob/master/LICENSE) |
 | [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia) (`4.9.1`) & [ExCSS](https://github.com/TylerBrinks/ExCSS) (`4.3.1`) | SVG 矢量图形解析与渲染（[第三方声明](backend/docs/third-party/svg-skia/README.md)） | MIT（其中 `Svg.Custom` 为 MS-PL） |
 | [Roslyn (`Microsoft.CodeAnalysis.CSharp`)](https://github.com/dotnet/roslyn) (`5.0.0`) | C# 14 脚本特效包受控动态编译 | MIT |
-| [SoundFlow](https://github.com/LSXPrime/SoundFlow) (`1.4.1`) | 音频回放控制 | MIT |
 | [CliWrap](https://github.com/Tyrrrz/CliWrap) (`3.10.5`) | 外部媒体进程封装与调度 | MIT |
 | [xUnit.net](https://xunit.net/) | .NET 单元测试框架 | Apache-2.0 |
 

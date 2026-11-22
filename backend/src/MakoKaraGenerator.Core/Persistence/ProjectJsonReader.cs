@@ -32,15 +32,13 @@ internal static class ProjectJsonReader
     /// <param name="path">文件路径。</param>
     /// <param name="targetVersion">该文件当前支持的 schema 版本。</param>
     /// <param name="issues">诊断收集器。</param>
-    /// <param name="migrations">可选的低版本迁移步骤；省略时低版本直接拒绝。</param>
     /// <returns>DTO；结构或版本层面失败时为 <see langword="null"/>（失败原因已进 <paramref name="issues"/>）。</returns>
     /// <remarks>两份文件各有 schema 版本；不兼容时只报告，不改写源文件。</remarks>
     internal static T? Deserialize<T>(
         byte[] bytes,
         string path,
         int targetVersion,
-        List<ProjectIssue> issues,
-        IReadOnlyList<IProjectSchemaMigration>? migrations = null)
+        List<ProjectIssue> issues)
         where T : class
     {
         string displayName = Path.GetFileName(path);
@@ -65,32 +63,11 @@ internal static class ProjectJsonReader
                 return null;
             }
 
-            if (version != targetVersion && migrations is null)
+            if (version != targetVersion)
             {
                 Add(issues, DiagnosticCode.UnsupportedSchemaVersion, IssueSeverity.Error,
                     $"schema 版本 {version} 与当前要求的 {targetVersion} 不一致，文件未更改。", location);
                 return null;
-            }
-
-            if (version != targetVersion)
-            {
-                MigrationLog migrationLog;
-                try
-                {
-                    migrationLog = ProjectSchemaMigrator.Migrate(document, version, targetVersion, migrations);
-                }
-                catch (InvalidOperationException exception)
-                {
-                    Add(issues, DiagnosticCode.UnsupportedSchemaVersion, IssueSeverity.Error,
-                        $"schema 版本 {version} 无法迁移到 {targetVersion}：{exception.Message}，文件未更改。", location);
-                    return null;
-                }
-
-                if (!migrationLog.IsEmpty)
-                {
-                    Add(issues, DiagnosticCode.ProjectSchemaMigrated, IssueSeverity.Info,
-                        string.Join(" ", migrationLog.Entries), location);
-                }
             }
 
             return document.Deserialize<T>(ProjectJson.Options);

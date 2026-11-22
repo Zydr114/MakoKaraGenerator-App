@@ -22,7 +22,6 @@
     <Project Path="src/MakoKaraGenerator.Scripting/MakoKaraGenerator.Scripting.csproj" />
     <Project Path="src/MakoKaraGenerator.Scripting.Compiler/MakoKaraGenerator.Scripting.Compiler.csproj" />
     <Project Path="src/MakoKaraGenerator.Text/MakoKaraGenerator.Text.csproj" />
-    <Project Path="src/MakoKaraGenerator.Timeline/MakoKaraGenerator.Timeline.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MakoKaraGenerator.Application.Tests/MakoKaraGenerator.Application.Tests.csproj" />
@@ -38,6 +37,5 @@
     <Project Path="tests/MakoKaraGenerator.Rendering.Tests/MakoKaraGenerator.Rendering.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Runtime.Hosting.Tests/MakoKaraGenerator.Runtime.Hosting.Tests.csproj" />
     <Project Path="tests/MakoKaraGenerator.Scripting.Tests/MakoKaraGenerator.Scripting.Tests.csproj" />
-    <Project Path="tests/MakoKaraGenerator.Timeline.Tests/MakoKaraGenerator.Timeline.Tests.csproj" />
   </Folder>
 </Solution>

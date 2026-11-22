@@ -123,28 +123,6 @@ public sealed class StyleBatchEditorTests
         Assert.Null(loaded.Project.Lyrics.Lines[0].Tokens[1].StyleOverride);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void 两条旧版本迁移均保留空颜色继承语义(bool lyrics)
-    {
-        IReadOnlyList<IProjectSchemaMigration> migrations = lyrics
-            ? ProjectSchemaMigrator.LyricsDefault
-            : ProjectSchemaMigrator.Default;
-        IProjectSchemaMigration optionalColorMigration = migrations.Single(
-            migration => migration.Description.Contains("可选颜色", StringComparison.Ordinal));
-        var document = JsonNode.Parse("""{"lines":[{"styleOverride":{"strokeColor":null,"shadowColor":"#FF0000FF"},"tokens":[{"styleOverride":{"unsungGradientStartColor":null}}]}]}""")!.AsObject();
-        ProjectSchemaMigrator.Migrate(
-            document,
-            optionalColorMigration.FromVersion,
-            optionalColorMigration.ToVersion,
-            migrations);
-        var line = document["lines"]![0]!;
-        Assert.False(line["styleOverride"]!.AsObject().ContainsKey("strokeColor"));
-        Assert.Equal("#FF0000FF", line["styleOverride"]!["shadowColor"]!.GetValue<string>());
-        Assert.False(line["tokens"]![0]!["styleOverride"]!.AsObject().ContainsKey("unsungGradientStartColor"));
-    }
-
     private static Project CreateProject() => Project.Create("批量", new Composition(), LyricsDocument.Create(
         Enumerable.Range(0, 2).Select(i => LyricLine.Create("line" + i, "夜空", new TimeRange(0, 2_000_000), TimingStatus.Edited,
             [LyricToken.Create($"t{i}a", "夜", new TimeRange(0, 1_000_000), TimingStatus.Edited),

@@ -280,7 +280,7 @@ public static class ProjectStore
                 && parsed.Build >= 0
                 && parsed.ToString(3) == stored;
 
-            bool compatiblePatch = (ProductVersion.Current, stored) is ("0.114.1", "0.114.0") or ("0.116.1", "0.116.0");
+            bool compatiblePatch = (ProductVersion.Current, stored) is ("0.116.1", "0.116.0");
             if (!valid || stored != ProductVersion.Current && !compatiblePatch)
             {
                 Add(issues, DiagnosticCode.ApplicationVersionMismatch, IssueSeverity.Error,
@@ -340,7 +340,7 @@ public static class ProjectStore
         byte[]? bytes = LyricRevisionStore.Read(directoryPath, reference, issues);
         if (bytes is null) { return null; }
         LyricsFileDto? dto = ProjectJsonReader.Deserialize<LyricsFileDto>(
-            bytes, reference!, LyricsDocument.CurrentSchemaVersion, issues, ProjectSchemaMigrator.LyricsDefault);
+            bytes, reference!, LyricsDocument.CurrentSchemaVersion, issues);
         try { return dto is null ? null : ProjectDtoMapper.MapLyrics(dto, LyricsDocument.CurrentSchemaVersion, issues); }
         catch (Exception error) when (ResourceError(error))
         {

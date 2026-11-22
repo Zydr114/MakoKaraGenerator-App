@@ -469,6 +469,88 @@ public sealed class ProjectStylePersistenceTests : IDisposable
             static issue => issue.Code == DiagnosticCode.InvalidStyleValue);
     }
 
+    [Fact]
+    public void 显式lyricStyle缺少typography时记录诊断并回落默认排版()
+    {
+        ProjectStore.Save(Project.Create("缺排版"), _directory.Path);
+        string path = Path.Combine(_directory.Path, ProjectJson.ProjectFileName);
+        JsonObject root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        root["lyricStyle"]!.AsObject().Remove("typography");
+        File.WriteAllText(path, root.ToJsonString(ProjectJson.Options));
+
+        ProjectLoadResult result = ProjectStore.Load(_directory.Path);
+
+        Assert.NotNull(result.Project);
+        Assert.Equal(LyricStyle.Default.Typography, result.Project.LyricStyle.Typography);
+        Assert.Contains(result.Report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidStyleValue
+            && issue.Severity == IssueSeverity.Error
+            && issue.Location == "lyricStyle.typography");
+    }
+
+    [Fact]
+    public void 展示节点缺少placement或槽位动画缺少变换时记录诊断并回落非空默认对象()
+    {
+        ProjectStore.Save(Project.Create("缺展示字段"), _directory.Path);
+        string path = Path.Combine(_directory.Path, ProjectJson.ProjectFileName);
+        JsonObject root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        root["lyricPresentation"] = new JsonObject
+        {
+            ["nodes"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["id"] = "container/slot-test",
+                    ["referenceWidthRatio"] = 1.0,
+                    ["referenceHeightRatio"] = 1.0,
+                    ["layout"] = new JsonObject
+                    {
+                        ["kind"] = "SlotSequence",
+                        ["slotIds"] = new JsonArray(),
+                        ["slotAnimation"] = new JsonObject
+                        {
+                            ["revealMode"] = "Progress",
+                            ["revealProgress"] = 0.5,
+                            ["maxVisibleLines"] = 2,
+                            ["conflictPolicy"] = "QueueUntilSlotFree",
+                            ["retentionPolicy"] = "UntilLineEnd",
+                            ["enterDurationUs"] = 300_000,
+                            ["exitDurationUs"] = 250_000,
+                            ["easing"] = "EaseOut",
+                            ["exitEasing"] = "EaseIn",
+                        },
+                    },
+                },
+            },
+            ["programs"] = new JsonArray(),
+            ["lineOverrides"] = new JsonArray(),
+        };
+        File.WriteAllText(path, root.ToJsonString(ProjectJson.Options));
+
+        ProjectLoadResult result = ProjectStore.Load(_directory.Path);
+
+        Assert.NotNull(result.Project);
+        SceneContainerDefinition node = Assert.Single(result.Project.LyricPresentation.Nodes);
+        Assert.NotNull(node.Placement);
+        Assert.Equal(ScenePlacement.Default, node.Placement);
+        SlotAnimationSpec animation = Assert.IsType<SlotAnimationSpec>(node.Layout!.SlotAnimation);
+        Assert.NotNull(animation.EnterFrom);
+        Assert.NotNull(animation.Hold);
+        Assert.NotNull(animation.ExitTo);
+        Assert.Contains(result.Report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidLinePlacement
+            && issue.Location == "project.lyricPresentation.nodes[0].placement");
+        Assert.Contains(result.Report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidDisplayProgram
+            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.enterFrom");
+        Assert.Contains(result.Report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidDisplayProgram
+            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.hold");
+        Assert.Contains(result.Report.Issues, static issue =>
+            issue.Code == DiagnosticCode.InvalidDisplayProgram
+            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.exitTo");
+    }
+
     private Project RoundTrip(Project project)
     {
         ProjectStore.Save(project, _directory.Path);

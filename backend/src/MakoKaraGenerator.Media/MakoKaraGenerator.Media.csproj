@@ -26,10 +26,5 @@
     <ProjectReference Include="../MakoKaraGenerator.Rendering.Abstractions/MakoKaraGenerator.Rendering.Abstractions.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- MEDIA-04：播放走统一适配层（见 ADR-0019）。 -->
-    <PackageReference Include="SoundFlow" />
-  </ItemGroup>
-
   <ItemGroup><InternalsVisibleTo Include="MakoKaraGenerator.Media.Tests" /></ItemGroup>
 </Project>

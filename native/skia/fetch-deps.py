@@ -11,6 +11,8 @@ skia = Path(sys.argv[1]).resolve()
 namespace = {}
 exec("def Var(x): return vars[x]\n" + (skia / "DEPS").read_text(), namespace)
 proxy = os.environ.get("MAKO_BUILD_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
+GIT_TIMEOUT_SECONDS = 90
+GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
 
 def fetch(item):
@@ -23,8 +25,9 @@ def fetch(item):
     def git(*args):
         cmd = ["git", *(["-c", "http.proxy=" + proxy] if proxy else []), *args]
         return subprocess.run(cmd,
-                              cwd=target, check=True, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, text=True).stdout.strip()
+                              cwd=target, check=True, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              text=True, env=GIT_ENV, timeout=GIT_TIMEOUT_SECONDS).stdout.strip()
     if not (target / ".git").exists():
         git("init", "--quiet")
         git("remote", "add", "origin", repository)

@@ -16,7 +16,7 @@
     <Error Condition="!$([MSBuild]::IsOSPlatform('Linux'))" Text="Media envelope native build requires Linux x64." />
     <Error Condition="'$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'linux-x64'"
            Text="Media envelope native ABI supports only linux-x64." />
-    <Exec Command="cmake -S &quot;$(MakoMediaEnvelopeSourceDir)&quot; -B &quot;$(MakoMediaEnvelopeBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release" />
+    <Exec Command="cmake -S &quot;$(MakoMediaEnvelopeSourceDir)&quot; -B &quot;$(MakoMediaEnvelopeBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" />
     <Exec Command="cmake --build &quot;$(MakoMediaEnvelopeBuildDir)&quot; --config Release --parallel 2" />
     <ItemGroup>
       <MakoMediaEnvelopeNativeFile Include="$(MakoMediaEnvelopeBuildDir)/libmkg_media_envelope.so;$(MakoMediaEnvelopeBuildDir)/mkg-media-exec-gate" />

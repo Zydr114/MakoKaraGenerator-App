@@ -413,7 +413,7 @@ static int proc_identity(uint32_t pid, const char *group, uint64_t *ticks,
     return -EIO;
   buf[n] = 0;
   char *end = strrchr(buf, ')');
-  if (!end)
+  if (!end || end[1] != ' ' || end[2] == '\0')
     return -EPROTO;
   char *save = NULL, *part = strtok_r(end + 2, " ", &save);
   for (int i = 0; i < 19 && part; i++)

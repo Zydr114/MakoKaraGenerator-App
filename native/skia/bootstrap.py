@@ -9,12 +9,16 @@ import tarfile
 import zipfile
 
 app = Path(__file__).resolve().parents[2]
-probe = app / "probes/skia-gpu-target"
+native_skia = app / "native/skia"
 task = app / ".local/skia-p0"
 task.mkdir(parents=True, exist_ok=True)
 proxy = os.environ.get("MAKO_BUILD_PROXY") or os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") or ""
 skia_revision = "7dbfc07dd33181f84e0958afb7ee805c6c769f0b"
 skiasharp_revision = "f568ac94dd768ef9a2f593537cfde2dd0d348ef5"
+CURL_CONNECT_TIMEOUT_SECONDS = 15
+DOWNLOAD_TIMEOUT_SECONDS = 180
+PATCH_TIMEOUT_SECONDS = 90
+FETCH_DEPS_TIMEOUT_SECONDS = 300
 
 
 def digest(path):
@@ -24,11 +28,20 @@ def digest(path):
 def download(url, path, expected=None):
     if not path.exists():
         partial = path.with_suffix(path.suffix + ".part")
-        cmd = ["curl", "-fL", "--retry", "3"]
+        cmd = [
+            "curl",
+            "-fL",
+            "--retry",
+            "3",
+            "--connect-timeout",
+            str(CURL_CONNECT_TIMEOUT_SECONDS),
+            "--max-time",
+            str(DOWNLOAD_TIMEOUT_SECONDS),
+        ]
         if proxy:
             cmd.extend(["--proxy", proxy])
         cmd.extend([url, "-o", str(partial)])
-        subprocess.run(cmd, check=True)
+        subprocess.run(cmd, check=True, timeout=DOWNLOAD_TIMEOUT_SECONDS + 10)
         if expected and digest(partial) != expected:
             raise RuntimeError(f"Downloaded checksum mismatch: {path.name}")
         partial.rename(path)
@@ -46,7 +59,12 @@ def prepare_archive(repository, revision, archive, expected, target, patches=())
         source.extractall(stage, filter="data")
     extracted = stage / f"{repository}-{revision}"
     for patch in patches:
-        subprocess.run(["patch", "--batch", "--forward", "-p1", "-i", str(probe / patch)], cwd=extracted, check=True)
+        subprocess.run(
+            ["patch", "--batch", "--forward", "-p1", "-i", str(native_skia / patch)],
+            cwd=extracted,
+            check=True,
+            timeout=PATCH_TIMEOUT_SECONDS,
+        )
     if target.exists():
         for source in extracted.rglob("*"):
             if source.is_file():
@@ -66,7 +84,7 @@ prepare_archive("SkiaSharp", skiasharp_revision, task / "skiasharp-f568ac9.tar.g
 prepare_archive("skia", skia_revision, task / "skia-7dbfc07.tar.gz",
                 "5265180696746618c344acda2916c9ad1022a0313289018197876cf2612743a9", skia,
                 ("skia-vulkan-state.patch", "skcms-clang23.patch"))
-subprocess.run(["python3", str(probe / "fetch-deps.py"), str(skia)], check=True)
+subprocess.run(["python3", str(native_skia / "fetch-deps.py"), str(skia)], check=True, timeout=FETCH_DEPS_TIMEOUT_SECONDS)
 gn_archive = task / "gn-fe330c0.zip"
 download("https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/git_revision:fe330c0ae1ec29db30b6f830e50771a335e071fb", gn_archive)
 with zipfile.ZipFile(gn_archive) as archive:

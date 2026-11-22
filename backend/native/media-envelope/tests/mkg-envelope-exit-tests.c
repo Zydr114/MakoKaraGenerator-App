@@ -232,6 +232,27 @@ static void test_proc_exit_and_errors(void) {
   expect_close(STAT_FD);
   assert_proc(-EPROTO, 0, 0);
 
+  begin_case("stat ending right at closing paren rejects without OOB read", 0);
+  expect_open(stat_path, STAT_FD, 0);
+  expect_read(IO_READ, STAT_FD, "437 (cmd)", 9, 0);
+  expect_close(STAT_FD);
+  assert_proc(-EPROTO, 0, 0);
+
+  begin_case("stat ending right after space rejects without OOB read", 0);
+  expect_open(stat_path, STAT_FD, 0);
+  expect_read(IO_READ, STAT_FD, "437 (cmd) ", 10, 0);
+  expect_close(STAT_FD);
+  assert_proc(-EPROTO, 0, 0);
+
+  begin_case("stat with non-space after closing paren rejects", 0);
+  expect_open(stat_path, STAT_FD, 0);
+  static const char bad_delim_stat[] =
+      "437 (cmd)X S 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 98765 23\n";
+  expect_read(IO_READ, STAT_FD, bad_delim_stat,
+              (ssize_t)strlen(bad_delim_stat), 0);
+  expect_close(STAT_FD);
+  assert_proc(-EPROTO, 0, 0);
+
   begin_case("empty proc cgroup is an I/O error", 0);
   expect_stat();
   expect_open(group_path, PROC_GROUP_FD, 0);

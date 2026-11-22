@@ -73,6 +73,28 @@ static HANDLE open_loaded_image(HMODULE module,wchar_t canonical[32768],LARGE_IN
 #include "mkg_presentation_windows_av.h"
 #else
 static void die(const char *code) { (void)write(2, code, strlen(code)); (void)write(2, "\n", 1); _exit(65); }
+static int try_parse_metadata_fd(const char *value,int *out) {
+    if(!value){*out=3;return 1;}
+    if(!value[0])return 0;
+    unsigned long parsed=0;
+    for(const char *p=value;*p;p++) {
+        if(*p<'0'||*p>'9')return 0;
+        unsigned digit=(unsigned)(*p-'0');
+        if(parsed>((unsigned long)INT_MAX-digit)/10ul)return 0;
+        parsed=parsed*10ul+digit;
+    }
+    if(parsed==0||parsed>(unsigned long)INT_MAX)return 0;
+    *out=(int)parsed;
+    return 1;
+}
+static int resolve_metadata_fd(void) {
+    int fd=3;
+    if(!try_parse_metadata_fd(getenv("MKG_MEDIA_METADATA_FD"),&fd))die("presentation-metadata-fd-invalid");
+    return fd;
+}
+static int compatible_av_version(unsigned runtime_ver,unsigned expected_major,unsigned expected_minor) {
+    return (runtime_ver>>16)==expected_major&&((runtime_ver>>8)&0xFFu)>=expected_minor;
+}
 #endif
 static void put32(uint8_t *p, uint32_t v) { for(int i=0;i<4;i++) p[i]=(uint8_t)(v>>(8*i)); }
 static void put64(uint8_t *p, uint64_t v) { for(int i=0;i<8;i++) p[i]=(uint8_t)(v>>(8*i)); }
@@ -285,9 +307,14 @@ static void emit_frame(AVFrame *f,const AVCodecParameters *par) {
 static void configure_av(void) {
 #ifdef _WIN32
     load_controlled_av();
-#endif
     av_log_set_level(AV_LOG_ERROR);
     if(avformat_version()!=LIBAVFORMAT_VERSION_INT||avcodec_version()!=LIBAVCODEC_VERSION_INT||avutil_version()!=LIBAVUTIL_VERSION_INT)die("presentation-tool-abi-mismatch");
+#else
+    av_log_set_level(AV_LOG_ERROR);
+    if(!compatible_av_version(avformat_version(),LIBAVFORMAT_VERSION_MAJOR,LIBAVFORMAT_VERSION_MINOR)||
+       !compatible_av_version(avcodec_version(),LIBAVCODEC_VERSION_MAJOR,LIBAVCODEC_VERSION_MINOR)||
+       !compatible_av_version(avutil_version(),LIBAVUTIL_VERSION_MAJOR,LIBAVUTIL_VERSION_MINOR))die("presentation-tool-abi-mismatch");
+#endif
 }
 
 #ifdef _WIN32
@@ -311,8 +338,9 @@ int main(int argc,char **argv) {
     if(argc!=6)die("presentation-internal-arguments-invalid");
     family=atoi(argv[1]);stream_index=atoi(argv[2]);inspect_only=!strcmp(argv[3],"inspect");
     if(family<1||family>4||stream_index<0||strcmp(argv[3],inspect_only?"inspect":"decode"))die("presentation-internal-mode-invalid");
+    metadata_fd=resolve_metadata_fd();
     source_fd=open(argv[4],O_RDONLY|O_CLOEXEC|O_NOFOLLOW);struct stat st;
-    if(source_fd<0||fstat(source_fd,&st)||!S_ISREG(st.st_mode)||st.st_size<=0||st.st_size>MAX_SOURCE)die("presentation-source-invalid");
+    if(source_fd<0||source_fd==metadata_fd||fstat(source_fd,&st)||!S_ISREG(st.st_mode)||st.st_size<=0||st.st_size>MAX_SOURCE)die("presentation-source-invalid");
     source_size=st.st_size;
     if(strcmp(argv[5],"mkg-libav-same-frame-v1"))die("presentation-capability-revision-invalid");
     configure_av();

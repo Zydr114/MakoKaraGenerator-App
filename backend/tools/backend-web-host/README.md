@@ -67,13 +67,3 @@ python scripts/cross-platform-g1-http.py --dist .local/backend-dist/my-new-build
 ```
 
 支持显式 `--ffmpeg`／`--ffprobe` 和 `--timeout`，要求 `--output` 尚不存在。此脚本核对真实硬件 Vulkan 可用性、音频准备及波形、CPU／GPU 静态 PNG、CPU／Vulkan 视频导出、SDK v2 编译及正式验证帧、实际导出字节超限失败，并通过 stdin 退出协议收尾。`summary.json` 记录部署、探针与宿主脚本指纹及脱敏结果；实际状态以本次结果为准。此入口及 Windows G1 实测不证明 Linux 实机已通过，也不代表 M2～M4 连续预览或便携包已经完成。
-
-既有 Linux HTTP 冒烟入口仍保留：
-
-```bash
-python3 backend/tools/backend-web-host/smoke.py \
-  --dist "$PWD/.local/backend-dist/my-new-build" \
-  --output "$PWD/.local/backend-smoke/my-new-run"
-```
-
-该入口涵盖默认 TTL 登记／resume／心跳、真实 Worker 准备短 WAV、新建／读歌词／改时／撤销／重做、静态 PNG 解码与身份核对、保存→关闭→重开、SIGTERM 排水及重启身份检查。它沿用 Linux 信号与进程观察方式，不作为 Windows 受控退出的验收入口；也不代表独立 Runtime 像素 oracle 或完整浏览器验收。

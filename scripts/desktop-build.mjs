@@ -34,7 +34,7 @@ async function step(command, args, cwd, env = process.env, spawnOptions = {}) {
 export async function nativeSources(root) {
   const { stdout } = await execute(
     'git',
-    ['ls-files', '-co', '--exclude-standard', '--', 'native/gpu-preview', 'native/shm-preview', 'probes/skia-gpu-target'],
+    ['ls-files', '-co', '--exclude-standard', '--', 'native/gpu-preview', 'native/shm-preview', 'native/skia'],
     { cwd: root },
   );
   const files = [...new Set(stdout.trim().split(/\r?\n/).filter(Boolean))].sort();
@@ -61,8 +61,8 @@ export async function buildDesktopNative(root) {
 
   let artifacts;
   if (process.platform === 'linux') {
-    await step('python3', ['probes/skia-gpu-target/bootstrap.py'], root);
-    await step('bash', ['probes/skia-gpu-target/build-native.sh'], root);
+    await step('python3', ['native/skia/bootstrap.py'], root);
+    await step('bash', ['native/skia/build-native.sh'], root);
     const { stdout } = await execute('bash', ['native/gpu-preview/bootstrap-headers.sh'], { cwd: root, maxBuffer: 1024 * 1024 });
     const headers = await realpath(stdout.trim());
     if (!inside(root, headers)) throw new Error('Native headers escaped App');
@@ -108,8 +108,8 @@ export async function buildDesktopNative(root) {
 
   const { stdout: sourceCommit } = await execute('git', ['rev-parse', 'HEAD'], { cwd: root });
   const gitStatusArgs = process.platform === 'win32'
-    ? ['-c', 'core.filemode=false', 'status', '--porcelain', '--', 'native/gpu-preview', 'native/shm-preview', 'probes/skia-gpu-target']
-    : ['status', '--porcelain', '--', 'native/gpu-preview', 'native/shm-preview', 'probes/skia-gpu-target'];
+    ? ['-c', 'core.filemode=false', 'status', '--porcelain', '--', 'native/gpu-preview', 'native/shm-preview', 'native/skia']
+    : ['status', '--porcelain', '--', 'native/gpu-preview', 'native/shm-preview', 'native/skia'];
   const { stdout: dirty } = await execute('git', gitStatusArgs, { cwd: root });
   return { platform: rid, sourceInputs, sourceCommit: sourceCommit.trim(), sourceDirty: !!dirty.trim(), artifacts };
 }

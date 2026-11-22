@@ -489,6 +489,7 @@ extern "C" __declspec(dllexport) napi_value __cdecl napi_register_module_v1(napi
 #include <node_api.h>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <linux/magic.h>
@@ -498,6 +499,54 @@ extern "C" __declspec(dllexport) napi_value __cdecl napi_register_module_v1(napi
 #include <unistd.h>
 #include <string>
 #include <vector>
+
+struct ScopedFd {
+    int fd = -1;
+    ScopedFd() = default;
+    explicit ScopedFd(int f) : fd(f) {}
+    ~ScopedFd() { reset(); }
+    ScopedFd(const ScopedFd&) = delete;
+    ScopedFd& operator=(const ScopedFd&) = delete;
+    void reset() {
+        if (fd >= 0) {
+            ::close(fd);
+            fd = -1;
+        }
+    }
+};
+
+static bool IsValidLinuxShmBasename(const std::string& base) {
+    static constexpr const char kPrefix[] = "mkg-shm-";
+    static constexpr size_t kPrefixLen = sizeof(kPrefix) - 1;
+    if (base.size() <= kPrefixLen) return false;
+    if (base.compare(0, kPrefixLen, kPrefix) != 0) return false;
+    const size_t suffix_len = base.size() - kPrefixLen;
+    if (suffix_len < 24 || suffix_len > 64) return false;
+    for (size_t i = kPrefixLen; i < base.size(); ++i) {
+        const char ch = base[i];
+        const bool is_lower_hex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f');
+        if (!is_lower_hex) return false;
+    }
+    return true;
+}
+
+static bool IsAllowedLinuxShmDir(const std::string& dir) {
+    if (dir == "/dev/shm") {
+        return true;
+    }
+    const char* xdg_raw = std::getenv("XDG_RUNTIME_DIR");
+    if (!xdg_raw || xdg_raw[0] != '/') {
+        return false;
+    }
+    std::string xdg(xdg_raw);
+    while (!xdg.empty() && xdg.back() == '/') {
+        xdg.pop_back();
+    }
+    if (xdg.empty() || xdg.find("..") != std::string::npos) {
+        return false;
+    }
+    return dir == xdg;
+}
 
 struct ShmMapping {
     void* addr;
@@ -556,6 +605,22 @@ static napi_value OpenReadOnly(napi_env env, napi_callback_info info) {
         return nullptr;
     }
 
+    const size_t slash_pos = name.rfind('/');
+    if (slash_pos == std::string::npos || slash_pos == 0) {
+        ThrowError(env, "resourceName directory must be /dev/shm or XDG_RUNTIME_DIR");
+        return nullptr;
+    }
+    const std::string dir = name.substr(0, slash_pos);
+    const std::string base = name.substr(slash_pos + 1);
+    if (!IsAllowedLinuxShmDir(dir)) {
+        ThrowError(env, "resourceName directory must be /dev/shm or XDG_RUNTIME_DIR");
+        return nullptr;
+    }
+    if (!IsValidLinuxShmBasename(base)) {
+        ThrowError(env, "resourceName must match mkg-shm-<24..64 lower-hex>");
+        return nullptr;
+    }
+
     int64_t expected_bytes_i64 = 0;
     if (napi_get_value_int64(env, args[1], &expected_bytes_i64) != napi_ok) {
         ThrowError(env, "expectedBytes must be an integer");
@@ -567,55 +632,55 @@ static napi_value OpenReadOnly(napi_env env, napi_callback_info info) {
     }
     size_t expected_bytes = static_cast<size_t>(expected_bytes_i64);
 
-    int fd = ::open(name.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (fd < 0) {
+    ScopedFd dirfd(::open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+    if (dirfd.fd < 0) {
+        ThrowError(env, "Failed to open shm directory");
+        return nullptr;
+    }
+
+    ScopedFd fd(::openat(dirfd.fd, base.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+    if (fd.fd < 0) {
         ThrowError(env, "Failed to open shm file");
         return nullptr;
     }
 
     struct stat st;
     struct statfs sfs;
-    if (::fstat(fd, &st) < 0 || ::fstatfs(fd, &sfs) < 0) {
-        ::close(fd);
+    if (::fstat(fd.fd, &st) < 0 || ::fstatfs(fd.fd, &sfs) < 0) {
         ThrowError(env, "Failed to stat shm file");
         return nullptr;
     }
 
     if (!S_ISREG(st.st_mode)) {
-        ::close(fd);
         ThrowError(env, "Not a regular file");
         return nullptr;
     }
     if (st.st_uid != ::getuid()) {
-        ::close(fd);
         ThrowError(env, "UID mismatch");
         return nullptr;
     }
     if ((st.st_mode & 0777) != 0600) {
-        ::close(fd);
         ThrowError(env, "Invalid permissions (must be 0600)");
         return nullptr;
     }
     if (st.st_size <= 0 || static_cast<uint64_t>(st.st_size) != static_cast<uint64_t>(expected_bytes)) {
-        ::close(fd);
         ThrowError(env, "File size mismatch or zero");
         return nullptr;
     }
     if (static_cast<unsigned long>(sfs.f_type) != static_cast<unsigned long>(TMPFS_MAGIC)) {
-        ::close(fd);
         ThrowError(env, "File is not on tmpfs");
         return nullptr;
     }
 
-    void* addr = ::mmap(nullptr, expected_bytes, PROT_READ, MAP_SHARED, fd, 0);
+    void* addr = ::mmap(nullptr, expected_bytes, PROT_READ, MAP_SHARED, fd.fd, 0);
     if (addr == MAP_FAILED) {
-        ::close(fd);
         ThrowError(env, "Failed to mmap shm file");
         return nullptr;
     }
 
-    int ul = ::unlink(name.c_str());
-    ::close(fd);
+    int ul = ::unlinkat(dirfd.fd, base.c_str(), 0);
+    fd.reset();
+    dirfd.reset();
     if (ul != 0) {
         ::munmap(addr, expected_bytes);
         ThrowError(env, "Failed to unlink shm file");

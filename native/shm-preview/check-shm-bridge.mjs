@@ -14,7 +14,7 @@ const addon = require(addonPath);
 
 if (process.platform === 'linux') {
     function createTestShmFile(size = 4096, mode = 0o600) {
-        const name = `/dev/shm/mkg-shm-test-${crypto.randomBytes(8).toString('hex')}`;
+        const name = `/dev/shm/mkg-shm-${crypto.randomBytes(16).toString('hex')}`;
         const fd = fs.openSync(name, 'w', mode);
         fs.ftruncateSync(fd, size);
         return { name, fd, size };
@@ -102,18 +102,28 @@ if (process.platform === 'linux') {
             try { fs.unlinkSync(name); } catch {}
         }
 
-        // 3. Non-tmpfs path (e.g. workspace .local file)
+        // 3. Non-tmpfs path (e.g. workspace .local file, even when XDG_RUNTIME_DIR points to it)
         {
             const localDir = path.resolve(import.meta.dirname, '../../.local/shm-bridge-test');
             fs.mkdirSync(localDir, { recursive: true, mode: 0o700 });
-            const localPath = path.join(localDir, `non-tmpfs-${crypto.randomBytes(6).toString('hex')}.tmp`);
+            const localPath = path.join(localDir, `mkg-shm-${crypto.randomBytes(16).toString('hex')}`);
             fs.writeFileSync(localPath, Buffer.alloc(1024));
             fs.chmodSync(localPath, 0o600);
+            const prevXdg = process.env.XDG_RUNTIME_DIR;
             try {
+                // Without XDG_RUNTIME_DIR pointing to localDir, directory whitelist rejects it first.
+                assert.throws(() => {
+                    addon.openReadOnly(localPath, 1024);
+                }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+
+                // Even if XDG_RUNTIME_DIR points to a non-tmpfs directory, fstatfs rejects it.
+                process.env.XDG_RUNTIME_DIR = localDir;
                 assert.throws(() => {
                     addon.openReadOnly(localPath, 1024);
                 }, /File is not on tmpfs/);
             } finally {
+                if (prevXdg === undefined) delete process.env.XDG_RUNTIME_DIR;
+                else process.env.XDG_RUNTIME_DIR = prevXdg;
                 try { fs.unlinkSync(localPath); } catch {}
             }
         }
@@ -156,6 +166,129 @@ if (process.platform === 'linux') {
         mapping.close();
         addon.close(mapping);
         assert.strictEqual(mapping.isClosed(), true);
+    });
+
+    test('Rejects Linux path outside whitelist, invalid tokens, traversal, and symlinks; accepts normalized XDG_RUNTIME_DIR', () => {
+        const validToken32 = crypto.randomBytes(16).toString('hex');
+
+        // 1. /tmp tmpfs path outside whitelist
+        {
+            const tmpPath = `/tmp/mkg-shm-${validToken32}`;
+            const fd = fs.openSync(tmpPath, 'w', 0o600);
+            fs.ftruncateSync(fd, 1024);
+            try {
+                assert.throws(() => {
+                    addon.openReadOnly(tmpPath, 1024);
+                }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+            } finally {
+                fs.closeSync(fd);
+                try { fs.unlinkSync(tmpPath); } catch {}
+            }
+        }
+
+        // 2. Non-whitelisted basename inside /dev/shm
+        {
+            const otherPath = `/dev/shm/other-${crypto.randomBytes(8).toString('hex')}`;
+            const fd = fs.openSync(otherPath, 'w', 0o600);
+            fs.ftruncateSync(fd, 1024);
+            try {
+                assert.throws(() => {
+                    addon.openReadOnly('/dev/shm/other', 1024);
+                }, /mkg-shm-<24\.\.64 lower-hex>/);
+                assert.throws(() => {
+                    addon.openReadOnly(otherPath, 1024);
+                }, /mkg-shm-<24\.\.64 lower-hex>/);
+            } finally {
+                fs.closeSync(fd);
+                try { fs.unlinkSync(otherPath); } catch {}
+            }
+        }
+
+        // 3. Invalid token lengths, uppercase, non-hex, prefix variants
+        for (const badBase of [
+            `mkg-shm-test-${crypto.randomBytes(8).toString('hex')}`,
+            `mkg-shm-${'a'.repeat(23)}`,
+            `mkg-shm-${'a'.repeat(65)}`,
+            `mkg-shm-${'A'.repeat(32)}`,
+            `mkg-shm-${'g'.repeat(32)}`,
+            'mkg-shm-',
+        ]) {
+            assert.throws(() => {
+                addon.openReadOnly(`/dev/shm/${badBase}`, 1024);
+            }, /mkg-shm-<24\.\.64 lower-hex>/);
+        }
+
+        // 4. Traversal, double slashes, subdirectories, missing parent
+        assert.throws(() => {
+            addon.openReadOnly(`/dev/shm/../dev/shm/mkg-shm-${validToken32}`, 1024);
+        }, /cannot contain '\.\.'/);
+        assert.throws(() => {
+            addon.openReadOnly(`/dev/shm//mkg-shm-${validToken32}`, 1024);
+        }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+        assert.throws(() => {
+            addon.openReadOnly(`/dev/shm/subdir/mkg-shm-${validToken32}`, 1024);
+        }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+        assert.throws(() => {
+            addon.openReadOnly(`mkg-shm-${validToken32}`, 1024);
+        }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+        assert.throws(() => {
+            addon.openReadOnly(`/mkg-shm-${validToken32}`, 1024);
+        }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+
+        // 5. Symlink inside /dev/shm must be rejected by O_NOFOLLOW without unlinking target
+        {
+            const targetName = `/dev/shm/mkg-shm-${crypto.randomBytes(16).toString('hex')}`;
+            const linkName = `/dev/shm/mkg-shm-${crypto.randomBytes(16).toString('hex')}`;
+            const fd = fs.openSync(targetName, 'w', 0o600);
+            fs.ftruncateSync(fd, 1024);
+            fs.symlinkSync(targetName, linkName);
+            try {
+                assert.throws(() => {
+                    addon.openReadOnly(linkName, 1024);
+                }, /Failed to open shm file/);
+                assert.strictEqual(fs.existsSync(targetName), true);
+            } finally {
+                fs.closeSync(fd);
+                try { fs.unlinkSync(linkName); } catch {}
+                try { fs.unlinkSync(targetName); } catch {}
+            }
+        }
+
+        // 6. XDG_RUNTIME_DIR trailing-slash normalization + 24/64 hex bounds + invalid XDG_RUNTIME_DIR values
+        {
+            const xdgDir = `/dev/shm/mkg-xdg-test-${crypto.randomBytes(8).toString('hex')}`;
+            fs.mkdirSync(xdgDir, { mode: 0o700 });
+            const prevXdg = process.env.XDG_RUNTIME_DIR;
+            try {
+                process.env.XDG_RUNTIME_DIR = `${xdgDir}///`;
+                for (const token of ['0'.repeat(24), 'f'.repeat(64)]) {
+                    const shmPath = `${xdgDir}/mkg-shm-${token}`;
+                    const fd = fs.openSync(shmPath, 'w', 0o600);
+                    fs.ftruncateSync(fd, 1024);
+                    const mapping = addon.openReadOnly(shmPath, 1024);
+                    assert.strictEqual(mapping.byteLength, 1024);
+                    assert.strictEqual(fs.existsSync(shmPath), false);
+                    fs.closeSync(fd);
+                    mapping.close();
+                }
+
+                // Relative XDG_RUNTIME_DIR must not be accepted
+                process.env.XDG_RUNTIME_DIR = 'relative/dir';
+                assert.throws(() => {
+                    addon.openReadOnly(`relative/dir/mkg-shm-${validToken32}`, 1024);
+                }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+
+                // Root '/' XDG_RUNTIME_DIR must not be accepted
+                process.env.XDG_RUNTIME_DIR = '/';
+                assert.throws(() => {
+                    addon.openReadOnly(`/mkg-shm-${validToken32}`, 1024);
+                }, /directory must be \/dev\/shm or XDG_RUNTIME_DIR/);
+            } finally {
+                if (prevXdg === undefined) delete process.env.XDG_RUNTIME_DIR;
+                else process.env.XDG_RUNTIME_DIR = prevXdg;
+                try { fs.rmSync(xdgDir, { recursive: true, force: true }); } catch {}
+            }
+        }
     });
 } else if (process.platform === 'win32') {
     function startWindowsSectionHelper(sectionName, byteLength) {

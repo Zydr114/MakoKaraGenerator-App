@@ -17,7 +17,7 @@ public sealed class WorkerExportLifetimeTests
     {
         if (!LinuxProcessGuards.IsSupported) return;
         string root = FindRoot();
-        string workerPath = Path.Combine(root, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker");
+        string workerPath = WorkerBinaryLocator.LocateBackendWorker();
         string output = Path.Combine(root, "artifacts/backend-b4b-processes/worker-child-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         WorkerBackendExportExecutor executor = new(workerPath, TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe, TimeSpan.FromSeconds(20),

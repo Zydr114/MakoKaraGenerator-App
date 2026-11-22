@@ -17,6 +17,7 @@
     "dev": "node scripts/app.mjs dev",
     "test:unit": "node scripts/pnpm-run.mjs --dir frontend test:unit",
     "test:launcher": "node --experimental-test-module-mocks --test tests/launcher.test.mjs",
+    "test:root": "node --experimental-test-module-mocks --test tests/*.test.mjs",
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:glow": "node frontend/scripts/glow-smoke.mjs",
     "smoke:layout": "node scripts/layout-check.mjs",

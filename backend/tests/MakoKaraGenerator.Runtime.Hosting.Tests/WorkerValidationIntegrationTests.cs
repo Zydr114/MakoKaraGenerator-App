@@ -78,9 +78,7 @@ public sealed class WorkerValidationIntegrationTests(ITestOutputHelper output)
     }
     private static WorkerProcessOptions Options()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
-        string dll = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string dll = WorkerBinaryLocator.LocateBackendWorkerDll();
         Assert.True(File.Exists(dll)); return new("dotnet", [dll]);
     }
     private static bool Alive(int pid)

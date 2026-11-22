@@ -49,8 +49,7 @@ public sealed class WorkerResourceProxyTests
     [Fact]
     public async Task RealWorkerValidatesStagedImageWithoutExposingHostPathInResult()
     {
-        string root = FindRepositoryRoot();
-        string worker = Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string worker = WorkerBinaryLocator.LocateBackendWorkerDll();
         Assert.True(File.Exists(worker), worker);
         byte[] png;
         using (SKBitmap bitmap = new(2, 2, SKColorType.Bgra8888, SKAlphaType.Premul))
@@ -81,8 +80,7 @@ public sealed class WorkerResourceProxyTests
     [Fact]
     public async Task RealWorkerValidatesStagedVideoAndFontWithoutHostPathLeak()
     {
-        string root = FindRepositoryRoot();
-        string worker = Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string worker = WorkerBinaryLocator.LocateBackendWorkerDll();
         Assert.True(File.Exists(worker), worker);
         string stage = Path.Combine(Path.GetTempPath(), "mako-resource-proxy-" + Guid.NewGuid().ToString("N"));
         string video = Path.Combine(stage, "source.mp4");
@@ -131,7 +129,7 @@ public sealed class WorkerResourceProxyTests
 
     private static string FindWorkerApphost()
     {
-        string path = Path.Combine(FindRepositoryRoot(), "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        string path = WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(path), path);
         return path;
     }

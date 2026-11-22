@@ -600,13 +600,7 @@ public sealed class WorkerPackageSessionFactoryTests(ITestOutputHelper output)
                 SupportedPackageProfiles: WorkerPackageProfileAdmission.Current), Json);
         }
 
-        private static string ReferenceRoot()
-        {
-            DirectoryInfo? current = new(AppContext.BaseDirectory);
-            while (current is not null && !File.Exists(Path.Combine(current.FullName, "MakoKaraGenerator.slnx"))) current = current.Parent;
-            Assert.NotNull(current);
-            return Path.Combine(current.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "script-refs");
-        }
+        private static string ReferenceRoot() => WorkerBinaryLocator.LocateBackendWorkerScriptReferences();
 
         private static void Append(IncrementalHash hash, byte[] bytes)
         {

@@ -19,15 +19,7 @@ namespace MakoKaraGenerator.Backend.Hosting.Tests;
 public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
-    private static string WorkerPath
-    {
-        get
-        {
-            DirectoryInfo? current = new(AppContext.BaseDirectory);
-            while (current is not null && !File.Exists(Path.Combine(current.FullName, "MakoKaraGenerator.slnx"))) current = current.Parent;
-            return Path.Combine(current!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
-        }
-    }
+    private static string WorkerPath => WorkerBinaryLocator.LocateBackendWorkerDll();
     private static string References => Path.Combine(Path.GetDirectoryName(WorkerPath)!, "script-refs", "net10.0");
     private static WorkerProcessOptions Options(IScriptCompilationService compiler, string? renderBackend = "gpu") => new("dotnet", [WorkerPath])
     {

@@ -657,9 +657,7 @@ public sealed partial class PreviewTransportTests
 
     private static string FindWorkerApphost()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
-        string path = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        string path = WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(path)); return path;
     }
 

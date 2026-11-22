@@ -57,8 +57,7 @@ public sealed class BackendServerControlTests
     [InlineData(true)]
     public async Task 启用Stdin受控关闭协议后SHUTDOWN或EOF优雅停止服务(bool closeStdinDirectly)
     {
-        string repo = FindRepositoryRoot();
-        string serverDll = Path.Combine(repo, "src", "MakoKaraGenerator.Backend.Server", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Server.dll");
+        string serverDll = WorkerBinaryLocator.LocateBackendServerDll();
         Assert.True(File.Exists(serverDll), serverDll);
 
         using TemporaryDirectory root = new();

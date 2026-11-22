@@ -104,8 +104,8 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     public async Task 真实Worker能力与完整WAV波形还原保源采样数及原Info()
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
-        using TemporaryDirectory directory = new(); string root = RepositoryRoot();
-        string worker = Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        using TemporaryDirectory directory = new();
+        string worker = WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(worker)); string audio = directory.FilePath("wave.wav"); WavWriter.Write(audio, WavWriter.BuildSegmentedTone(8000, (0.15, 0.8f)), 8000);
         byte[] bytes = File.ReadAllBytes(audio); BackendAudioPreparationGrant grant = new(audio, bytes.LongLength, WorkerProtocol.ComputeSha256(bytes));
         WorkerBackendAudioPreparationExecutor executor = new(new(worker), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);

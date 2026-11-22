@@ -103,9 +103,7 @@ public sealed class ProjectRuntimePreviewInputTests
 
     internal static WorkerProcessOptions Options()
     {
-        DirectoryInfo? current = new(AppContext.BaseDirectory);
-        while (current is not null && !File.Exists(Path.Combine(current.FullName, "MakoKaraGenerator.slnx"))) current = current.Parent;
-        string path = Path.Combine(current!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string path = WorkerBinaryLocator.LocateBackendWorkerDll();
         Assert.True(File.Exists(path)); return new("dotnet", [path]);
     }
 

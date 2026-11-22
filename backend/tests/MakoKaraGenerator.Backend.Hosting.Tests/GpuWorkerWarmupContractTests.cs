@@ -57,11 +57,7 @@ public sealed class GpuWorkerWarmupContractTests
     public async Task Windows_job_guarded_worker_completes_gpu_warmup_and_device_proof()
     {
         if (!OperatingSystem.IsWindows()) return;
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "src", "MakoKaraGenerator.Backend.Worker")))
-            root = root.Parent;
-        Assert.NotNull(root);
-        string workerExe = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.exe");
+        string workerExe = WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(workerExe), $"Missing built Worker binary: {workerExe}");
 
         WorkerProcessOptions options = new(workerExe, [], TimeSpan.FromSeconds(5))

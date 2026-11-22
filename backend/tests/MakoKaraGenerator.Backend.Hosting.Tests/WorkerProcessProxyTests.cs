@@ -434,7 +434,7 @@ public sealed class WorkerProcessProxyTests(ITestOutputHelper output)
 
     private static WorkerProcessProxy NewProxy()
     {
-        string worker = Path.Combine(FindRepositoryRoot(), "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string worker = WorkerBinaryLocator.LocateBackendWorkerDll();
         Assert.True(File.Exists(worker), $"先构建 Worker：{worker}");
         return new(new WorkerProcessOptions("dotnet", [worker], TimeSpan.FromSeconds(2)));
     }

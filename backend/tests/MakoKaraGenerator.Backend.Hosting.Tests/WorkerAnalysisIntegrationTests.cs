@@ -62,9 +62,7 @@ public sealed class WorkerAnalysisIntegrationTests(ITestOutputHelper output)
         => new(path, new FileInfo(path).Length, Convert.ToHexStringLower(SHA256.HashData(await File.ReadAllBytesAsync(path))));
     private static WorkerBackendAnalysisExecutor Executor()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
-        string dll = Path.Combine(root!.FullName, "src/MakoKaraGenerator.Backend.Worker/bin/Debug/net10.0/MakoKaraGenerator.Backend.Worker.dll");
+        string dll = WorkerBinaryLocator.LocateBackendWorkerDll();
         return new(new WorkerProcessOptions("dotnet", [dll]), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);
     }
     private static byte[] Wave(int rate, int channels, double seconds)

@@ -9,9 +9,7 @@ public sealed class WorkerOperationBoundsTests(ITestOutputHelper output)
     [Fact]
     public async Task Real_worker_bounds_active_operations_and_releases_completed_slots()
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "MakoKaraGenerator.slnx"))) root = root.Parent;
-        string dll = Path.Combine(root!.FullName, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker.dll");
+        string dll = WorkerBinaryLocator.LocateBackendWorkerDll();
         ProcessStartInfo start = new("dotnet")
         { UseShellExecute = false, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
         start.ArgumentList.Add(dll);

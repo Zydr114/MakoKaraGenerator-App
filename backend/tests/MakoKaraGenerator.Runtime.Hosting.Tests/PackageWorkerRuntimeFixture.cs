@@ -118,12 +118,9 @@ internal static class PackageWorkerRuntimeFixture
     internal static string WorkerApphost()
     {
         string? overridePath = Environment.GetEnvironmentVariable("MAKO_B3F_TEST_WORKER_PATH");
-        string workerExecutable = OperatingSystem.IsWindows()
-            ? "MakoKaraGenerator.Backend.Worker.exe"
-            : "MakoKaraGenerator.Backend.Worker";
         string path = overridePath is not null
             ? RequireOverride(overridePath)
-            : Path.Combine(RepositoryRoot(), "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", workerExecutable);
+            : WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(path)); return path;
 
         static string RequireOverride(string value)

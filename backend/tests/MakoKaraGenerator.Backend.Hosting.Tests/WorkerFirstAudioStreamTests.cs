@@ -31,9 +31,8 @@ public sealed class WorkerFirstAudioStreamTests(ITestOutputHelper output)
         for (int index = 0; index < samples.Length; index++) samples[index] = BinaryPrimitives.ReadSingleLittleEndian(oracleBytes.AsSpan(index * 4, 4));
         Assert.Equal(8000, samples.Length);
         WaveformPeakPyramid expected = WaveformPeakPyramid.Build(samples, 8000);
-        string root = RepositoryRoot();
         string worker = Environment.GetEnvironmentVariable("MAKO_FIRST_STREAM_WORKER")
-            ?? Path.Combine(root, "src", "MakoKaraGenerator.Backend.Worker", "bin", "Debug", "net10.0", "MakoKaraGenerator.Backend.Worker" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            ?? WorkerBinaryLocator.LocateBackendWorker();
         Assert.True(File.Exists(worker), worker);
         byte[] bytes = await File.ReadAllBytesAsync(audio, deadline.Token);
         WorkerBackendAudioPreparationExecutor executor = new(new(worker), TestMediaToolPaths.Ffmpeg, TestMediaToolPaths.Ffprobe);

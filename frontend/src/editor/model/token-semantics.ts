@@ -8,9 +8,9 @@ export interface TokenLike {
   phraseEndHint?: boolean;
 }
 
-const WHITESPACE_ONLY = /^\s+$/u;
-// CJK punctuation, ASCII punctuation, Unicode P* (excluding Japanese prolonged mark 'ー' U+30FC and iteration mark '々' U+3005 which are content!).
-const PUNCTUATION_CHAR = /[\p{P}\p{S}]/u;
+const WHITESPACE_CHAR = /^\s$/u;
+const PUNCTUATION_CHAR = /\p{P}/u;
+const SYMBOL_CHAR = /\p{S}/u;
 
 export function isCjkCodePoint(cp: number): boolean {
   return (
@@ -34,22 +34,31 @@ export function isContentKanaOrIdeographMark(cp: number): boolean {
   return cp === 0x30fc || cp === 0x3005 || cp === 0x3006 || cp === 0x309d || cp === 0x309e || cp === 0x30fd || cp === 0x30fe;
 }
 
+/** 与后端 LyricTokenSemantics.IsPunctuationElement 对齐：Unicode 标点以及 ASCII/全角符号（保留 emoji 与 ♪ 等音乐符号为实义元素）。 */
+function isPunctuationOrAsciiSymbol(ch: string, cp: number): boolean {
+  if (isContentKanaOrIdeographMark(cp)) return false;
+  if (PUNCTUATION_CHAR.test(ch)) return true;
+  return SYMBOL_CHAR.test(ch) && (cp < 0x2000 || (cp >= 0xff00 && cp <= 0xffef));
+}
+
 export function classifyToken(text: string): TokenKind {
-  if (!text) return 'whitespace';
-  if (WHITESPACE_ONLY.test(text)) return 'whitespace';
-  let allPunct = true;
+  if (!text) return 'content';
+  let sawWhitespace = false;
+  let sawPunctuation = false;
   for (const ch of text) {
+    if (WHITESPACE_CHAR.test(ch)) {
+      sawWhitespace = true;
+      continue;
+    }
     const cp = ch.codePointAt(0)!;
-    if (isContentKanaOrIdeographMark(cp)) {
-      allPunct = false;
-      break;
+    if (isPunctuationOrAsciiSymbol(ch, cp)) {
+      sawPunctuation = true;
+      continue;
     }
-    if (!PUNCTUATION_CHAR.test(ch) && !/\s/u.test(ch)) {
-      allPunct = false;
-      break;
-    }
+    return 'content';
   }
-  return allPunct ? 'punctuation' : 'content';
+  if (sawPunctuation) return 'punctuation';
+  return sawWhitespace ? 'whitespace' : 'content';
 }
 
 export function isContentToken(token: TokenLike): boolean {

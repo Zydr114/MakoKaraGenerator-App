@@ -6,6 +6,7 @@ import type { EditorLine } from './lyrics';
 import { formatBytes, resourceStatusText, resourceUsable } from './media';
 import { formatFrameRate } from './settings';
 import { US_PER_SECOND, formatTime, type FrameRate } from './time';
+import { isContentToken } from './token-semantics';
 
 export type CheckLevel = 'ok' | 'info' | 'warning' | 'block';
 
@@ -81,7 +82,7 @@ export interface TimingProblem {
 /**
  * 按后端导出检查（ProjectValidator，Export 上下文）找出会阻断导出的句子：
  * 行文本为空；行没有时间（跟随主歌词、关联了主歌词行且自己没有时间的除外）；
- * 字文本为空；字没有时间（静态来源里没有时间的字不算）。没有字的行在静态来源里不检查字。
+ * 字文本为空；字没有时间（无时间的纯空白/标点排版元素，以及静态来源里没有时间的字不算）。没有字的行在静态来源里不检查字。
  */
 export function timingProblems(branches: readonly TimingBranch[], linesByBranch: Readonly<Record<string, readonly EditorLine[]>>): TimingProblem[] {
   const problems: TimingProblem[] = [];
@@ -100,7 +101,12 @@ export function timingProblems(branches: readonly TimingBranch[], linesByBranch:
           const empty = token.text === '';
           const timed = token.startUs !== undefined && token.endUs !== undefined;
           const hasAnyTime = token.startUs !== undefined || token.endUs !== undefined;
-          const missing = !timed && (!isStatic || hasAnyTime);
+          const untimedNonContent =
+            !empty &&
+            !hasAnyTime &&
+            (token.status === undefined || token.status === 'missing') &&
+            !isContentToken(token);
+          const missing = !timed && !untimedNonContent && (!isStatic || hasAnyTime);
           if (empty) emptyTexts++;
           if (missing) missingTokens++;
           if ((empty || missing) && tokenId === undefined) tokenId = token.id;

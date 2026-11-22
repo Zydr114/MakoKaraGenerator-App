@@ -35,9 +35,15 @@ public sealed class ProjectValidatorTests
     [Theory]
     [InlineData(" ", TimingStatus.Missing, null, false)]
     [InlineData("\t\u3000", TimingStatus.Missing, null, false)]
+    [InlineData("、", TimingStatus.Missing, null, false)]
+    [InlineData("！", TimingStatus.Missing, null, false)]
+    [InlineData("「", TimingStatus.Missing, null, false)]
+    [InlineData(", ", TimingStatus.Missing, null, false)]
     [InlineData("字", TimingStatus.Missing, DiagnosticCode.MissingTime, true)]
+    [InlineData("♪", TimingStatus.Missing, DiagnosticCode.MissingTime, true)]
     [InlineData("", TimingStatus.Missing, DiagnosticCode.EmptyText, true)]
     [InlineData(" ", TimingStatus.Imported, DiagnosticCode.TimeStatusMismatch, true)]
+    [InlineData("、", TimingStatus.Imported, DiagnosticCode.TimeStatusMismatch, true)]
     [InlineData(" ", TimingStatus.Confirmed, DiagnosticCode.InvalidTimeRange, true)]
     public void 导出只豁免实际无时间的非空排版元素(string text, TimingStatus status, DiagnosticCode? code, bool blocked)
     {

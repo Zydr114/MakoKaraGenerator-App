@@ -69,6 +69,38 @@ describe('导出：歌词时间', () => {
     // 编排把翻译设成逐字时，字也要有时间。
     expect(timingProblems([{ ...translation, animationPolicy: 'Karaoke' }], lines).map((p) => p.lineId)).toEqual(['t1', 't2', 't3']);
   });
+
+  it('无时间的纯空白与纯标点不阻断导出；半边时间、状态不符与实义符号仍阻断', () => {
+    const lines = {
+      p: [
+        // 合法无时间空白与标点（含最小投影 status=undefined 与可编辑窗口 status=missing）
+        line(
+          'l1',
+          [
+            { ...token('p0', '「'), status: 'missing' },
+            token('a', '像', 0, 100),
+            { ...token('sp1', ' '), status: 'missing' },
+            token('b', '猫', 100, 200),
+            token('p1', '！'),
+            token('sp2', '\u3000'),
+          ],
+          [0, 200],
+        ),
+        // 音乐符号 ♪ 属于实义元素，无时间仍阻断
+        line('l2', [token('c', '歌', 200, 300), { ...token('sym', '♪'), status: 'missing' }], [200, 400]),
+        // 空白但状态不是 missing（状态不一致）仍阻断
+        line('l3', [token('d', '词', 400, 500), { ...token('sp3', ' '), status: 'imported' }], [400, 600]),
+        // 标点只有半边时间仍阻断
+        line('l4', [token('e', '句', 600, 700), token('p2', '、', 700)], [600, 800]),
+      ],
+    };
+    const problems = timingProblems([primary], lines);
+    expect(problems.map((p) => [p.lineId, p.missingTokens, p.tokenId])).toEqual([
+      ['l2', 1, 'sym'],
+      ['l3', 1, 'sp3'],
+      ['l4', 1, 'p2'],
+    ]);
+  });
 });
 
 const caps = { enabled: true, formats: ['opaqueMp4', 'transparentProRes4444'], quality: 'standard' } as ExportCapabilities;

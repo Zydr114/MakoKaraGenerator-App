@@ -59,17 +59,43 @@ def fixtures():
         add("export-quality-" + quality, "ExportJobRequest", {**export, "quality": quality})
     add("export-quality-invalid", "ExportJobRequest", {**export, "quality": "ultra"}, False)
     from p1p2_runtime_schema import RUNTIME, PACKAGE_PRESETS, PREVIEW, VALIDATION, EXPORT
-    from project_image_preview_fixtures import fixtures as preview_fixtures
-    from project_image_validation_fixtures import fixtures as validation_fixtures
-    from project_image_export_fixtures import fixtures as export_fixtures
     from editing_completion_fixtures import package_measurement_cases
+    preview_runtime = dict(enabled=True, status="configured-unverified", sourceProfile="static-lyrics-scene-v1",
+        sourceProfiles=PREVIEW, executionMode="worker-process", maxPixelWidth=1280, maxPixelHeight=720,
+        maxRawFrameBytes=4194304, maxSnapshotBytes=4194280, frameLeaseLifetimeSeconds=30,
+        maxRetainedFramesPerSession=2, maxRetainedFrameBytesPerSession=8388608, maxReadLeases=8,
+        maxReadLeaseBytes=536870912, clientLeaseExpiryPolicy="close-previews-preserve-projects",
+        eventDelivery="bounded-advisory-read-state-on-gaps")
+    validation_caps = dict(enabled=True, sourceProfile="static-lyrics-scene-v1", sourceProfiles=VALIDATION,
+        maxFramesPerOutput=600, maxCanvasWidth=1920, maxCanvasHeight=1080, maxRawFrameBytes=8388608,
+        operationTimeoutSeconds=60, maxReportBytes=262144, maxIssues=256, maxOccurrences=512,
+        maxRunning=2, maxRunningPerClient=1, maxRunningPerProject=1, maxQueued=8, maxQueuedPerClient=4,
+        maxReportStorageBytes=16777216, maxDiagnosticsPageSize=128)
+    export_caps = dict(enabled=True, sourceProfile="static-lyrics-scene-v1",
+        formats=["opaqueMp4", "transparentProRes4444"],
+        audioProfiles=["pcm16-wave-self-contained", "mp3-layer3-self-contained", "native-flac-self-contained"],
+        quality="standard", renderQuality="final", maxFrames=600, maxDurationUs="10000000", maxFrameRate=60,
+        maxCanvasWidth=1920, maxCanvasHeight=1080, maxRawFrameBytes=8388608, operationTimeoutSeconds=120,
+        cancellationGraceSeconds=2, maxMediaBytes=67108864, maxReportBytes=262144, maxOccurrences=512,
+        maxArtifactStorageBytes=536870912, maxRunning=2, maxRunningPerClient=1, maxRunningPerProject=1,
+        maxQueued=16, maxQueuedPerClient=4, outputFileGuard="linux-x64-rlimit-fsize",
+        maxDiagnosticsPageSize=128, executionProfile="static-export-pcmwav-v1",
+        maxCompressedAudioDurationUs="300000000",
+        compressedAudioDurationBasis="strict-source-rate-decoded-sample-frames")
     for schema, profiles, base in (
-        ("PreviewRuntimeInfoResponse", PREVIEW, preview_fixtures()["cases"][0]["value"]),
-        ("ValidationTaskCapabilitiesDto", VALIDATION, validation_fixtures()["cases"][0]["value"]),
-        ("ExportTaskCapabilitiesDto", EXPORT, next(case["value"] for case in export_fixtures()["cases"] if case["name"] == "project-image-export-capability-image")),
+        ("PreviewRuntimeInfoResponse", PREVIEW, preview_runtime),
+        ("ValidationTaskCapabilitiesDto", VALIDATION, validation_caps),
+        ("ExportTaskCapabilitiesDto", EXPORT, export_caps),
     ):
         add(schema + "-runtime-profiles", schema, {**base, "sourceProfiles": profiles})
         add(schema + "-runtime-duplicate", schema, {**base, "sourceProfiles": profiles + [RUNTIME]}, False)
+    ordinary_export_input = dict(format="opaqueMp4", includeAudio=False, quality="standard")
+    add("BackendExportInputDto-ordinary", "BackendExportInputDto", ordinary_export_input)
+    add("BackendExportInputDtoRaw-ordinary", "BackendExportInputDtoRaw", {**ordinary_export_input, "audio": None})
+    validation_request = dict(expectedRevision="0", framesPerOutput=4,
+        metadata=dict(requestId="p1p2-validation", hostInstanceId="host", validUntilUtc="2030-01-01T00:00:00Z"))
+    add("ValidationJobRequest-basic", "ValidationJobRequest", validation_request)
+    add("ValidationJobRequest-extra", "ValidationJobRequest", {**validation_request, "profile": "unknown"}, False)
     measurement = package_measurement_cases()[0]["value"]
     add("measurement-runtime", "SceneMeasurementDataDto", {**measurement, "sourceProfile": RUNTIME})
     add("measurement-candidate-response", "SceneMeasurementResponse", dict(projectSessionId="project-A", projectRevision="candidate-" + "a" * 32, measurement={**measurement, "sourceProfile": RUNTIME}, protocolVersion="1"))
@@ -110,25 +136,6 @@ def fixtures():
     for field in ("archiveBytes", "expandedBytes"):
         add("template-transfer-budget-over-" + field, "TemplateImportPreflightResponse", {**transfer, field: 268_435_457}, False)
     return {"cases": cases}
-
-
-def migrate_legacy_cases(cases, *, historical=False):
-    """Migrate four additive response fields; reverse only for historical hashes."""
-    migrated = copy.deepcopy(cases)
-    for case in migrated:
-        if case["name"] == "raw-export-null-audio":
-            fields = ("requestedQuality", "actualQuality")
-        elif case["name"] in {"project-image-export-export-input-pair", "project-image-export-ordinary-export-input",
-                               "project-image-export-ordinary-export-input-with-image-fields"}:
-            fields = ("quality",)
-        else:
-            continue
-        for field in fields:
-            if historical:
-                case["value"].pop(field, None)
-            else:
-                case["value"][field] = "standard"
-    return migrated
 
 
 if __name__ == "__main__":

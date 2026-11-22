@@ -146,3 +146,30 @@ jobs:
       - name: Run backend-web-host Python tests (Windows)
         if: runner.os == 'Windows'
         run: python -m unittest backend/tools/backend-web-host/test_host.py
+
+  contract:
+    name: API Contract (ubuntu-latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install contract validation dependencies
+        run: python3 -m pip install -r backend/tools/backend-api-contract/requirements.txt
+
+      - name: Verify frozen contract matches current source and CLR metadata
+        run: python3 backend/tools/backend-api-contract/freeze.py --check
+
+      - name: Validate frozen OpenAPI, schemas, examples, and manifest
+        run: python3 backend/tools/backend-api-contract/validate.py

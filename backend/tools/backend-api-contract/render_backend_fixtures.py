@@ -20,12 +20,9 @@ def fixtures(base_cases=None):
             continue
         samples = [case["value"] for case in base_cases
                    if case["schema"] == schema and case["valid"] and not case["name"].startswith(PREFIX)]
-        if schema == "ProjectEditPreviewRequest":
-            sample = dict(expectedRevision="0", edits=[], size=dict(width=320, height=180), metadata=metadata)
-        else:
-            if not samples:
-                raise ValueError("Missing reviewed base request fixture: " + schema)
-            sample = copy.deepcopy(samples[0])
+        if not samples:
+            raise ValueError("Missing reviewed base request fixture: " + schema)
+        sample = copy.deepcopy(samples[0])
         sample.pop("renderBackend", None)
         add(schema + "-startup-or-current-default", schema, sample)
         for selected in [None, *VALUES]:
@@ -85,8 +82,7 @@ def fixtures(base_cases=None):
 
 def append_to(existing):
     from p4_author_fixtures import append_to as append_p4
-    base = {**existing, "cases": migrate_legacy_cases(
-        [case for case in existing["cases"] if not case["name"].startswith(PREFIX)], historical=True)}
+    base = {**existing, "cases": [case for case in existing["cases"] if not case["name"].startswith(PREFIX)]}
     base = append_p4(base)
     cases = migrate_legacy_cases(base["cases"])
     return {**base, "cases": cases + fixtures(base["cases"])["cases"]}

@@ -6,7 +6,7 @@ from static_style_schema import audit, ref
 VALUES = ["cpu", "gpu"]
 OPTIONAL_REQUESTS = (
     "PreviewSessionRequest", "TemplatePreviewSessionRequest", "PresetApplicationPreviewRequest",
-    "ProjectEditPreviewRequest", "PreviewProjectInputRequest", "PreviewInputRequest",
+    "PreviewProjectInputRequest", "PreviewInputRequest",
     "ValidationJobRequest", "AuthorValidationJobRequest", "ExportJobRequest", "SceneMeasurementRequest",
 )
 REQUIRED_ECHOES = ("PreviewSessionResponse", "PreviewFrameMetadataDto", "PreviewEventDto")
@@ -15,7 +15,7 @@ HISTORICAL_ECHOES = (
     "ValidationReportDto", "ExportReportDto", "SceneMeasurementDataDto",
 )
 SELECTION_OPERATIONS = {
-    "createPreview", "createTemplatePreview", "createPresetApplicationPreview", "createEditPreview",
+    "createPreview", "createTemplatePreview", "createPresetApplicationPreview",
     "updatePreviewInput", "updatePreviewRenderBackend", "validateProject", "validateAuthorDraft",
     "exportProject", "measureOrchestration",
 }
@@ -44,7 +44,6 @@ def extend(schemas, metadata):
             continue
         value = backend(nullable=True)
         value["description"] = (
-            "严格cpu/gpu；新候选省略/null使用启动默认，指定previewId替换现有候选时保留当前选择。" if name == "ProjectEditPreviewRequest" else
             "严格cpu/gpu；省略/null保留该预览当前选择。" if name in ("PreviewProjectInputRequest", "PreviewInputRequest") else
             "严格cpu/gpu；省略/null使用启动时固定默认。候选测量省略/null使用候选固定选择。"
             if name == "SceneMeasurementRequest" else
@@ -123,21 +122,17 @@ def configure(operation, item):
         operation["x-render-backend-default"] = "current-preview"
     elif name == "measureOrchestration":
         operation["x-render-backend-default"] = "candidate-or-startup"
-    elif name == "createEditPreview":
-        operation["x-render-backend-default"] = "existing-preview-or-startup"
     else:
         operation["x-render-backend-default"] = "startup"
 
 
-def migrate_legacy_cases(cases, *, historical=False):
-    """Add only new required live-preview echoes; reverse before old hash gates."""
+def migrate_legacy_cases(cases):
+    """Ensure required live-preview echoes carry renderBackend (idempotent forward migration)."""
     result = copy.deepcopy(cases)
     def visit(value):
         if isinstance(value, dict):
-            if historical:
-                value.pop("renderBackend", None)
-            elif ({"previewId", "previewGeneration", "source", "limits"} <= value.keys()
-                  or {"frameId", "previewId", "previewGeneration", "content"} <= value.keys()):
+            if ({"previewId", "previewGeneration", "source", "limits"} <= value.keys()
+                    or {"frameId", "previewId", "previewGeneration", "content"} <= value.keys()):
                 value.setdefault("renderBackend", "cpu")
             for child in value.values():
                 visit(child)
@@ -145,7 +140,7 @@ def migrate_legacy_cases(cases, *, historical=False):
             for child in value:
                 visit(child)
     for case in result:
-        if not historical and case["schema"] in REQUIRED_ECHOES:
+        if case["schema"] in REQUIRED_ECHOES:
             case["value"].setdefault("renderBackend", "cpu")
         visit(case["value"])
     return result

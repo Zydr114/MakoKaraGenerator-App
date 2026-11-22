@@ -110436,1479 +110436,6 @@
       "valid": false
     },
     {
-      "name": "project-image-preview-runtime-all-profiles",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1",
-          "project-image-preview-v1"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-runtime-image-probe-failed",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-runtime-disabled",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": false,
-        "status": "disabled",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps",
-        "disabledReason": {
-          "code": "previewUnavailable",
-          "message": "预览Worker尚未部署。",
-          "field": "worker",
-          "protocolVersion": "1"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-runtime-legacy-omitted-profiles",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-runtime-wrong-legacy-single-value",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "project-image-preview-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1",
-          "project-image-preview-v1"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-runtime-profiles-null",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": null,
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-runtime-profiles-unknown",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "unknown"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-runtime-profiles-duplicate",
-      "schema": "PreviewRuntimeInfoResponse",
-      "value": {
-        "enabled": true,
-        "status": "configured-unverified",
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1",
-          "project-image-preview-v1",
-          "project-image-preview-v1"
-        ],
-        "executionMode": "worker-process",
-        "maxPixelWidth": 1280,
-        "maxPixelHeight": 720,
-        "maxRawFrameBytes": 4194304,
-        "maxSnapshotBytes": 4194280,
-        "frameLeaseLifetimeSeconds": 30,
-        "maxRetainedFramesPerSession": 2,
-        "maxRetainedFrameBytesPerSession": 8388608,
-        "maxReadLeases": 8,
-        "maxReadLeaseBytes": 536870912,
-        "clientLeaseExpiryPolicy": "close-previews-preserve-projects",
-        "eventDelivery": "bounded-advisory-read-state-on-gaps"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-create-project",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-replace-project",
-      "schema": "PreviewProjectInputRequest",
-      "value": {
-        "expectedPreviewGeneration": "1",
-        "expectedSourceRevision": "1",
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "2"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "straight",
-        "metadata": {
-          "requestId": "image-input-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-create-reject-profile",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "profile": "project-image-preview-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-source-reject-profile",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1",
-          "profile": "project-image-preview-v1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-create-reject-imageBytes",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "imageBytes": "AA=="
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-source-reject-imageBytes",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1",
-          "imageBytes": "AA=="
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-create-reject-path",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "path": "image.png"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-source-reject-path",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1",
-          "path": "image.png"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-create-reject-grantId",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "grantId": "grant-example"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-source-reject-grantId",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "project",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1",
-          "grantId": "grant-example"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-source-image-kind-rejected",
-      "schema": "PreviewSessionRequest",
-      "value": {
-        "source": {
-          "kind": "image",
-          "sourceId": "project-image-example",
-          "sourceRevision": "1"
-        },
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "alphaMode": "opaque",
-        "metadata": {
-          "requestId": "image-preview-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-preview-error-WorkerImagePreviewProfileMismatch",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "previewUnavailable",
-        "message": "固定图片预览未被接受。",
-        "field": "worker",
-        "failureCode": "WorkerImagePreviewProfileMismatch",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-error-WorkerImagePreviewUnavailable",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "previewUnavailable",
-        "message": "固定图片预览未被接受。",
-        "field": "worker",
-        "failureCode": "WorkerImagePreviewUnavailable",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-error-ProjectImageSourceUnavailable",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "commandNotSupported",
-        "message": "固定图片预览未被接受。",
-        "field": "background",
-        "failureCode": "ProjectImageSourceUnavailable",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-error-ProjectImageSourceChanged",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "commandNotSupported",
-        "message": "固定图片预览未被接受。",
-        "field": "background",
-        "failureCode": "ProjectImageSourceChanged",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-error-SnapshotSizeExceeded",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "resourceTooLarge",
-        "message": "固定图片预览未被接受。",
-        "field": "background",
-        "failureCode": "SnapshotSizeExceeded",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-async-failure-PackageImageDecodeFailed",
-      "schema": "PreviewSessionStateResponse",
-      "value": {
-        "session": {
-          "previewId": "preview-image-example",
-          "source": {
-            "kind": "project",
-            "sourceId": "project-image-example",
-            "sourceRevision": "1"
-          },
-          "previewGeneration": "1",
-          "size": {
-            "width": 320,
-            "height": 180
-          },
-          "alphaMode": "opaque",
-          "state": "failed",
-          "limits": {
-            "maxWidth": 1280,
-            "maxHeight": 720,
-            "maxInFlightRequests": 1,
-            "maxRetainedFrames": 2,
-            "maxRetainedFrameBytes": 8388608,
-            "frameLeaseLifetimeSeconds": 30,
-            "maxDiagnosticsPageSize": 128,
-            "maxRawFrameBytes": 4194304
-          },
-          "protocolVersion": "1",
-          "previewKind": "project",
-          "committable": true,
-          "renderBackend": "cpu"
-        },
-        "failure": {
-          "code": "internalError",
-          "message": "预览渲染失败。",
-          "protocolVersion": "1"
-        },
-        "renderFailureCode": "PackageImageDecodeFailed"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-async-failure-PackageImageBudgetExceeded",
-      "schema": "PreviewSessionStateResponse",
-      "value": {
-        "session": {
-          "previewId": "preview-image-example",
-          "source": {
-            "kind": "project",
-            "sourceId": "project-image-example",
-            "sourceRevision": "1"
-          },
-          "previewGeneration": "1",
-          "size": {
-            "width": 320,
-            "height": 180
-          },
-          "alphaMode": "opaque",
-          "state": "failed",
-          "limits": {
-            "maxWidth": 1280,
-            "maxHeight": 720,
-            "maxInFlightRequests": 1,
-            "maxRetainedFrames": 2,
-            "maxRetainedFrameBytes": 8388608,
-            "frameLeaseLifetimeSeconds": 30,
-            "maxDiagnosticsPageSize": 128,
-            "maxRawFrameBytes": 4194304
-          },
-          "protocolVersion": "1",
-          "previewKind": "project",
-          "committable": true,
-          "renderBackend": "cpu"
-        },
-        "failure": {
-          "code": "internalError",
-          "message": "预览渲染失败。",
-          "protocolVersion": "1"
-        },
-        "renderFailureCode": "PackageImageBudgetExceeded"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-preview-async-failure-WorkerPackageTimedOut",
-      "schema": "PreviewSessionStateResponse",
-      "value": {
-        "session": {
-          "previewId": "preview-image-example",
-          "source": {
-            "kind": "project",
-            "sourceId": "project-image-example",
-            "sourceRevision": "1"
-          },
-          "previewGeneration": "1",
-          "size": {
-            "width": 320,
-            "height": 180
-          },
-          "alphaMode": "opaque",
-          "state": "failed",
-          "limits": {
-            "maxWidth": 1280,
-            "maxHeight": 720,
-            "maxInFlightRequests": 1,
-            "maxRetainedFrames": 2,
-            "maxRetainedFrameBytes": 8388608,
-            "frameLeaseLifetimeSeconds": 30,
-            "maxDiagnosticsPageSize": 128,
-            "maxRawFrameBytes": 4194304
-          },
-          "protocolVersion": "1",
-          "previewKind": "project",
-          "committable": true,
-          "renderBackend": "cpu"
-        },
-        "failure": {
-          "code": "internalError",
-          "message": "预览渲染失败。",
-          "protocolVersion": "1"
-        },
-        "renderFailureCode": "WorkerPackageTimedOut"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-capability-all",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1",
-          "project-image-validation-v1"
-        ],
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-capability-image-unavailable",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-capability-legacy-omitted",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-capability-null",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": null,
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-capability-preview-profile",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "project-image-preview-v1"
-        ],
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-capability-unknown",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "unknown"
-        ],
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-capability-duplicate",
-      "schema": "ValidationTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "sourceProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "static-lyrics-scene-presets-v1",
-          "package-lyrics-scene-v1",
-          "project-image-validation-v1",
-          "project-image-validation-v1"
-        ],
-        "maxFramesPerOutput": 600,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 60,
-        "maxReportBytes": 262144,
-        "maxIssues": 256,
-        "maxOccurrences": 512,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 8,
-        "maxQueuedPerClient": 4,
-        "maxReportStorageBytes": 16777216,
-        "maxDiagnosticsPageSize": 128
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-request-existing-fields",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-request-reject-profile",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "profile": "project-image-validation-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-request-reject-sourceProfile",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "sourceProfile": "project-image-validation-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-request-reject-imageBytes",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "imageBytes": "AA=="
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-request-reject-path",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "path": "image.png"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-request-reject-grantId",
-      "schema": "ValidationJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "framesPerOutput": 4,
-        "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
-        },
-        "grantId": "grant-example"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-input-BackendJobInputDto",
-      "schema": "BackendJobInputDto",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-input-reject-preview-BackendJobInputDto",
-      "schema": "BackendJobInputDto",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-preview-v1",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-input-reject-unknown-BackendJobInputDto",
-      "schema": "BackendJobInputDto",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "unknown",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-input-BackendJobInputDtoRaw",
-      "schema": "BackendJobInputDtoRaw",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-input-reject-preview-BackendJobInputDtoRaw",
-      "schema": "BackendJobInputDtoRaw",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-preview-v1",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-input-reject-unknown-BackendJobInputDtoRaw",
-      "schema": "BackendJobInputDtoRaw",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "unknown",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-validation-error-WorkerImageValidationUnavailable",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "taskUnavailable",
-        "message": "固定图片验证未被接受。",
-        "field": "worker",
-        "failureCode": "WorkerImageValidationUnavailable",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-error-ProjectImageSourceUnavailable",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "commandNotSupported",
-        "message": "固定图片验证未被接受。",
-        "field": "background",
-        "failureCode": "ProjectImageSourceUnavailable",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-error-ProjectImageSourceChanged",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "commandNotSupported",
-        "message": "固定图片验证未被接受。",
-        "field": "background",
-        "failureCode": "ProjectImageSourceChanged",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-error-SnapshotSizeExceeded",
-      "schema": "BackendErrorResponse",
-      "value": {
-        "code": "resourceTooLarge",
-        "message": "固定图片验证未被接受。",
-        "field": "background",
-        "failureCode": "SnapshotSizeExceeded",
-        "protocolVersion": "1"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-report-PackageImageDecodeFailed",
-      "schema": "ValidationReportDtoRaw",
-      "value": {
-        "succeeded": false,
-        "opaqueFrames": 0,
-        "transparentFrames": 0,
-        "issues": [
-          {
-            "transparent": false,
-            "timeUs": "0",
-            "code": "PackageImageDecodeFailed",
-            "message": "固定图片无法解码。",
-            "isError": true,
-            "location": null,
-            "sampleFailureCode": null
-          }
-        ],
-        "diagnostics": []
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-validation-report-PackageImageBudgetExceeded",
-      "schema": "ValidationReportDtoRaw",
-      "value": {
-        "succeeded": false,
-        "opaqueFrames": 0,
-        "transparentFrames": 0,
-        "issues": [
-          {
-            "transparent": false,
-            "timeUs": "0",
-            "code": "PackageImageBudgetExceeded",
-            "message": "固定图片无法解码。",
-            "isError": true,
-            "location": null,
-            "sampleFailureCode": null
-          }
-        ],
-        "diagnostics": []
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-request-existing-fields",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-request-reject-taskProfile",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        },
-        "taskProfile": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-request-reject-baseSourceProfile",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        },
-        "baseSourceProfile": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-request-reject-imageBytes",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        },
-        "imageBytes": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-request-reject-path",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        },
-        "path": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-request-reject-grantId",
-      "schema": "ExportJobRequest",
-      "value": {
-        "expectedRevision": "1",
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "metadata": {
-          "requestId": "image-export-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-24T12:01:00Z"
-        },
-        "grantId": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-input-and-export-pair",
-      "schema": "BackendJobInputDto",
-      "value": {
-        "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-export-v1",
-        "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "framesPerOutput": 4,
-        "canvasWidth": 320,
-        "canvasHeight": 180,
-        "frameRateNumerator": 30,
-        "frameRateDenominator": 1,
-        "outputDurationUs": "1000000"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-export-input-pair",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
-        "quality": "standard"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-export-input-missing-base",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "taskProfile": "project-image-export-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-export-input-missing-task",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "baseSourceProfile": "static-lyrics-scene-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-export-input-unknown-base",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "unknown"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-export-input-preview-profile",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "taskProfile": "project-image-preview-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1"
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-ordinary-export-input",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "quality": "standard"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-ordinary-export-input-with-image-fields",
-      "schema": "BackendExportInputDto",
-      "value": {
-        "format": "opaqueMp4",
-        "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
-        "quality": "standard"
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-capability-image",
-      "schema": "ExportTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "formats": [
-          "opaqueMp4",
-          "transparentProRes4444"
-        ],
-        "audioProfiles": [
-          "pcm16-wave-self-contained",
-          "mp3-layer3-self-contained",
-          "native-flac-self-contained"
-        ],
-        "quality": "standard",
-        "renderQuality": "final",
-        "maxFrames": 600,
-        "maxDurationUs": "10000000",
-        "maxFrameRate": 60,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 120,
-        "cancellationGraceSeconds": 2,
-        "maxMediaBytes": 67108864,
-        "maxReportBytes": 262144,
-        "maxOccurrences": 512,
-        "maxArtifactStorageBytes": 536870912,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 16,
-        "maxQueuedPerClient": 4,
-        "outputFileGuard": "linux-x64-rlimit-fsize",
-        "maxDiagnosticsPageSize": 128,
-        "executionProfile": "static-export-pcmwav-v1",
-        "maxCompressedAudioDurationUs": "300000000",
-        "compressedAudioDurationBasis": "strict-source-rate-decoded-sample-frames",
-        "imageTaskProfile": "project-image-export-v1",
-        "imageBaseProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ]
-      },
-      "valid": true
-    },
-    {
-      "name": "project-image-export-capability-image-duplicate-base",
-      "schema": "ExportTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "formats": [
-          "opaqueMp4",
-          "transparentProRes4444"
-        ],
-        "audioProfiles": [
-          "pcm16-wave-self-contained",
-          "mp3-layer3-self-contained",
-          "native-flac-self-contained"
-        ],
-        "quality": "standard",
-        "renderQuality": "final",
-        "maxFrames": 600,
-        "maxDurationUs": "10000000",
-        "maxFrameRate": 60,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 120,
-        "cancellationGraceSeconds": 2,
-        "maxMediaBytes": 67108864,
-        "maxReportBytes": 262144,
-        "maxOccurrences": 512,
-        "maxArtifactStorageBytes": 536870912,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 16,
-        "maxQueuedPerClient": 4,
-        "outputFileGuard": "linux-x64-rlimit-fsize",
-        "maxDiagnosticsPageSize": 128,
-        "executionProfile": "static-export-pcmwav-v1",
-        "maxCompressedAudioDurationUs": "300000000",
-        "compressedAudioDurationBasis": "strict-source-rate-decoded-sample-frames",
-        "imageTaskProfile": "project-image-export-v1",
-        "imageBaseProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1",
-          "static-lyrics-scene-v1"
-        ]
-      },
-      "valid": false
-    },
-    {
-      "name": "project-image-export-capability-image-unknown-base",
-      "schema": "ExportTaskCapabilitiesDto",
-      "value": {
-        "enabled": true,
-        "sourceProfile": "static-lyrics-scene-v1",
-        "formats": [
-          "opaqueMp4",
-          "transparentProRes4444"
-        ],
-        "audioProfiles": [
-          "pcm16-wave-self-contained",
-          "mp3-layer3-self-contained",
-          "native-flac-self-contained"
-        ],
-        "quality": "standard",
-        "renderQuality": "final",
-        "maxFrames": 600,
-        "maxDurationUs": "10000000",
-        "maxFrameRate": 60,
-        "maxCanvasWidth": 1920,
-        "maxCanvasHeight": 1080,
-        "maxRawFrameBytes": 8388608,
-        "operationTimeoutSeconds": 120,
-        "cancellationGraceSeconds": 2,
-        "maxMediaBytes": 67108864,
-        "maxReportBytes": 262144,
-        "maxOccurrences": 512,
-        "maxArtifactStorageBytes": 536870912,
-        "maxRunning": 2,
-        "maxRunningPerClient": 1,
-        "maxRunningPerProject": 1,
-        "maxQueued": 16,
-        "maxQueuedPerClient": 4,
-        "outputFileGuard": "linux-x64-rlimit-fsize",
-        "maxDiagnosticsPageSize": 128,
-        "executionProfile": "static-export-pcmwav-v1",
-        "maxCompressedAudioDurationUs": "300000000",
-        "compressedAudioDurationBasis": "strict-source-rate-decoded-sample-frames",
-        "imageTaskProfile": "project-image-export-v1",
-        "imageBaseProfiles": [
-          "unknown"
-        ]
-      },
-      "valid": false
-    },
-    {
       "name": "p1p2-create-empty",
       "schema": "CreateProjectSessionRequest",
       "value": {
@@ -112627,7 +111154,6 @@
           "static-lyrics-scene-analysis-v1",
           "static-lyrics-scene-presets-v1",
           "package-lyrics-scene-v1",
-          "project-image-preview-v1",
           "package-lyrics-scene-presets-v1",
           "runtime-project-input-v1"
         ],
@@ -112658,7 +111184,6 @@
           "static-lyrics-scene-analysis-v1",
           "static-lyrics-scene-presets-v1",
           "package-lyrics-scene-v1",
-          "project-image-preview-v1",
           "package-lyrics-scene-presets-v1",
           "runtime-project-input-v1",
           "runtime-project-input-v1"
@@ -112689,7 +111214,6 @@
           "static-lyrics-scene-analysis-v1",
           "static-lyrics-scene-presets-v1",
           "package-lyrics-scene-v1",
-          "project-image-validation-v1",
           "package-lyrics-scene-presets-v1",
           "runtime-project-input-v1"
         ],
@@ -112722,7 +111246,6 @@
           "static-lyrics-scene-analysis-v1",
           "static-lyrics-scene-presets-v1",
           "package-lyrics-scene-v1",
-          "project-image-validation-v1",
           "package-lyrics-scene-presets-v1",
           "runtime-project-input-v1",
           "runtime-project-input-v1"
@@ -112784,12 +111307,6 @@
         "executionProfile": "static-export-pcmwav-v1",
         "maxCompressedAudioDurationUs": "300000000",
         "compressedAudioDurationBasis": "strict-source-rate-decoded-sample-frames",
-        "imageTaskProfile": "project-image-export-v1",
-        "imageBaseProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
         "sourceProfiles": [
           "static-lyrics-scene-v1",
           "static-lyrics-scene-analysis-v1",
@@ -112840,12 +111357,6 @@
         "executionProfile": "static-export-pcmwav-v1",
         "maxCompressedAudioDurationUs": "300000000",
         "compressedAudioDurationBasis": "strict-source-rate-decoded-sample-frames",
-        "imageTaskProfile": "project-image-export-v1",
-        "imageBaseProfiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
         "sourceProfiles": [
           "static-lyrics-scene-v1",
           "static-lyrics-scene-analysis-v1",
@@ -112855,6 +111366,56 @@
           "runtime-project-input-v1",
           "runtime-project-input-v1"
         ]
+      },
+      "valid": false
+    },
+    {
+      "name": "p1p2-BackendExportInputDto-ordinary",
+      "schema": "BackendExportInputDto",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard"
+      },
+      "valid": true
+    },
+    {
+      "name": "p1p2-BackendExportInputDtoRaw-ordinary",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null
+      },
+      "valid": true
+    },
+    {
+      "name": "p1p2-ValidationJobRequest-basic",
+      "schema": "ValidationJobRequest",
+      "value": {
+        "expectedRevision": "0",
+        "framesPerOutput": 4,
+        "metadata": {
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "p1p2-ValidationJobRequest-extra",
+      "schema": "ValidationJobRequest",
+      "value": {
+        "expectedRevision": "0",
+        "framesPerOutput": 4,
+        "metadata": {
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
+        },
+        "profile": "unknown"
       },
       "valid": false
     },
@@ -121002,233 +119563,6 @@
       "valid": false
     },
     {
-      "name": "render-backend-ProjectEditPreviewRequest-startup-or-current-default",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        }
-      },
-      "valid": true
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-None",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": null
-      },
-      "valid": true
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-cpu",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": "cpu"
-      },
-      "valid": true
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-gpu",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": "gpu"
-      },
-      "valid": true
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-empty",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": ""
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-space",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": " "
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-upper",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": "GPU"
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-native-name",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": "vulkan"
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-auto",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": "auto"
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-integer",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": 1
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-bool",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": true
-      },
-      "valid": false
-    },
-    {
-      "name": "render-backend-ProjectEditPreviewRequest-invalid-object",
-      "schema": "ProjectEditPreviewRequest",
-      "value": {
-        "expectedRevision": "0",
-        "edits": [],
-        "size": {
-          "width": 320,
-          "height": 180
-        },
-        "metadata": {
-          "requestId": "render-backend-example",
-          "hostInstanceId": "host",
-          "validUntilUtc": "2030-01-01T00:00:00Z"
-        },
-        "renderBackend": {}
-      },
-      "valid": false
-    },
-    {
       "name": "render-backend-PreviewProjectInputRequest-startup-or-current-default",
       "schema": "PreviewProjectInputRequest",
       "value": {
@@ -121519,12 +119853,12 @@
       "name": "render-backend-ValidationJobRequest-startup-or-current-default",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         }
       },
       "valid": true
@@ -121533,12 +119867,12 @@
       "name": "render-backend-ValidationJobRequest-None",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": null
       },
@@ -121548,12 +119882,12 @@
       "name": "render-backend-ValidationJobRequest-cpu",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": "cpu"
       },
@@ -121563,12 +119897,12 @@
       "name": "render-backend-ValidationJobRequest-gpu",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": "gpu"
       },
@@ -121578,12 +119912,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-empty",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": ""
       },
@@ -121593,12 +119927,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-space",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": " "
       },
@@ -121608,12 +119942,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-upper",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": "GPU"
       },
@@ -121623,12 +119957,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-native-name",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": "vulkan"
       },
@@ -121638,12 +119972,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-auto",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": "auto"
       },
@@ -121653,12 +119987,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-integer",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": 1
       },
@@ -121668,12 +120002,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-bool",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": true
       },
@@ -121683,12 +120017,12 @@
       "name": "render-backend-ValidationJobRequest-invalid-object",
       "schema": "ValidationJobRequest",
       "value": {
-        "expectedRevision": "1",
+        "expectedRevision": "0",
         "framesPerOutput": 4,
         "metadata": {
-          "requestId": "image-validation-example",
-          "hostInstanceId": "host-example",
-          "validUntilUtc": "2026-10-23T12:01:00Z"
+          "requestId": "p1p2-validation",
+          "hostInstanceId": "host",
+          "validUntilUtc": "2030-01-01T00:00:00Z"
         },
         "renderBackend": {}
       },
@@ -122926,9 +121260,9 @@
       "schema": "BackendJobInputDto",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -122944,9 +121278,9 @@
       "schema": "BackendJobInputDto",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -122963,9 +121297,9 @@
       "schema": "BackendJobInputDto",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -122982,9 +121316,9 @@
       "schema": "BackendJobInputDto",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123001,9 +121335,9 @@
       "schema": "BackendJobInputDto",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123020,9 +121354,9 @@
       "schema": "BackendJobInputDtoRaw",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123038,9 +121372,9 @@
       "schema": "BackendJobInputDtoRaw",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123057,9 +121391,9 @@
       "schema": "BackendJobInputDtoRaw",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123076,9 +121410,9 @@
       "schema": "BackendJobInputDtoRaw",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123095,9 +121429,9 @@
       "schema": "BackendJobInputDtoRaw",
       "value": {
         "sourceKind": "project",
-        "sourceId": "image-project",
-        "sourceRevision": "1",
-        "sourceProfile": "project-image-validation-v1",
+        "sourceId": "project-A",
+        "sourceRevision": "0",
+        "sourceProfile": "runtime-project-input-v1",
         "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "framesPerOutput": 4,
         "canvasWidth": 320,
@@ -123115,8 +121449,6 @@
       "value": {
         "format": "opaqueMp4",
         "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
         "quality": "standard"
       },
       "valid": true
@@ -123127,8 +121459,6 @@
       "value": {
         "format": "opaqueMp4",
         "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
         "quality": "standard",
         "renderBackend": null
       },
@@ -123140,8 +121470,6 @@
       "value": {
         "format": "opaqueMp4",
         "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
         "quality": "standard",
         "renderBackend": "cpu"
       },
@@ -123153,8 +121481,6 @@
       "value": {
         "format": "opaqueMp4",
         "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
         "quality": "standard",
         "renderBackend": "gpu"
       },
@@ -123166,9 +121492,66 @@
       "value": {
         "format": "opaqueMp4",
         "includeAudio": false,
-        "taskProfile": "project-image-export-v1",
-        "baseSourceProfile": "static-lyrics-scene-v1",
         "quality": "standard",
+        "renderBackend": "vulkan"
+      },
+      "valid": false
+    },
+    {
+      "name": "render-backend-BackendExportInputDtoRaw-historical-unknown",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null
+      },
+      "valid": true
+    },
+    {
+      "name": "render-backend-BackendExportInputDtoRaw-echo-None",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null,
+        "renderBackend": null
+      },
+      "valid": true
+    },
+    {
+      "name": "render-backend-BackendExportInputDtoRaw-echo-cpu",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null,
+        "renderBackend": "cpu"
+      },
+      "valid": true
+    },
+    {
+      "name": "render-backend-BackendExportInputDtoRaw-echo-gpu",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null,
+        "renderBackend": "gpu"
+      },
+      "valid": true
+    },
+    {
+      "name": "render-backend-BackendExportInputDtoRaw-invalid-echo",
+      "schema": "BackendExportInputDtoRaw",
+      "value": {
+        "format": "opaqueMp4",
+        "includeAudio": false,
+        "quality": "standard",
+        "audio": null,
         "renderBackend": "vulkan"
       },
       "valid": false
@@ -123355,10 +121738,10 @@
         "strictlyVerified": true,
         "requestedQuality": "standard",
         "actualQuality": "standard",
-        "renderBackend": null,
         "fallbackDiagnostics": [],
         "fallbackFrameCount": 0,
-        "fallbackDiagnosticsTruncated": false
+        "fallbackDiagnosticsTruncated": false,
+        "renderBackend": null
       },
       "valid": true
     },
@@ -123393,10 +121776,10 @@
         "strictlyVerified": true,
         "requestedQuality": "standard",
         "actualQuality": "standard",
-        "renderBackend": "cpu",
         "fallbackDiagnostics": [],
         "fallbackFrameCount": 0,
-        "fallbackDiagnosticsTruncated": false
+        "fallbackDiagnosticsTruncated": false,
+        "renderBackend": "cpu"
       },
       "valid": true
     },
@@ -123431,10 +121814,10 @@
         "strictlyVerified": true,
         "requestedQuality": "standard",
         "actualQuality": "standard",
-        "renderBackend": "gpu",
         "fallbackDiagnostics": [],
         "fallbackFrameCount": 0,
-        "fallbackDiagnosticsTruncated": false
+        "fallbackDiagnosticsTruncated": false,
+        "renderBackend": "gpu"
       },
       "valid": true
     },
@@ -123469,10 +121852,10 @@
         "strictlyVerified": true,
         "requestedQuality": "standard",
         "actualQuality": "standard",
-        "renderBackend": "vulkan",
         "fallbackDiagnostics": [],
         "fallbackFrameCount": 0,
-        "fallbackDiagnosticsTruncated": false
+        "fallbackDiagnosticsTruncated": false,
+        "renderBackend": "vulkan"
       },
       "valid": false
     },
@@ -123544,8 +121927,8 @@
         ],
         "pngSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "png": "iVBORw0KGgo=",
-        "renderBackend": null,
-        "fallbackDiagnostics": []
+        "fallbackDiagnostics": [],
+        "renderBackend": null
       },
       "valid": true
     },
@@ -123581,8 +121964,8 @@
         ],
         "pngSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "png": "iVBORw0KGgo=",
-        "renderBackend": "cpu",
-        "fallbackDiagnostics": []
+        "fallbackDiagnostics": [],
+        "renderBackend": "cpu"
       },
       "valid": true
     },
@@ -123618,8 +122001,8 @@
         ],
         "pngSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "png": "iVBORw0KGgo=",
-        "renderBackend": "gpu",
-        "fallbackDiagnostics": []
+        "fallbackDiagnostics": [],
+        "renderBackend": "gpu"
       },
       "valid": true
     },
@@ -123655,8 +122038,8 @@
         ],
         "pngSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
         "png": "iVBORw0KGgo=",
-        "renderBackend": "vulkan",
-        "fallbackDiagnostics": []
+        "fallbackDiagnostics": [],
+        "renderBackend": "vulkan"
       },
       "valid": false
     },
@@ -169625,5 +168008,5 @@
       "valid": false
     }
   ],
-  "contractVersion": "1.59.0"
+  "contractVersion": "1.60.0"
 }

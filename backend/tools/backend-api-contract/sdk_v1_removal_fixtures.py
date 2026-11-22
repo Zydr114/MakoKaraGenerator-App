@@ -1,39 +1,22 @@
-"""Contract 1.53.0 example migration and negative fixtures for SDK v1 removal."""
+"""Contract 1.53.0+ example migration and negative fixtures for SDK v1 removal."""
 import copy
 
-LEGACY_CONTRACT = "1.52.1"
 PREFIX = "sdk-v1-removal-"
 LEGACY_V1_CASE_NAME = "author-metadata-inspection-response-v1"
 
 
 def migrate_cases(cases):
-    """Mark the historical v1 inspection fixture invalid under narrowed 1.53.0 enums."""
+    """Mark the historical v1 inspection fixture invalid under narrowed SDK v2 enums."""
     migrated = []
     matched = 0
     for case in cases:
         updated = copy.deepcopy(case)
         if updated["name"] == LEGACY_V1_CASE_NAME:
-            assert updated["valid"] is True, f"Expected {LEGACY_V1_CASE_NAME} to start valid"
             updated["valid"] = False
             matched += 1
         migrated.append(updated)
     assert matched == 1, f"Expected 1 {LEGACY_V1_CASE_NAME} case, found {matched}"
     return migrated
-
-
-def restore_cases(cases):
-    """Restore the historical 1.52.1 validity of the archived v1 inspection fixture."""
-    restored = []
-    matched = 0
-    for case in cases:
-        updated = copy.deepcopy(case)
-        if updated["name"] == LEGACY_V1_CASE_NAME:
-            assert updated["valid"] is False, f"Expected {LEGACY_V1_CASE_NAME} to be migrated invalid"
-            updated["valid"] = True
-            matched += 1
-        restored.append(updated)
-    assert matched == 1, f"Expected 1 {LEGACY_V1_CASE_NAME} case, found {matched}"
-    return restored
 
 
 def fixtures():

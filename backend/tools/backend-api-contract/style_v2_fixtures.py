@@ -1,37 +1,18 @@
-"""Contract 1.50.0 two-state style: forward migration of the reviewed corpus and new fixtures.
-
-The 1.49.2 example corpus stays the reviewed history. Every case that touches the
-removed single-state style surface is migrated forward deterministically; a case
-whose subject no longer exists (stroke leaves and position, progress gradients,
-fill wrappers, partial legacy source lists) is retired. The exact 1.49.2 originals
-of every changed or retired case live in ``style_v2_legacy_cases.json`` so that
-``restore_legacy`` can rebuild the historical corpus byte for byte and the older
-hash gates in validate.py keep running unchanged.
-"""
+"""Contract 1.50.0+ two-state style: forward migration of pre-1.50 slices and new fixtures."""
 import copy
-import hashlib
-import json
-from pathlib import Path
 
 from static_style_schema import MARK_PROPERTIES, PROPERTIES as CURRENT_PROPERTIES, TOKEN_PROPERTIES as CURRENT_TOKEN_PROPERTIES
 
-# Keep the 1.50 corpus and its archive reversible; Ruby was introduced in 1.56.
+# Ruby layout properties were added in 1.56 and upgraded in ruby_style_fixtures.
 PROPERTIES = [p for p in CURRENT_PROPERTIES if not p.startswith("ruby.")]
 TOKEN_PROPERTIES = [p for p in CURRENT_TOKEN_PROPERTIES if not p.startswith("ruby.")]
 
 PREFIX = "style-v2-"
-LEGACY_CONTRACT = "1.49.2"
-LEGACY_SHA256 = "ff3d50630e022045c17831e6007dcb70303ec1f62f582091395c6fdc461ec5cc"
-ARCHIVE = Path(__file__).with_name("style_v2_legacy_cases.json")
 FOLLOW = {"kind": "follow"}
 
 
 class Retired(Exception):
     """The case exercises a surface that no longer exists."""
-
-
-def digest(cases):
-    return hashlib.sha256(json.dumps(cases, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
 def leaves(prefix, names):
@@ -205,36 +186,6 @@ def migrate_case(case):
 
 def migrate_cases(cases):
     return [migrated for migrated in map(migrate_case, cases) if migrated is not None]
-
-
-def build_archive(legacy_cases):
-    """Originals of every changed or retired case, keyed by their 1.49.2 position."""
-    entries = [{"index": index, "case": case} for index, case in enumerate(legacy_cases) if migrate_case(case) != case]
-    return {"legacyContractVersion": LEGACY_CONTRACT, "legacySha256": digest(legacy_cases), "cases": entries}
-
-
-def restore_legacy(current):
-    """Rebuild the exact 1.49.2 corpus from its 1.50.0 migration (style-v2 additions removed)."""
-    archive = json.loads(ARCHIVE.read_text())
-    assert archive["legacyContractVersion"] == LEGACY_CONTRACT and archive["legacySha256"] == LEGACY_SHA256
-    originals = {entry["index"]: entry["case"] for entry in archive["cases"]}
-    retired = sum(migrate_case(case) is None for case in originals.values())
-    result, remaining = [], iter(current)
-    for index in range(len(current) + retired):
-        if index in originals:
-            original = originals[index]
-            migrated = migrate_case(original)
-            assert migrated != original, f"Archived case is unchanged by migration: {original['name']}"
-            if migrated is not None:
-                assert next(remaining) == migrated, f"Migrated case drifted: {original['name']}"
-            result.append(original)
-        else:
-            case = next(remaining)
-            assert migrate_case(case) == case, f"Unarchived case still needs migration: {case['name']}"
-            result.append(case)
-    assert next(remaining, None) is None
-    assert digest(result) == LEGACY_SHA256, "Restored 1.49.2 corpus hash mismatch"
-    return result
 
 
 def fixtures():

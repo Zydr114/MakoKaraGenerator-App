@@ -1,14 +1,8 @@
-"""Contract 1.51.0 fixtures: fallback diagnostics on export reports, export job results and scene measurements.
-
-The 1.50.0 corpus is migrated forward by adding the new fields with their empty values
-(new registrations always carry them; reports registered earlier are served without them); restore_cases removes exactly those fields again so the
-historical gates keep auditing the reviewed corpus. New cases form the corpus tail.
-"""
+"""Contract 1.51.0+ fixtures: fallback diagnostics on export reports, export job results and scene measurements."""
 import copy
 import json
 
 PREFIX = "export-fallback-"
-LEGACY_CONTRACT = "1.50.0"
 REPORT_FIELDS = {"fallbackDiagnostics": [], "fallbackFrameCount": 0, "fallbackDiagnosticsTruncated": False}
 MEASUREMENT_FIELDS = {"fallbackDiagnostics": []}
 
@@ -34,20 +28,8 @@ def migrate_cases(cases):
     for case in cases:
         case = copy.deepcopy(case)
         for target, fields in _targets(case):
-            assert not any(field in target for field in fields), case["name"]
-            target.update(copy.deepcopy(fields))
-        result.append(case)
-    return result
-
-
-def restore_cases(cases):
-    result = []
-    for case in cases:
-        assert not case["name"].startswith(PREFIX), case["name"]
-        case = copy.deepcopy(case)
-        for target, fields in _targets(case):
             for field, value in fields.items():
-                assert target.pop(field) == value, case["name"]
+                target.setdefault(field, copy.deepcopy(value))
         result.append(case)
     return result
 

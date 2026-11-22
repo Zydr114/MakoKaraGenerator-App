@@ -75,7 +75,7 @@ def extend(schemas, metadata):
 
 
 def configure(operation, item):
-    if item["operationId"] not in ("exportProject", "exportResult", "recoveredExportResult", "exportDiagnostics", "jobState"):
+    if item["operationId"] not in ("exportProject", "exportResult", "exportDiagnostics", "jobState"):
         return
     operation["x-source-material-failure"] = {"originKind": ORIGIN, "maximumJsonBytes": MAXIMUM_JSON_BYTES,
         "runtimeOccurrence": False, "budgetCode": "ImageSurfaceBudgetExceeded"}

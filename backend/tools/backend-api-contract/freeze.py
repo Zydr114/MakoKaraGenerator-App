@@ -5,6 +5,8 @@ import copy
 import hashlib
 import json
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 
 from p3_workshop_schema import extend as extend_p3_workshop, configure as configure_p3_workshop
@@ -18,9 +20,6 @@ from export_fallback_schema import extend as extend_export_fallback
 from source_material_failure_schema import extend as extend_source_material_failure, configure as configure_source_material_failure
 from p1p2_runtime_schema import extend as extend_p1p2_runtime, configure as configure_p1p2_runtime, VIDEO_MIMES
 from package_preview_schema import extend_package_preview_schemas, LIMITS as PACKAGE_PREVIEW_LIMITS
-from project_image_preview_schema import extend_project_image_preview_schemas, configure_project_image_preview_operation
-from project_image_validation_schema import extend_project_image_validation_schemas, configure_project_image_validation_operation
-from project_image_export_schema import extend_project_image_export_schemas, configure_project_image_export_operation
 from validation_package_schema import extend_validation_package_schemas
 from ruby_timeline_schema import extend_ruby_commands, extend_ruby_responses
 from lyrics_refactor_schema import extend_lyrics_refactor_commands, extend_lyrics_refactor_responses
@@ -32,8 +31,8 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.59.0"
-BASELINE = "d5d18653bb0891aa63f3fe7c42e7d8e6d5f0f3dc"
+CONTRACT = "1.60.0"
+BASELINE = "b5d4d71464a142cbc0e49806870526a5adb77e77"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
 FREEZE_DATE = "2026-11-22"
 BEHAVIOR = "docs/architecture/backend-api.md"
@@ -63,7 +62,6 @@ GET|/api/v1/project-sessions/{id}/lyrics/window|lyricsWindow|-|ProjectLyricsWind
 GET|/api/v1/project-sessions/{id}/settings|projectSettings|-|ProjectSettingsResponse|200|6|读取精确修订的工程标量设置
 GET|/api/v1/project-sessions/{id}/resolved-style|projectResolvedStyle|-|ProjectResolvedStyleResponse|200|17|读取真实上下文静态预设样式与逐属性来源
 GET|/api/v1/project-sessions/{id}/resources|projectResources|-|ProjectResourcesResponse|200|17|读取精确修订的当前工程资源引用页
-POST|/api/v1/project-sessions/{id}/resources/package-asset|materializePackageResource|ProjectPackageResourceAssetRequest|ProjectPackageResourceAssetResponse|201|17|将已验证包内资源投影为当前客户端受控asset
 GET|/api/v1/project-sessions/{id}/style|projectStyle|-|ProjectStyleResponse|200|6|读取精确修订的canonical静态样式继承投影
 GET|/api/v1/project-sessions/{id}/orchestration|projectOrchestration|-|ProjectOrchestrationResponse|200|13|读取精确修订的工程编排结构投影
 GET|/api/v1/project-sessions/{id}/orchestration/geometry|projectGeometryReference|-|ProjectGeometryReferenceResponse|200|13|读取精确修订的单节点固定容器参考
@@ -95,7 +93,6 @@ POST|/api/v1/project-sessions/{id}/close|closeProject|CloseProjectRequest|JobRes
 GET|/api/v1/jobs/{id}|jobState|-|JobResponse|200|8|读取live任务权威状态
 POST|/api/v1/jobs/{id}/cancel|cancelJob|RequestMetadataDto|JobResponse|200|8|请求取消任务并返回当前状态
 GET|/api/v1/recovery-candidates|recoveryCandidates|-|RecoveryCandidatesResponse|200|8|列举工程恢复候选
-GET|/api/v1/recovery-jobs|recoveryJobs|-|RecoveryJobsResponse|200|8|读取旧主机持久任务记录
 GET|/api/v1/runtime-info|runtimeInfo|-|PreviewRuntimeInfoResponse|200|9|读取预览运行能力
 GET|/api/v1/render-backends|renderBackends|-|RenderBackendsResponse|200|25|读取当前部署真实CPU/GPU设备可用性
 POST|/api/v1/gpu-preview-streams|createGpuPreviewStream|GpuPreviewStreamCreateRequest|GpuPreviewStreamState|201|25|创建固定来源GPU流
@@ -105,7 +102,6 @@ PUT|/api/v1/gpu-preview-streams/{id}/source|replaceGpuPreviewStream|GpuPreviewSt
 PUT|/api/v1/gpu-preview-streams/{id}/size|resizeGpuPreviewStream|GpuPreviewStreamResizeRequest|GpuPreviewStreamState|200|25|按修订更换GPU流尺寸
 DELETE|/api/v1/gpu-preview-streams/{id}|closeGpuPreviewStream|GpuPreviewStreamCloseRequest|GpuPreviewStreamState|200|25|排空并关闭GPU流
 POST|/api/v1/preview-sessions|createPreview|PreviewSessionRequest|PreviewSessionResponse|201|9|创建固定修订预览
-POST|/api/v1/project-sessions/{id}/edit-previews|createEditPreview|ProjectEditPreviewRequest|PreviewSessionResponse|201|6.12|创建或替换固定修订的只读编辑候选
 POST|/api/v1/project-sessions/{id}/preset-application-previews|createPresetApplicationPreview|PresetApplicationPreviewRequest|PreviewSessionResponse|201|13|创建只读预设候选试看
 POST|/api/v1/effect-packages/inspect|inspectEffectPackage|EffectPackageInspectRequest|EffectPackageInspectResponse|200|24|检查授权固定包的完整声明而不执行脚本
 POST|/api/v1/template-preview-options|templatePreviewOptions|TemplatePreviewOptionsRequest|TemplatePreviewOptionsResponse|200|24|读取固定模板的单多行试样目标与材质编辑焦点
@@ -122,18 +118,14 @@ GET|/api/v1/validation-capabilities|validationCapabilities|-|ValidationTaskCapab
 POST|/api/v1/project-sessions/{id}/validation-jobs|validateProject|ValidationJobRequest|JobResponse|202|10|接受固定输入正式验证
 GET|/api/v1/jobs/{id}/validation-result|validationResult|-|ValidationReportDtoRaw|200|10|读取登记完整验证报告
 GET|/api/v1/jobs/{id}/validation-diagnostics|validationDiagnostics|-|ValidationDiagnosticsPageDto|200|10|分页读取验证实际诊断
-GET|/api/v1/recovery-jobs/{id}/validation-result|recoveredValidationResult|-|ValidationReportDtoRaw|200|10|按profile权限读取旧主机验证报告
 GET|/api/v1/export-capabilities|exportCapabilities|-|ExportTaskCapabilitiesDto|200|11|读取短片导出能力
 POST|/api/v1/project-sessions/{id}/export-jobs|exportProject|ExportJobRequest|JobResponse|202|11|接受静态短片导出
 GET|/api/v1/jobs/{id}/export-result|exportResult|-|ExportResultReport|200|11|读取导出成功或分型失败报告
-GET|/api/v1/recovery-jobs/{id}/export-result|recoveredExportResult|-|ExportResultReport|200|11|按profile权限读取旧主机导出报告
 GET,HEAD|/api/v1/jobs/{id}/export-content|exportContent|-|video|200|11|读取已发布成片
-GET,HEAD|/api/v1/recovery-jobs/{id}/export-content|recoveredExportContent|-|video|200|11|按profile权限读取旧主机成片
 GET|/api/v1/jobs/{id}/export-diagnostics|exportDiagnostics|-|ExportDiagnosticsPageDto|200|11|分页读取导出实际诊断
 GET|/api/v1/analysis-capabilities|analysisCapabilities|-|AnalysisTaskCapabilitiesDto|200|12|读取离线音频分析能力
 POST|/api/v1/project-sessions/{id}/analysis-jobs|analyzeProject|AnalysisJobRequest|JobResponse|202|12|接受独立分析而不自动采用
 GET,HEAD|/api/v1/jobs/{id}/analysis-result|analysisResult|-|analysis|200|12|读取原Core规范完整分析JSON
-GET,HEAD|/api/v1/recovery-jobs/{id}/analysis-result|recoveredAnalysisResult|-|analysis|200|12|按profile权限读取旧主机完整分析
 POST|/api/v1/drafts|createAuthorDraft|AuthorDraftCreateRequest|AuthorDraftResponse|201|21|从授权效果包或个人配置建立作者草稿
 GET|/api/v1/drafts|readAuthorDrafts|-|AuthorDraftListResponse|200|21|读取当前客户端拥有的作者草稿
 GET|/api/v1/drafts/{id}|readAuthorDraft|-|AuthorDraftResponse|200|21|读取当前客户端拥有的作者草稿
@@ -159,13 +151,6 @@ GET|/api/v1/script-configurations|scriptConfigurationList|-|ScriptConfigurationL
 GET|/api/v1/script-configurations/{id}|scriptConfigurationDetail|-|ScriptConfigurationDetailResponse|200|21|读取精确库修订的完整配置与包声明
 POST|/api/v1/script-configurations/commands|scriptConfigurationCommand|ScriptConfigurationCommandRequest|ScriptConfigurationCommandResponse|200|21|提交独立个人配置库的严格CAS命令
 """.strip()
-ALIASES = {
-    ("GET", "/health/live"): "/api/v1/health/live",
-    ("GET", "/capabilities"): "/api/v1/capabilities",
-    ("POST", "/assets"): "/api/v1/assets",
-    ("POST", "/project-sessions"): "/api/v1/project-sessions",
-    ("GET", "/project-sessions/{id}"): "/api/v1/project-sessions/{id}",
-}
 MIMES = VIDEO_MIMES + ["application/json", "application/octet-stream", "text/plain", "text/lrc", "text/lyrics", "application/ttml+xml", "audio/aac", "audio/flac", "audio/m4a", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/wav", "audio/x-flac", "audio/x-wav"]
 
 
@@ -235,15 +220,10 @@ def generate(metadata):
         methods, path, opid, request, response, status, section, summary = row.split("|")
         for method in methods.split(","):
             operations.append(dict(method=method, path=path, operationId=opid + ("Head" if method == "HEAD" else ""), request=request, response=response, status=status, section=section, summary=summary))
-    for (method, alias), canonical in ALIASES.items():
-        item = copy.deepcopy(next(o for o in operations if o["method"] == method and o["path"] == canonical))
-        item.update(path=alias, alias=canonical, operationId=item["operationId"] + "Alias")
-        operations.append(item)
 
     # Anonymous endpoint envelopes and raw Core codec are not Contracts records.
     schemas["FileRootsResponse"] = object_schema({"rootGrantIds": {"type": "array", "items": {"type": "string"}}, "protocolVersion": {"type": "string", "const": "1"}})
     schemas["RecoveryCandidatesResponse"] = object_schema({"candidates": {"type": "array", "items": schema_for("RecoveryCandidateResponse")}, "protocolVersion": {"type": "string", "const": "1"}})
-    schemas["RecoveryJobsResponse"] = object_schema({"jobs": {"type": "array", "items": schema_for("RecoveredJobResponse")}, "protocolVersion": {"type": "string", "const": "1"}})
     for name in ("ValidationReportDto", "ExportReportDto", "ExportFailureReportDto"):
         schema_for(name, "raw")
     schemas["ExportFailureReportDtoRaw"]["properties"]["kind"] = {"type": "string", "const": "exportFailure"}
@@ -275,9 +255,6 @@ def generate(metadata):
         op = {"operationId": item["operationId"], "summary": item["summary"], "tags": ["section-" + item["section"]],
               "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §" + item["section"] + "。",
               "x-behavior-section": item["section"], "parameters": [], "responses": {"default": copy.deepcopy(error_response)}}
-        if item.get("alias"):
-            op["x-canonical-path"] = item["alias"]
-            op["description"] += " 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。"
         for path_parameter in re.findall(r"\{([^{}]+)\}", path):
             parameter_schema = {"type": "string", "minLength": 1}
             if path.startswith("/api/v1/drafts/") and path_parameter == "id":
@@ -351,8 +328,6 @@ def generate(metadata):
         if item["operationId"] in ("planLyricsImport", "inspectFonts"):
             op["x-query-policy"] = {"allowUnknown": False, "allowed": []}
             op["description"] += " 只读，不创建回执或修改工程；不接受query。"
-        if item["operationId"] == "createEditPreview":
-            op["description"] += " 固定基础修订后复用单命令解释器创建只读候选，不改变工程/history；替换须匹配previewId与expectedPreviewGeneration，逐编辑反馈及candidateRevision沿现有preview会话返回。"
 
         if item["operationId"] == "projectWaveform":
             op["description"] += " 不接受任何查询参数，包括expectedRevision；不可用返回available=false和明确reason，不以空peaks冒充静音。"
@@ -379,9 +354,6 @@ def generate(metadata):
             op["x-package-preview-profile"] = "package-lyrics-scene-v1"
             op["x-package-preview-limits"] = copy.deepcopy(PACKAGE_PREVIEW_LIMITS)
             op["description"] += " 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。"
-        configure_project_image_preview_operation(op, item)
-        configure_project_image_validation_operation(op, item)
-        configure_project_image_export_operation(op, item)
         configure_p1p2_runtime(op, item)
         configure_p3_workshop(op, item)
         configure_basic_operation(op, item)
@@ -877,10 +849,9 @@ def generate(metadata):
     schemas["ProjectEditDtoInput"] = {"oneOf": [variant for variant in variants
         if schemas[variant["$ref"].split("/")[-1]]["properties"]["type"]["const"] not in excluded_edits],
         "description": "按数组顺序复用单命令解释器；不接受历史、资源导入、外部任务或嵌套批处理。不另设编辑项数门槛，完整候选与回执仍按实际配置验证。"}
-    for component in ("ProjectEditPreviewRequest", "ApplyProjectEditsCommandDtoInput"):
-        schemas[component]["properties"]["edits"] = {"type": "array", "items": ref("ProjectEditDtoInput")}
-        if "edits" not in schemas[component]["required"]:
-            schemas[component]["required"].append("edits")
+    schemas["ApplyProjectEditsCommandDtoInput"]["properties"]["edits"] = {"type": "array", "items": ref("ProjectEditDtoInput")}
+    if "edits" not in schemas["ApplyProjectEditsCommandDtoInput"]["required"]:
+        schemas["ApplyProjectEditsCommandDtoInput"]["required"].append("edits")
     schemas["LyricsImportPlanRequest"] = {**object_schema({"assetId": {"type": "string", "minLength": 1, "pattern": r"\S"},
         "options": ref("LyricsImportOptionsDtoInput")}, ["assetId"], strict=True),
         "description": "只读授权资源检测，不创建批准票据或修改工程；options可省略，出现时必须为对象。解析失败以preparationError返回，正式导入独立分配身份。"}
@@ -962,11 +933,7 @@ def generate(metadata):
     extend_ruby_responses(schemas, metadata)
     extend_lyrics_refactor_responses(schemas, metadata)
     extend_package_preview_schemas(schemas, metadata)
-    extend_project_image_preview_schemas(schemas, metadata)
     extend_validation_package_schemas(schemas)
-    # The image profile extends the existing package validation source union.
-    extend_project_image_validation_schemas(schemas, metadata)
-    extend_project_image_export_schemas(schemas, metadata)
 
     quality_values = ["draft", "standard", "high"]
     for component, field in (("ExportJobRequest", "quality"), ("BackendExportInputDto", "quality"),
@@ -1079,10 +1046,9 @@ def source_routes():
 
 
 def inventory(spec, operations):
-    lines = ["# 冻结 API 清单", "", f"合同 **{CONTRACT}** · HTTP **1** · 产品 **{PRODUCT}** · 基线 `{BASELINE}` · {FREEZE_DATE}。", "", "执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。", "", f"共 **{len(spec['paths'])} 个路径、{len(operations)} 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。", "", "| 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |", "|---|---|---|---|---|---|"]
+    lines = ["# 冻结 API 清单", "", f"合同 **{CONTRACT}** · HTTP **1** · 产品 **{PRODUCT}** · 基线 `{BASELINE}` · {FREEZE_DATE}。", "", "执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。", "", f"共 **{len(spec['paths'])} 个路径、{len(operations)} 个显式方法**（HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。", "", "| 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |", "|---|---|---|---|---|---|"]
     for o in operations:
         auth = "无" if o["path"].endswith("health/live") else "bootstrap" if o["path"] == "/api/v1/clients" else "access + clientId"
-        alias = "（别名）" if "alias" in o else ""
         successful = []
         for status, response in sorted(spec["paths"][o["path"]][o["method"].lower()]["responses"].items()):
             if not status.startswith("2"):
@@ -1090,7 +1056,7 @@ def inventory(spec, operations):
             schema = response.get("content", {}).get("application/json", {}).get("schema", {})
             label = schema.get("$ref", "").rsplit("/", 1)[-1] or o["response"]
             successful.append(f"{status} · {label}{'（无body）' if o['method'] == 'HEAD' else ''}")
-        lines.append(f"| {o['method']} | `{o['path']}`{alias} | {auth} | {o['request']} | {'<br>'.join(successful)} | §{o['section']} |")
+        lines.append(f"| {o['method']} | `{o['path']}` | {auth} | {o['request']} | {'<br>'.join(successful)} | §{o['section']} |")
     lines += ["", "请求名对应 Contracts DTO；OpenAPI 内共享输入DTO带 Input 后缀，保留null的原始报告带 Raw 后缀。upload=原始字节/单文件multipart；asset/png/video=受认证字节；analysis=原Core完整JSON；sse=事件流。", "", "## 当前工程命令", "", "| type | 必需业务字段 |", "|---|---|", "| `lyrics.setTimeRange` | `target.branchId`、`target.lineId`、可选`target.tokenId`、字符串`startUs/endUs` |", "| `history.undo` | 无 |", "| `history.redo` | 无 |", "| `audio.analysis.apply` | `analysisJobId`，当前live、成功、同源分析任务 |", "| `audio.analysis.clear` | 无 |", "| `lyrics.stampTokenStart` / `lyrics.stampTokenEnd` | 完整元素`target`、字符串`playheadUs` |", "| `lyrics.clearTokenTime` | 完整元素`target` |", "| `lyrics.nudgeTokenTime` | 完整元素`target`、整数`frameDelta` |", "| `lyrics.shiftLine` | 整行`target`、字符串`deltaUs` |", "| `lyrics.setTokenTimes` | 1..1000个`changes`，各含完整元素`target`及字符串`startUs/endUs` |", "| `lyrics.setLineText` / `lyrics.setRubyText` | 行/元素`target`、必填非null的`text`（允许空串） |", "| `lyrics.addLine` | `branchId`、可省略或null的`afterLineId`（末尾追加） |", "| `lyrics.duplicateLine` / `lyrics.removeLine` | 行`target` |", "| `composition.setCanvasSize` | 正整数`width/height`（允许奇数） |", "| `composition.setFrameRate` | 正整数`numerator/denominator` |", "| `composition.setBackgroundColor` | 必填四个0..255整数`red/green/blue/alpha` |", "| `composition.setOutputDuration` | 必填`durationUs`：null或正Int64微秒字符串 |", "| `composition.useLyricsEnd` / `composition.useAudioDuration` | 无 |", "| `lyrics.addTranslationBranch` | 必填非null的`name`；`language`可省略/null |", "| `lyrics.configureBranch` | 必填`branchId/name/language/role/timingMode`；`language`可null |", "| `lyrics.removeBranch` | 必填非空白`branchId` |", "| `lyrics.linkPrimaryLine` | 必填`branchId/lineId/primaryLineId`；`primaryLineId`可null解除 |", "| `lyrics.splitToken` / `lyrics.mergeToken` | 元素`target` |", "| `lyrics.reorderToken` | 元素`target`、整数`destinationIndex`、必填布尔`reassignTimeSlots` |", "| `lyrics.resplitLine` | 行`target`、必填字符串数组`segments`（最多20000）、必填布尔`estimateTimes` |", "| `lyrics.resplitBranch` | `branchId`、字符串枚举`rule`、必填布尔`estimateTimes` |", "| `lyrics.importAsset` | 授权`assetId`、严格`destination`（existing/newBranch）、可省略对象`options` |", "| `lyrics.appendText` | 必填非null的`text`、严格`destination`（existing/newTranslation） |", "| `presetApplications.apply` | `templateLibraryId/templateId/templateRevision`、1..1000个严格目标`targets`、可选`branchInputs` |", "| `presetApplications.update` | `applicationId`、`templateLibraryId/templateId/templateRevision`、可选`branchInputs` |", "| `presetApplications.setEnabled` | `applicationId`、布尔`enabled` |", "| `presetApplications.remove` | 1..1000个不重复`applicationIds` |", "| `orchestration.setDefaultContainer` | 非空白、当前工程现有歌词容器的`branchId/containerId` |", "| `orchestration.setLayoutDefaultPlacement` | `containerId`与显式`placement`（对象或null；null清除内部布局默认位置） |", "| `orchestration.setNodeGeometry` | `nodeId/placement/referenceRect`（完整对象，不可null） |", "| `orchestration.setLayoutSettings` | `containerId/safeArea/maxWidthRatio`（完整安全区） |", "| `orchestration.setSlotAnimation` | `containerId/slotAnimation`（完整对象或显式null） |", "| `orchestration.setProgramAnimationPolicy` | `branchId/animationPolicy`（命名枚举或显式null） |", "| `orchestration.createCountdown` | `parentId/name/count`；name可null，count为1..64 |", "| `orchestration.createLeadIn` / `orchestration.updateLeadIn` | `branchId/leadInId/name/targetLineId/indicatorContainerId/durationUs/enabled`，全部必填，name可null |", "| `orchestration.deleteLeadIn` | `branchId/leadInId` |", "| `orchestration.setLineLocalTransform` | `branchId/lineId/transform`，transform为完整对象或显式null |", "| `orchestration.createClip` | `branchId/clipId/lineIds/containerId`；`name`可省略或显式null；lineIds为1..1000个非空稳定行ID |", "| `orchestration.renameClip` | `branchId/clipId/name`；name必须显式提供，可用null清除 |", "| `orchestration.setClipContainer` | `branchId/clipId/containerId` |", "| `orchestration.deleteClip` | `branchId/clipId` |", "| `orchestration.previewBasicLayout` / `orchestration.applyBasicLayout` | `branchId/preset/layoutName/slotNames/selectedSegmentName/retainedSegmentName`；`selectedLineIds`可省略或显式null表示整来源，非null数组表示连续范围并按G19规则校验；片段布局仅支持独立计时、Karaoke来源，其他来源返回`UnsupportedSource` |", "", "九十七种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。", "", "S1提供来源列表、完整歌词编辑窗口（原始时间状态、关联主行、注音）与标量设置读取；三者必须携带expectedRevision，分页窗口不得混合修订。分页默认offset=0、limit=100，limit范围1..100；nextOffset在终页省略。完整JSON最多1MiB、来源/行/元素/注音组/注音片段合计最多20000条，超限413 resourceTooLarge，不截断单行。S3a五种歌词操作可提供feedback与真实selection建议，六种设置命令省略feedback。S3b新增/删除来源真实变化时提供branchResult.selectedBranchId；配置/关联/失败/no-op省略。来源ID沿Core非空白原值，不新增128字符上限；language/primaryLineId的必填字段显式null与缺字段不同。元素结构五命令的输入ID为非空白且最多128字符；tokenResult提供真实changedLineCount、可选selection及共享切分计数，不提供巨型身份映射。来源重切累计改变行完整投影最多16MiB，单行仍受1MiB/20000条目限制，超限整批不变。再次导入/粘贴追加复用共享用例；文件报告完整保留27字段，offsetUs为有符号Int64字符串，Error诊断与合法行并存不等同失败。options省略取原默认，显式null拒绝；输入目的地严格区分两命令。完整最终新/替换行仍受1MiB/20000项及累计16MiB预算，准备工作逻辑64MiB，成功回执受实际配置64KiB限制。波形提供同次音频准备的元数据和有界min/max float32 little-endian窗口，最多8192桶；元数据不接受query，窗口四字段必须唯一提供且拒绝未知query。Range一律400，HEAD所有状态无body。整个Host已保留峰值payload预算64MiB，不含临时prepare/窗口/元数据；缓存不足不阻断create/open，不可用有明确reason。身份不绑定歌词修订，不保证与浏览器逐sample对齐。历史静态样式批次仅canonical静态继承读写；后续公共package与当前统一Runtime来源见对应章节。Application用例、内部Worker能力和未来草案不能当作HTTP实现；G21～G24整体编辑及真实Worker同帧测量见行为§13.18～21；schema不证明真实Runtime像素或完整编排作者验收。", ""]
     completion_position = next(i for i, line in enumerate(lines) if line.startswith("| `orchestration.createClip`"))
     lines[completion_position:completion_position] = [
@@ -1126,7 +1092,7 @@ def inventory(spec, operations):
     lines += ["G20–G24整体补齐（合同1.24.0）：新增setLayoutKind、setLineEnterAnimation、setProjectEnterAnimation、setLeadInGeneration、previewLeadInGeneration、applyLeadInGeneration、deleteLeadInAndExclude、setLeadInAttachment、addMark、setMarkText、reorderMarks、spaceMarks、setCountdownAppearance、setMarkAppearance；完整字段和正反例见OpenAPI。单句展示GET提供局部transform与动画继承；measurements POST为只读真实Worker同帧几何及PNG，time/layout严格union。Node预设目标支持nodeId与显式includeDescendants；该历史1.24.0切片仅静态模板，当前完整模板/高级Node目标见行为§24。完整预算、no-op/redo及真实像素验收边界见行为§13.18～13.21。", ""]
     lines += ["## 独立模板库", "", "模板库不要求工程或目标，不改变工程修订/历史。builtin与personal描述不访问个人入口；坏个人库不遮蔽内置目录。Host新库按当前schema目录隔离；明确旧schema的历史固定入口保留原位，当前schema固定入口继续使用，未知版本、损坏或双入口歧义拒绝。规则见行为§13.1，不做旧库迁移。list初次读取可省expectedRevision，后续分页和detail使用精确修订；revision是missing或真实索引小写64位SHA，不能按Int64处理。detail始终保definition字段：省略definitionFormat或选择static时，staticAvailable提供完整canonical静态定义与26属性选择；advancedRuntimeAvailable表示现有Line/Token高级闭包可执行，definition仍为null；advancedUnsupported表示旧静态投影不可提供定义。显式definitionFormat=full返回fullAvailable、完整高级definition及packageClosureDetails，支持包材质、有序配方和固定包引用，详见行为§24。", "", "独立commands严格分型create/replace/copy/rename/delete，所有写入含expectedRevision/metadata。copy捕获sourceLibraryId/sourceRevision/templateId完整快照后对personal CAS；这是固定源复制，不是跨库分布式事务。create/replace保留旧静态定义分支，显式definitionFormat=full时接受完整高级定义；copy/rename/delete保完整原对象和包闭包，删除不清理旧包文件。损坏入口/闭包、版本错误及链接失败关闭，不能当空库覆盖。所有存在性/CAS位于client单层回执owner；成功回执在模板删除或库改变后仍原样重放，新ID只分配一次。", "", "完整新command canonical JSON最多256KiB，不含metadata；新名称/字体256 UTF-16 units、fallback32、gradient256。每次完整读取最多1MiB/20000 JSON值，完整回执预算提交前检查；新定义限额不套旧数据读取/服务端复制/改名/删除。既有index16MiB及完整包256MiB/1024files/单64MiB沿原规则。分页约束响应，不承诺全库IO已分页。", ""]
     command_count = len(spec["components"]["schemas"]["ProjectCommandDtoInput"]["oneOf"])
-    lines = [line.replace("七十八种命令", f"{command_count}种命令").replace("九十一种命令", f"{command_count}种命令") for line in lines]
+    lines = [line.replace("七十八种命令", f"{command_count}种命令").replace("九十一种命令", f"{command_count}种命令").replace("九十七种命令", f"{command_count}种命令") for line in lines]
     position = next(i for i, line in enumerate(lines) if line.startswith("| `composition.setOutputDuration`"))
     lines[position:position] = [
         "| `composition.setBackgroundAsset` | 非空授权assetId、kind=image/video；fit及playback可省略但不可null，省略保现值 |",
@@ -1159,12 +1125,8 @@ def inventory(spec, operations):
         "历史0.98记录：复用现有project预览路由，当时实际Worker协商成功才公布package-lyrics-scene-v1。compileSource/source、imageEffect/imageEffect与material/material为完整互斥诊断payload；runtime保原occurrence。完整公共数组768项/512KiB，分页128项/最多32页，不截断。source IsError或runtime Error禁止新帧，failed无latest，旧成功lease保TTL。含preset的包、非Color背景、外媒体字体闭包与B4包任务仍拒绝；详见统一API§20。", ""]
     lines += ["## 同帧测量来源勘误（合同1.32.1）", "",
         "历史合同1.32.1记录：当时orchestration/measurements的完整固定输入沿真实Worker握手选择三种静态来源、package-lyrics-scene-v1 或 package-lyrics-scene-presets-v1。后者仅表示直接包与固定静态预设的有限测量，不扩大 preview/validation/export 的来源准入；仍限 Color 背景与完整 codec/测量预算。产品保持0.98.1，本次为已实现行为的合同勘误，未新增 fresh HTTP 验收；详见统一API§13.21。", ""]
-    lines += ["## 已保存工程图片背景预览（产品0.99.0／合同1.33.0）", "",
-        "历史0.99有限切片记录（现行来源见下方P1/P2节）：当时project预览自动选择project-image-preview-v1；runtime-info的兼容sourceProfile仍为static-lyrics-scene-v1，sourceProfiles仅在独立图片Worker握手成功后增加该值。客户端仍只交工程ID和精确修订，不提交图片bytes、路径、profile或grant。只读取ProjectStore已加载的固定Image闭包；原图2MiB、单边4096、解码16MiB、完整envelope4194280字节，超限拒绝。基础为无预设的static/static-analysis/直接package；该0.99预览验收未覆盖validation/export/measurement或模板候选图片输入。后续0.100图片正式验证另需独立project-image-validation-v1能力，见下节；此0.99历史切片当时不含export/measurement与模板候选图片输入。匹配发布d961895的有限fresh HTTP final6通过1175请求／9760断言；本地回归、Oracle预检与合同形状检查分开登记，具体范围和历史失败详见统一API§22与实施§77。", ""]
-    lines += ["## 已保存工程图片背景正式验证（产品0.100.0／合同1.34.0）", "",
-        "历史0.100有限切片记录（现行来源见下方P1/P2节）：当时validation-capabilities/validation-jobs/result/diagnostics接入独立project-image-validation-v1来源；图片预览与包Worker能力不能代替独立图片验证探测。公共请求保持精确expectedRevision、framesPerOutput、metadata；不接图片bytes/path/profile/grant。Host固定ProjectStore已加载的受管Image闭包，仅无preset的static/static-analysis/直接package基础源；完整验证输入4194272字节（4MiB减32字节KTI1头），原图2MiB、单边4096、解码16MiB、基础snapshot4MiB。报告与诊断沿原Runtime和既有取消/deadline/close排水；图片export/measurement、video/font/preset组合与完整B3/B4/B5/B6独立。匹配发布7a03863（sourceDirty=false）的fresh HTTP final1有限切片通过1412请求／10582断言，两次Server exit0、33个观察身份（26个Worker）全部退出、3349文件凭证扫描通过；三基础源普通/透明各4帧、完整报告与原Runtime报告Oracle、错误/预算/控制及一次orderly restart/recovery在有限范围内。正式validation没有PNG，报告Oracle不构成像素验收；旧0.99 Worker独立10请求／476断言、199文件负例拒绝503 taskUnavailable／WorkerImageValidationUnavailable，未并入主计数。实际证据与范围见统一API§10.1和实施§78。", ""]
-    lines += ["## P1/P2 接口同步（合同1.36.0）", "",
-        "现行P1/P2新增lyrics-import-plans、fonts、fonts/inspect和edit-previews四个公共操作，四个背景命令及project.applyEdits严格分型。创建可省略音频和歌词，直接从真实空工程开始；上传按流处理，部署字节限额maxAssetBytes/maxAssetQuotaBytes固定返回Int64或null。settings/resources提供背景与授权内容身份。匹配Worker独立协商后，preview/measurement/validation/export消费runtime-project-input-v1固定媒体/包字体闭包及完整包+预设来源，HTTP不接主机路径或私有grant；旧图片profile仅保留其历史能力与预算，不覆盖当前统一输入。候选candidateRevision与source.sourceRevision保持不透明candidate身份，baseProjectRevision仍是精确工程修订，测量候选三字段全有/全无且非null且expectedRevision必须匹配baseProjectRevision。导出quality三档和可空宿主策略沿原任务链；当前实际可用来源以各sourceProfiles为准，不从兼容单值推断。详见行为§6.12、§10、§11；合同形状、源码实现、真实Worker/HTTP及浏览器验收分开登记，历史证据数字不扩大为当前验收。", ""]
+    lines += ["## 统一 Runtime 输入与接口收口（合同1.60.0）", "",
+        "合同1.60.0清理已下线的12条历史路由（5条无版本别名、5条recovery-jobs、POST edit-previews与POST resources/package-asset）及旧独立project-image-*来源profile；当前公开接口均位于/api/v1前缀下，preview/measurement/validation/export统一按实际Worker协商的sourceProfiles消费静态、包及runtime-project-input-v1闭包。创建可省略音频和歌词，上传按流处理，部署字节限额maxAssetBytes/maxAssetQuotaBytes固定返回Int64或null。详见行为§6.12、§10、§11。", ""]
     lines += ["## P3/P4 交接（历史合同1.38.1）", "",
         "P3通过effect-packages/inspect和template-preview-options读取固定包声明、完整模板及试样目标；definitionFormat=full支持高级定义、包材质、有序配方，clips与高级Node目标复用工程分配命令。P4作者草稿支持完整源码/配置读取、固定source修订、同步200或异步202编译、当前live job编译结果、authorDraft试样预览/验证和个人配置库CAS命令。作者routes统一映射行为§21，模板工坊见§24。预览input保持原来源kind，authorDraft另保持同一draft ID；不能在project与authorDraft之间切换。产品0.104.1的边界修复和本次合同勘误独立于P4产品0.104.0的167请求／1142断言fresh HTTP证据；P5增量匹配发布源码f4d5e2a的P4作者流程fresh HTTP通过205请求／1368断言，证据根artifacts/p5-final-01041/http-r1，仍不扩大为浏览器、平台或性能验收。", ""]
     lines += ["## CPU/GPU 显式选择（产品0.106.0／合同1.39.0）", "",
@@ -1295,10 +1257,8 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Core/Lyrics/LyricsDocument.cs",
             "src/MakoKaraGenerator.Core/Lyrics/RubySegmentEditor.cs",
             "src/MakoKaraGenerator.Core/Lyrics/LyricLineDuplicator.cs",
-            "src/MakoKaraGenerator.Core/Persistence/LyricsV16ToV17Migration.cs",
             "src/MakoKaraGenerator.Core/Persistence/ProjectDtoMapper.Branches.cs",
             "src/MakoKaraGenerator.Core/Persistence/PersistenceDtos.cs",
-            "src/MakoKaraGenerator.Core/Persistence/ProjectSchemaMigrator.cs",
             "src/MakoKaraGenerator.Core/Diagnostics/DiagnosticCode.cs",
             "src/MakoKaraGenerator.Core/Validation/ProjectValidator.cs",
             "src/MakoKaraGenerator.Core/Persistence/ProjectJson.cs",
@@ -1472,9 +1432,6 @@ def manifest(outputs):
             "src/MakoKaraGenerator.Backend.Hosting/ProjectSessionRegistry.Validation.cs",
             "src/MakoKaraGenerator.Backend.Hosting/WorkerExportProcessProxy.cs",
             "src/MakoKaraGenerator.Backend.Hosting/WorkerPackageProfileAdmission.cs",
-            "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.ImageExport.cs",
-            "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.ImagePreview.cs",
-            "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.ImageValidation.cs",
             "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.RuntimeInput.cs",
             "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.RuntimeValidation.cs",
             "src/MakoKaraGenerator.Backend.Hosting/WorkerProcessProxy.Scripts.cs",
@@ -1844,147 +1801,121 @@ def manifest(outputs):
         if not source.is_file():
             raise ValueError("Missing reviewed M2 preview port behavior source: " + filename)
         files.add(source)
-    files.update(p for p in TOOL.iterdir() if p.is_file())
+    files.update(p for p in TOOL.iterdir() if p.is_file() and p.suffix not in (".pyc", ".pyo"))
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API. Product 0.116.0 / Contract 1.58.0 adds read-only GET /api/v1/gpu-preview-streams (GpuPreviewStreamListResponse) and optional GpuPreviewStreamState.quarantined boolean (omitted unless quarantined) for authority reconciliation after OutcomeUnknown or quota conflicts while preserving strict process-exit quarantine retention, non-blocking Windows temp input cleanup after confirmed worker termination, and project.closed cleanup of non-quarantined streams. Product 0.116.0 / Contract 1.57.0 opens desktop continuous preview streams to both vulkan and cpu backends (GpuPreviewStreamCreateRequest.api and GpuPreviewStreamState.api enum [vulkan, cpu]) and exposes the negotiated wire transport (GpuPreviewStreamState.transport enum [dma-buf, shm]). Transport override remains controlled strictly by MAKO_PREVIEW_TRANSPORT with zero silent fallback (explicit dma-buf with api=cpu rejects with commandNotSupported/PreviewTransportUnsupported). Browser static PNG preview and 500 ms pacing remain unchanged. Product 0.115.0 / Contract 1.56.0 adds inherited Ruby relative scale and base gap to static style, templates and project/branch/line/token overrides; explicit null falls back to lyric annotations, restore inherits the parent, and mark appearance excludes both fields. Consecutive ruby ink spacing follows natural shaped bearings and letter spacing. Project, lyric and template schema gates are 32, 20 and 10. Product 0.114.1 / Contract 1.55.1 preserves the complete video frame plan and normalizes managed export audio: short sources are padded with silence, long sources are trimmed, and projects without a declared or managed audio source export video only even when includeAudio is requested. audioDurationUs retains the true decoded source duration while actualAudioDurationUs must still match the planned output within 50 ms; full decode, identity and authorization checks remain. Existing missing-analysis and out-of-range effect behavior stays. Project loading admits only the same-format 0.114.0 predecessor in 0.114.1 without rewriting files; all schema gates remain. Product 0.114.0 / Contract 1.55.0 imports standard TTML lyrics and complete singer branches: confirmed empty-namespace AMLL/Apple content is restored in memory and reported, agents and sidecars become named branches, and lyrics.importAsset destination kind allSources appends every parsed branch in one undoable edit without replacing existing branches. Single-source import and sourceBranchId stay. Product 0.113.0 / Contract 1.54.0 extends countdown lead-in containers with built-in vector shapes (Circle/SteppedBars/Capsule/Diamond/Star/Text) and static inline SVG shapes (CustomSvg with SilhouetteStyle or OriginalColor), classic karaoke blink-then-wipe animations (BlinkThenWipeFill/BlinkThenErase/DiscreteSteps), CueTargetAboveStart ruby-avoiding lead-in attachment, and orchestration.setCountdownPresentation while decoupling countdown appearance inheritance from lyric presets. Contract 1.53.0 completed M14 SDK v1 removal: effect packages, author inspection, compilation, preview, validation and export admit only SDK v2 packages (packageVersion=3, shaderProfile=skia-ganesh-3.119.4-v2), legacy IsV2 bridging is removed, and AuthorSourceInspectionResponse narrows packageVersion enum to [3] and shaderProfile enum to [skia-ganesh-3.119.4-v2]. Product 0.112.91 optimizes immutable video-background snapshots with format-preserving raw pixel copies and adds bounded internal background/draw/GPU-submit/export-queue telemetry; HTTP routes, DTOs, fixtures and inspection response fields are unchanged. Contract 1.52.1 is a behavior-only patch without HTTP shape or fixture changes: a saved preset application whose top-level target no longer exists is retained in full, including enabled state, application/recipe/instance identities, seeds, template snapshot and package resources. Runtime projection omits the whole application, its material preparation/compilation and media-dependency queries; project validation warns without blocking measurement, preview or export, and restoring the same target IDs resumes the original application. Persistent SourceMaterialCatalog, source fingerprints and codecs still validate the full source closure; invalid internal bindings/subscriptions under an existing target, direct effects and damaged packages retain their previous rejection rules. The same 0.112.90 candidate also fixes real layout-reference measurement: representative lines that strictly match the current layout sample use the style resolver for that same immutable sample rather than looking up temporary lines in the source lyrics, and a source snapshot reuses one layout sample. Ordinary unknown lines retain their previous rejection and the layout-reference-v1 sampling profile is unchanged. Contract 1.52.0 adds an optional sourceMaterialFailure diagnostic branch for actual source-material export failures, preserving the complete real source owner, material package/revision/export, parameters, execution stage/time and stable code without fabricating a script occurrence. ImageSurfaceBudgetExceeded additionally carries actual current/requested/maximum surface counts and decimal-string byte values. The default scene surface-count budget increases from 64 to 256 with the 512 MiB byte budget unchanged. Existing runtime, compile-source and background fallback diagnostics retain their previous meanings. Contract 1.51.1 is a behavior-only patch without shape change: a PUT .../input that also switches alphaMode pins the run media input under the new mode (straight/transparent output to NoMedia), and template-workshop and author-draft samples assign fixed instance identities in recipe and binding order and use a fixed sample seed when the recipe has no fixedSeed, so repeated captures of the same draft/template draw the same random values. Contract 1.51.0 lets export and scene measurement continue with the preview fallbacks when image effects/materials need a missing (opaque, no usable media) or absent (transparent) background: the export report lists up to 128 deduplicated fallback diagnostics (imageEffect/material origin, warning severity) with the affected frame count and a truncation flag, the export job result carries their count, and scene measurements return the frame's deduplicated fallback diagnostics; projects without such dependencies export unchanged bytes. Contract 1.50.0 replaced the single-state style surface with two-state static styles (unsung/sung appearances where sung strokes, shadow and glow follow or set; up to four stroke layers; wipe feather and highlight; 43 property paths shared by styles.patch/restore, template properties, resolved sources and lead-in marks) and removes progress gradients; it is incompatible with 1.49.x clients although httpProtocolVersion stays 1. It keeps owner-only exact retained-source inspection and optional complete configuration adoption. The Host media feature track publishes project.mediaFeaturesChanged without changing revision, fixes media input per run (project previews and candidates wait for checks, template-workshop and author-draft samples up to 20 s for complete artifacts, project/author validation and export for complete artifacts), retries failed analyses lazily with bounded backoff and pins every straight/transparent output to NoMedia. Opaque preview output without usable background media no longer fails the frame: required BackgroundMedia graph inputs are bypassed and materials fall back to the package base appearance with a BackgroundMediaUnavailable warning that states the cause, optional inputs capture the project base colour; static render sessions still reject any image-effect/material diagnostic. Preview frames may opt in to a read-only inspection projection (geometry, cursors, particle anchors, effect catalog and single-frame cost) built from the same prepared frame, retained with the frame and read separately; PNG and export are unchanged. Author drafts may replace an image or font file whole with an uploaded asset of the same format after full decode/font load, taking fixed files from an explicit retained base revision; size and family-name changes only warn. The inspection response is independent and reference-free; public package reference kinds remain asset/library/configuration. Adoption validates the exact successful source and complete target configuration before one document publication. SDK2 graph bindings, per-target material uniforms/base materials, exact source-group admission and scene composition/capture/budgets are fingerprinted together with Warp/SVG, particles, GPU and existing preview/export lifecycles; their finite boundaries remain. Generated contract, regression, matched deployment, fresh HTTP/GPU frames, browser and performance acceptance require separate evidence.",
+            "scope": "Implemented public HTTP API. Product 0.116.1 / Contract 1.60.0 removes 12 decommissioned routes (5 unversioned aliases, 5 recovery-jobs routes, POST /api/v1/project-sessions/{id}/edit-previews, POST /api/v1/project-sessions/{id}/resources/package-asset) and retired standalone project-image-* profiles (project-image-preview-v1, project-image-validation-v1, project-image-export-v1), consolidates frozen contract artifacts under backend/web/ as the single source of truth, and validates the current 1.60.0 contract directly without historical rollback gates. Retains all 106 project commands, two-state static styles with ruby layout, explicit CPU/GPU selection, continuous preview streams with transport negotiation and quarantine listing, SDK v2 authoring, template libraries, and runtime-project-input-v1 media/package closures.",
             "files": {p.relative_to(ROOT).as_posix(): sha(p.read_bytes()) for p in sorted(files, key=lambda p: p.relative_to(ROOT).parts)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}
 
 
-def legacy_examples(existing_examples):
-    """The reviewed 1.49.2 corpus, rebuilt from any later frozen corpus and refreshed slices."""
-    from style_v2_fixtures import LEGACY_CONTRACT, PREFIX as STYLE_V2_PREFIX, restore_legacy
-    from export_fallback_fixtures import LEGACY_CONTRACT as STYLE_V2_CONTRACT, PREFIX as FALLBACK_PREFIX, restore_cases
-    from source_material_failure_fixtures import PREFIX as SOURCE_MATERIAL_FAILURE_PREFIX
-    from sdk_v1_removal_fixtures import LEGACY_CONTRACT as SDK_V1_LEGACY_CONTRACT, PREFIX as SDK_V1_REMOVAL_PREFIX, restore_cases as restore_sdk_v1_removal
-    from lead_in_presentation_fixtures import LEGACY_CONTRACT as LEAD_IN_LEGACY_CONTRACT, PREFIX as LEAD_IN_PRESENTATION_PREFIX
-    from ttml_import_fixtures import LEGACY_CONTRACT as TTML_IMPORT_LEGACY_CONTRACT, PREFIX as TTML_IMPORT_PREFIX
-    if existing_examples["contractVersion"] == "1.59.0":
-        from lyrics_refactor_fixtures import PREFIX as LYRICS_REFACTOR_PREFIX
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(LYRICS_REFACTOR_PREFIX)]
-        assert cases[:len(current)] == current, "lyrics-refactor cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": "1.58.0", "cases": current}
-    if existing_examples["contractVersion"] == "1.58.0":
-        from gpu_stream_recovery_fixtures import PREFIX as GPU_STREAM_RECOVERY_PREFIX
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(GPU_STREAM_RECOVERY_PREFIX)]
-        assert cases[:len(current)] == current, "gpu-stream-recovery cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": "1.57.0", "cases": current}
-    if existing_examples["contractVersion"] == "1.57.0":
-        from preview_transport_fixtures import PREFIX as PREVIEW_TRANSPORT_PREFIX, restore_cases as restore_preview_transport
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(PREVIEW_TRANSPORT_PREFIX)]
-        assert cases[:len(current)] == current, "preview-transport cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": "1.56.0", "cases": restore_preview_transport(current)}
-    if existing_examples["contractVersion"] == "1.56.0":
-        from ruby_style_fixtures import PREFIX as RUBY_STYLE_PREFIX, restore_cases as restore_ruby
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(RUBY_STYLE_PREFIX)]
-        assert cases[:len(current)] == current, "ruby-style cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": "1.55.1", "cases": restore_ruby(current)}
-    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT, "1.51.0", "1.51.1", "1.52.0", SDK_V1_LEGACY_CONTRACT, LEAD_IN_LEGACY_CONTRACT, TTML_IMPORT_LEGACY_CONTRACT):
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(TTML_IMPORT_PREFIX)]
-        assert cases[:len(current)] == current, "ttml-import cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": TTML_IMPORT_LEGACY_CONTRACT, "cases": current}
-    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT, "1.51.0", "1.51.1", "1.52.0", SDK_V1_LEGACY_CONTRACT, LEAD_IN_LEGACY_CONTRACT):
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(LEAD_IN_PRESENTATION_PREFIX)]
-        assert cases[:len(current)] == current, "lead-in-presentation cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": LEAD_IN_LEGACY_CONTRACT, "cases": current}
-    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT, "1.51.0", "1.51.1", "1.52.0", SDK_V1_LEGACY_CONTRACT):
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(SDK_V1_REMOVAL_PREFIX)]
-        assert cases[:len(current)] == current, "sdk-v1-removal cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": SDK_V1_LEGACY_CONTRACT, "cases": restore_sdk_v1_removal(current)}
-    cases = existing_examples["cases"]
-    current = [case for case in cases if not case["name"].startswith(SOURCE_MATERIAL_FAILURE_PREFIX)]
-    assert cases[:len(current)] == current, "source-material-failure cases must stay the corpus tail"
-    existing_examples = {**existing_examples, "cases": current}
-    if existing_examples["contractVersion"] not in (LEGACY_CONTRACT, STYLE_V2_CONTRACT):
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(FALLBACK_PREFIX)]
-        assert cases[:len(current)] == current, "export-fallback cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "contractVersion": STYLE_V2_CONTRACT, "cases": restore_cases(current)}
-    if existing_examples["contractVersion"] != LEGACY_CONTRACT:
-        cases = existing_examples["cases"]
-        current = [case for case in cases if not case["name"].startswith(STYLE_V2_PREFIX)]
-        assert cases[:len(current)] == current, "style-v2 cases must stay the corpus tail"
-        existing_examples = {**existing_examples, "cases": restore_legacy(current)}
-    from render_backend_fixtures import append_to
-    # The frozen file preserves the reviewed historical corpus; append_to
-    # deterministically refreshes tagged P3/P4/render-backend fixture slices. Version
-    # metadata belongs to the final aggregate, not its historical base file.
-    from w8_authoring_fixtures import append_to as append_w8, PREFIX as W8_PREFIX
+RETIRED_EXAMPLE_PREFIXES = (
+    "project-image-preview-",
+    "project-image-validation-",
+    "project-image-export-",
+)
+RETIRED_EXAMPLE_SCHEMAS = {
+    "ProjectEditPreviewRequest",
+    "RecoveryJobsResponse",
+    "RecoveredJobResponse",
+    "ProjectPackageResourceAssetRequest",
+    "ProjectPackageResourceAssetResponse",
+}
+
+
+def refresh_examples(existing_examples):
+    """Deterministically refresh all modular fixture slices forward against the current contract."""
+    from p1p2_fixtures import fixtures as p1p2_fixtures
+    from p3_workshop_fixtures import fixtures as p3_fixtures
+    from p4_author_fixtures import fixtures as p4_fixtures
+    from render_backend_fixtures import fixtures as render_fixtures, PREFIX as RENDER_PREFIX
+    from render_backend_schema import migrate_legacy_cases as migrate_render_backend
+    from w8_authoring_fixtures import fixtures as w8_fixtures, PREFIX as W8_PREFIX
     from gpu_stream_fixtures import append_to as append_gpu_stream
-    from author_metadata_fixtures import append_to as append_author_metadata, PREFIX as AUTHOR_METADATA_PREFIX
-    from preview_inspection_fixtures import append_to as append_preview_inspection, PREFIX as PREVIEW_INSPECTION_PREFIX
-    from author_replacement_fixtures import append_to as append_author_replacement, PREFIX as AUTHOR_REPLACEMENT_PREFIX
     from glow_style_fixtures import fixtures as glow_fixtures, migrate_legacy_cases as migrate_glow
-    existing_examples = copy.deepcopy(existing_examples)
-    existing_examples["cases"] = [case for case in existing_examples["cases"]
-        if not case["name"].startswith((AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX))]
-    existing_examples["cases"] = migrate_glow([case for case in existing_examples["cases"] if not case["name"].startswith("glow-")], upgrade=False)
-    existing_examples["cases"] = [case for case in existing_examples["cases"] if not case["name"].startswith(W8_PREFIX)]
-    example_document = append_gpu_stream(append_w8(append_to(existing_examples)))
-    example_document["cases"] = migrate_glow(example_document["cases"]) + glow_fixtures()
-    return append_author_replacement(append_preview_inspection(append_author_metadata(example_document)))
+    from author_metadata_fixtures import fixtures as author_metadata_fixtures, PREFIX as AUTHOR_METADATA_PREFIX
+    from preview_inspection_fixtures import fixtures as preview_inspection_fixtures, PREFIX as PREVIEW_INSPECTION_PREFIX
+    from author_replacement_fixtures import fixtures as author_replacement_fixtures, PREFIX as AUTHOR_REPLACEMENT_PREFIX
+    from style_v2_fixtures import migrate_cases as migrate_style_v2, fixtures as style_v2_fixtures, PREFIX as STYLE_V2_PREFIX
+    from export_fallback_fixtures import migrate_cases as migrate_fallback, fixtures as fallback_fixtures, PREFIX as FALLBACK_PREFIX
+    from source_material_failure_fixtures import fixtures as source_material_failure_fixtures, PREFIX as SOURCE_MATERIAL_FAILURE_PREFIX
+    from sdk_v1_removal_fixtures import migrate_cases as migrate_sdk_v1_removal, fixtures as sdk_v1_removal_fixtures, PREFIX as SDK_V1_REMOVAL_PREFIX
+    from lead_in_presentation_fixtures import fixtures as lead_in_presentation_fixtures, PREFIX as LEAD_IN_PRESENTATION_PREFIX
+    from ttml_import_fixtures import fixtures as ttml_import_fixtures, PREFIX as TTML_IMPORT_PREFIX
+    from ruby_style_fixtures import migrate_cases as migrate_ruby_style, fixtures as ruby_style_fixtures, PREFIX as RUBY_STYLE_PREFIX
+    from preview_transport_fixtures import migrate_cases as migrate_preview_transport, fixtures as preview_transport_fixtures, PREFIX as PREVIEW_TRANSPORT_PREFIX
+    from gpu_stream_recovery_fixtures import fixtures as gpu_stream_recovery_fixtures, PREFIX as GPU_STREAM_RECOVERY_PREFIX
+    from lyrics_refactor_fixtures import fixtures as lyrics_refactor_fixtures, PREFIX as LYRICS_REFACTOR_PREFIX
+
+    refresh_prefixes = (
+        "p1p2-", "p3-workshop-", "p4-author-", RENDER_PREFIX, W8_PREFIX, "gpu-stream-", "glow-",
+        AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX,
+        STYLE_V2_PREFIX, FALLBACK_PREFIX, SOURCE_MATERIAL_FAILURE_PREFIX, SDK_V1_REMOVAL_PREFIX,
+        LEAD_IN_PRESENTATION_PREFIX, TTML_IMPORT_PREFIX, RUBY_STYLE_PREFIX, PREVIEW_TRANSPORT_PREFIX,
+        GPU_STREAM_RECOVERY_PREFIX, LYRICS_REFACTOR_PREFIX,
+    )
+    base_cases = [
+        copy.deepcopy(case) for case in existing_examples["cases"]
+        if not case["name"].startswith(refresh_prefixes)
+        and not case["name"].startswith(RETIRED_EXAMPLE_PREFIXES)
+        and case["schema"] not in RETIRED_EXAMPLE_SCHEMAS
+    ]
+
+    # Build all modular fixture slices forward in canonical order; no historical rollback.
+    pre_150 = p1p2_fixtures()["cases"] + p3_fixtures()["cases"] + p4_fixtures(include_sdk_v2=True)["cases"]
+    pre_150 = migrate_render_backend(pre_150)
+    render_cases = render_fixtures(base_cases + pre_150)["cases"]
+    modular = pre_150 + render_cases + w8_fixtures()["cases"] + append_gpu_stream({"cases": []})["cases"]
+    modular = migrate_glow(modular) + glow_fixtures()
+    modular += author_metadata_fixtures() + preview_inspection_fixtures() + author_replacement_fixtures()
+    modular = migrate_style_v2(modular) + style_v2_fixtures()
+    modular = migrate_fallback(modular) + fallback_fixtures() + source_material_failure_fixtures()
+    modular = migrate_sdk_v1_removal(modular) + sdk_v1_removal_fixtures()
+    modular += lead_in_presentation_fixtures() + ttml_import_fixtures()
+    modular = migrate_ruby_style(modular) + ruby_style_fixtures()
+    modular = migrate_preview_transport(modular) + preview_transport_fixtures()
+    modular += gpu_stream_recovery_fixtures() + lyrics_refactor_fixtures()
+
+    return {**existing_examples, "contractVersion": CONTRACT, "cases": base_cases + modular}
+
+
+def load_metadata(metadata_path):
+    if metadata_path is not None:
+        return json.loads(metadata_path.read_text(encoding="utf-8"))
+    with tempfile.TemporaryDirectory(prefix="mako-contract-meta-") as temp_dir:
+        out_path = Path(temp_dir) / "clr-metadata.json"
+        subprocess.run(
+            ["dotnet", "run", "--project", str(TOOL / "ContractMetadata.csproj"), "--", str(out_path)],
+            check=True,
+            timeout=90,
+        )
+        return json.loads(out_path.read_text(encoding="utf-8"))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--metadata", type=Path, required=True)
-    parser.add_argument("--write", action="store_true", help="Explicitly regenerate after contract review; default only checks")
+    parser.add_argument("--metadata", type=Path, default=None, help="Optional pre-exported clr-metadata.json; when omitted, runs ContractMetadata.csproj into a temp file")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--write", action="store_true", help="Explicitly regenerate after contract review")
+    mode.add_argument("--check", action="store_true", help="Verify frozen web artifacts match current source and metadata (default)")
     args = parser.parse_args()
-    spec, operations = generate(json.loads(args.metadata.read_text(encoding="utf-8")))
+    spec, operations = generate(load_metadata(args.metadata))
     listed = {(o["method"], o["path"]) for o in operations}
     actual = source_routes()
     if actual != listed:
         raise SystemExit(f"Route mismatch: undocumented={sorted(actual - listed)}, nonexistent={sorted(listed - actual)}")
     if len(actual) != len(operations):
         raise SystemExit("Duplicate operation")
-    example_document = {**legacy_examples(json.loads((ROOT / "web/examples.json").read_text(encoding="utf-8")))}
-    # Contract 1.50.0 replaced the single-state style surface: the reviewed 1.49.2 corpus
-    # is migrated forward and the new two-state cases are appended (style_v2_fixtures).
-    from style_v2_fixtures import migrate_cases as migrate_style_v2, fixtures as style_v2_fixtures
-    example_document["cases"] = migrate_style_v2(example_document["cases"]) + style_v2_fixtures()
-    # Contract 1.51.0 adds always-present fallback diagnostics to export reports, job
-    # results and scene measurements: the 1.50.0 corpus gains the empty values and the
-    # new cases are appended (export_fallback_fixtures).
-    from export_fallback_fixtures import migrate_cases as migrate_fallback, fixtures as fallback_fixtures
-    example_document["cases"] = migrate_fallback(example_document["cases"]) + fallback_fixtures()
-    from source_material_failure_fixtures import fixtures as source_material_failure_fixtures
-    example_document["cases"] += source_material_failure_fixtures()
-    # Contract 1.53.0 removes SDK v1 support: the historical v1 inspection fixture becomes
-    # invalid under the narrowed enums and 1.53.0 negative cases are appended.
-    from sdk_v1_removal_fixtures import migrate_cases as migrate_sdk_v1_removal, fixtures as sdk_v1_removal_fixtures
-    example_document["cases"] = migrate_sdk_v1_removal(example_document["cases"]) + sdk_v1_removal_fixtures()
-    # Contract 1.54.0 appends lead-in presentation (vector/SVG shapes & blink-wipe animations)
-    # and CueTargetAboveStart examples at the corpus tail.
-    from lead_in_presentation_fixtures import fixtures as lead_in_presentation_fixtures
-    example_document["cases"] += lead_in_presentation_fixtures()
-    # Contract 1.55.0 appends all-sources lyric import examples at the corpus tail.
-    from ttml_import_fixtures import fixtures as ttml_import_fixtures
-    example_document["cases"] += ttml_import_fixtures()
-    # 1.56.0 adds required Ruby layout to canonical styles. The inverse transform
-    # allows all older reviewed example/hash gates to keep their exact originals.
-    from ruby_style_fixtures import migrate_cases as migrate_ruby_style, fixtures as ruby_style_fixtures
-    example_document["cases"] = migrate_ruby_style(example_document["cases"]) + ruby_style_fixtures()
-    # 1.57.0 adds cpu api and required transport to continuous preview streams.
-    from preview_transport_fixtures import migrate_cases as migrate_preview_transport, fixtures as preview_transport_fixtures
-    example_document["cases"] = migrate_preview_transport(example_document["cases"]) + preview_transport_fixtures()
-    # 1.58.0 adds GET /api/v1/gpu-preview-streams and optional quarantined flag on GpuPreviewStreamState.
-    from gpu_stream_recovery_fixtures import fixtures as gpu_stream_recovery_fixtures
-    example_document["cases"] += gpu_stream_recovery_fixtures()
-    # 1.59.0 adds Phase 1 atomic beat-strike/close, phrase-end hint toggle, line split/merge, non-destructive setRubySegments, and applyTextDiff commands.
-    from lyrics_refactor_fixtures import fixtures as lyrics_refactor_fixtures
-    example_document["cases"] += lyrics_refactor_fixtures()
-    example_document["contractVersion"] = CONTRACT
+    example_document = refresh_examples(json.loads((ROOT / "web/examples.json").read_text(encoding="utf-8")))
     examples = encoded(example_document)
-    outputs = {"web/openapi.json": encoded(spec), "web/api-index.md": inventory(spec, operations), "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(), "web/examples.json": examples}
+    outputs = {
+        "web/openapi.json": encoded(spec),
+        "web/api-index.md": inventory(spec, operations),
+        "web/api-contract.md": (ROOT / "web/api-contract.md").read_bytes(),
+        "web/frontend-workflows.md": (ROOT / "web/frontend-workflows.md").read_bytes(),
+        "web/examples.json": examples,
+    }
     outputs["web/contract-manifest.json"] = encoded(manifest(outputs))
     for name, data in outputs.items():
         path = ROOT / name

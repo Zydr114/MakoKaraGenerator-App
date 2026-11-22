@@ -1,11 +1,11 @@
-"""Glow cases and reversible legacy wire adaptation for contract verification."""
+"""Glow cases and forward wire adaptation for contract verification."""
 import copy
 
 GLOW_PROPERTIES = ("glowSpec", "glowColor", "glowOpacity", "glowBlurRadiusPx", "glowSpreadPx")
 
 
-def migrate_legacy_cases(cases, *, upgrade=True):
-    """Adapt historical samples while leaving their original frozen bytes untouched."""
+def migrate_legacy_cases(cases):
+    """Ensure pre-1.50 single-state samples carry glow before two-state style migration."""
     result = copy.deepcopy(cases)
 
     def visit(value):
@@ -16,17 +16,13 @@ def migrate_legacy_cases(cases, *, upgrade=True):
             canonical = len({"typography", "unsungFill", "sungFill", "verticalCenterRatio", "horizontalAlignment"} & value.keys()) >= 3
             appearance = len({"typography", "pendingFill", "elapsedFill", "stroke", "shadow"} & value.keys()) >= 4 and ("pendingFill" in value or "elapsedFill" in value)
             if canonical or appearance:
-                if upgrade:
-                    value.setdefault("glow", None)
-                else:
-                    value.pop("glow", None)
+                value.setdefault("glow", None)
             for child in list(value.values()):
                 visit(child)
             if "sources" in value and isinstance(value["sources"], list) and value.get("resolution") == "staticPresetHierarchy":
-                if upgrade:
+                existing = {item.get("property") for item in value["sources"] if isinstance(item, dict)}
+                if not existing.intersection(GLOW_PROPERTIES) and "unsungColor" in existing:
                     value["sources"].extend({"property": name, "sourcePath": "project.baseStyle"} for name in GLOW_PROPERTIES)
-                else:
-                    value["sources"] = [item for item in value["sources"] if not isinstance(item, dict) or item.get("property") not in GLOW_PROPERTIES]
 
     visit(result)
     return result

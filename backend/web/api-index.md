@@ -1,10 +1,10 @@
 # 冻结 API 清单
 
-合同 **1.59.0** · HTTP **1** · 产品 **0.116.1** · 基线 `d5d18653bb0891aa63f3fe7c42e7d8e6d5f0f3dc` · 2026-11-22。
+合同 **1.60.0** · HTTP **1** · 产品 **0.116.1** · 基线 `b5d4d71464a142cbc0e49806870526a5adb77e77` · 2026-11-22。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
-共 **115 个路径、129 个显式方法**（含 5 个兼容别名；HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
+共 **103 个路径、115 个显式方法**（HEAD 单计，全局 OPTIONS 不计）。业务成功状态仅表示HTTP操作结果，202须等待job或preview状态。
 
 | 方法 | 路径 | 认证 | 请求 | 成功响应 | 行为源章节 |
 |---|---|---|---|---|---|
@@ -29,7 +29,6 @@
 | GET | `/api/v1/project-sessions/{id}/settings` | access + clientId | - | 200 · ProjectSettingsResponse | §6 |
 | GET | `/api/v1/project-sessions/{id}/resolved-style` | access + clientId | - | 200 · ProjectResolvedStyleResponse | §17 |
 | GET | `/api/v1/project-sessions/{id}/resources` | access + clientId | - | 200 · ProjectResourcesResponse | §17 |
-| POST | `/api/v1/project-sessions/{id}/resources/package-asset` | access + clientId | ProjectPackageResourceAssetRequest | 201 · ProjectPackageResourceAssetResponse | §17 |
 | GET | `/api/v1/project-sessions/{id}/style` | access + clientId | - | 200 · ProjectStyleResponse | §6 |
 | GET | `/api/v1/project-sessions/{id}/orchestration` | access + clientId | - | 200 · ProjectOrchestrationResponse | §13 |
 | GET | `/api/v1/project-sessions/{id}/orchestration/geometry` | access + clientId | - | 200 · ProjectGeometryReferenceResponse | §13 |
@@ -64,7 +63,6 @@
 | GET | `/api/v1/jobs/{id}` | access + clientId | - | 200 · JobResponse | §8 |
 | POST | `/api/v1/jobs/{id}/cancel` | access + clientId | RequestMetadataDto | 200 · JobResponse | §8 |
 | GET | `/api/v1/recovery-candidates` | access + clientId | - | 200 · RecoveryCandidatesResponse | §8 |
-| GET | `/api/v1/recovery-jobs` | access + clientId | - | 200 · RecoveryJobsResponse | §8 |
 | GET | `/api/v1/runtime-info` | access + clientId | - | 200 · PreviewRuntimeInfoResponse | §9 |
 | GET | `/api/v1/render-backends` | access + clientId | - | 200 · RenderBackendsResponse | §25 |
 | POST | `/api/v1/gpu-preview-streams` | access + clientId | GpuPreviewStreamCreateRequest | 201 · GpuPreviewStreamState | §25 |
@@ -74,7 +72,6 @@
 | PUT | `/api/v1/gpu-preview-streams/{id}/size` | access + clientId | GpuPreviewStreamResizeRequest | 200 · GpuPreviewStreamState | §25 |
 | DELETE | `/api/v1/gpu-preview-streams/{id}` | access + clientId | GpuPreviewStreamCloseRequest | 200 · GpuPreviewStreamState | §25 |
 | POST | `/api/v1/preview-sessions` | access + clientId | PreviewSessionRequest | 201 · PreviewSessionResponse | §9 |
-| POST | `/api/v1/project-sessions/{id}/edit-previews` | access + clientId | ProjectEditPreviewRequest | 201 · PreviewSessionResponse | §6.12 |
 | POST | `/api/v1/project-sessions/{id}/preset-application-previews` | access + clientId | PresetApplicationPreviewRequest | 201 · PreviewSessionResponse | §13 |
 | POST | `/api/v1/effect-packages/inspect` | access + clientId | EffectPackageInspectRequest | 200 · EffectPackageInspectResponse | §24 |
 | POST | `/api/v1/template-preview-options` | access + clientId | TemplatePreviewOptionsRequest | 200 · TemplatePreviewOptionsResponse | §24 |
@@ -92,22 +89,16 @@
 | POST | `/api/v1/project-sessions/{id}/validation-jobs` | access + clientId | ValidationJobRequest | 202 · JobResponse | §10 |
 | GET | `/api/v1/jobs/{id}/validation-result` | access + clientId | - | 200 · ValidationReportDtoRaw | §10 |
 | GET | `/api/v1/jobs/{id}/validation-diagnostics` | access + clientId | - | 200 · ValidationDiagnosticsPageDto | §10 |
-| GET | `/api/v1/recovery-jobs/{id}/validation-result` | access + clientId | - | 200 · ValidationReportDtoRaw | §10 |
 | GET | `/api/v1/export-capabilities` | access + clientId | - | 200 · ExportTaskCapabilitiesDto | §11 |
 | POST | `/api/v1/project-sessions/{id}/export-jobs` | access + clientId | ExportJobRequest | 202 · JobResponse | §11 |
 | GET | `/api/v1/jobs/{id}/export-result` | access + clientId | - | 200 · ExportResultReport | §11 |
-| GET | `/api/v1/recovery-jobs/{id}/export-result` | access + clientId | - | 200 · ExportResultReport | §11 |
 | GET | `/api/v1/jobs/{id}/export-content` | access + clientId | - | 200 · video<br>206 · video | §11 |
 | HEAD | `/api/v1/jobs/{id}/export-content` | access + clientId | - | 200 · video（无body）<br>206 · video（无body） | §11 |
-| GET | `/api/v1/recovery-jobs/{id}/export-content` | access + clientId | - | 200 · video<br>206 · video | §11 |
-| HEAD | `/api/v1/recovery-jobs/{id}/export-content` | access + clientId | - | 200 · video（无body）<br>206 · video（无body） | §11 |
 | GET | `/api/v1/jobs/{id}/export-diagnostics` | access + clientId | - | 200 · ExportDiagnosticsPageDto | §11 |
 | GET | `/api/v1/analysis-capabilities` | access + clientId | - | 200 · AnalysisTaskCapabilitiesDto | §12 |
 | POST | `/api/v1/project-sessions/{id}/analysis-jobs` | access + clientId | AnalysisJobRequest | 202 · JobResponse | §12 |
 | GET | `/api/v1/jobs/{id}/analysis-result` | access + clientId | - | 200 · AudioAnalysisCanonical<br>206 · analysis | §12 |
 | HEAD | `/api/v1/jobs/{id}/analysis-result` | access + clientId | - | 200 · analysis（无body）<br>206 · analysis（无body） | §12 |
-| GET | `/api/v1/recovery-jobs/{id}/analysis-result` | access + clientId | - | 200 · AudioAnalysisCanonical<br>206 · analysis | §12 |
-| HEAD | `/api/v1/recovery-jobs/{id}/analysis-result` | access + clientId | - | 200 · analysis（无body）<br>206 · analysis（无body） | §12 |
 | POST | `/api/v1/drafts` | access + clientId | AuthorDraftCreateRequest | 201 · AuthorDraftResponse | §21 |
 | GET | `/api/v1/drafts` | access + clientId | - | 200 · AuthorDraftListResponse | §21 |
 | GET | `/api/v1/drafts/{id}` | access + clientId | - | 200 · AuthorDraftResponse | §21 |
@@ -132,11 +123,6 @@
 | GET | `/api/v1/script-configurations` | access + clientId | - | 200 · ScriptConfigurationListResponse | §21 |
 | GET | `/api/v1/script-configurations/{id}` | access + clientId | - | 200 · ScriptConfigurationDetailResponse | §21 |
 | POST | `/api/v1/script-configurations/commands` | access + clientId | ScriptConfigurationCommandRequest | 200 · ScriptConfigurationCommandResponse | §21 |
-| GET | `/health/live`（别名） | 无 | - | 200 · HealthResponse | §2 |
-| GET | `/capabilities`（别名） | access + clientId | - | 200 · BackendCapabilitiesResponse | §2 |
-| POST | `/assets`（别名） | access + clientId | upload | 201 · AssetResponse | §5 |
-| POST | `/project-sessions`（别名） | access + clientId | CreateProjectSessionRequest | 201 · ProjectSessionSummaryResponse | §6 |
-| GET | `/project-sessions/{id}`（别名） | access + clientId | - | 200 · ProjectSessionSummaryResponse | §6 |
 
 请求名对应 Contracts DTO；OpenAPI 内共享输入DTO带 Input 后缀，保留null的原始报告带 Raw 后缀。upload=原始字节/单文件multipart；asset/png/video=受认证字节；analysis=原Core完整JSON；sse=事件流。
 
@@ -225,7 +211,7 @@
 | `styles.patch` | 同种唯一`targets` 1..1000（project仅一个），非空29种canonical属性/value的`changes`；value始终必填 |
 | `styles.restore` | 同种唯一branch/line/token `targets`，非空闭合`properties`；移除选中局部覆盖 |
 
-九十七种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。
+106种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。
 
 S1提供来源列表、完整歌词编辑窗口（原始时间状态、关联主行、注音）与标量设置读取；三者必须携带expectedRevision，分页窗口不得混合修订。分页默认offset=0、limit=100，limit范围1..100；nextOffset在终页省略。完整JSON最多1MiB、来源/行/元素/注音组/注音片段合计最多20000条，超限413 resourceTooLarge，不截断单行。S3a五种歌词操作可提供feedback与真实selection建议，六种设置命令省略feedback。S3b新增/删除来源真实变化时提供branchResult.selectedBranchId；配置/关联/失败/no-op省略。来源ID沿Core非空白原值，不新增128字符上限；language/primaryLineId的必填字段显式null与缺字段不同。元素结构五命令的输入ID为非空白且最多128字符；tokenResult提供真实changedLineCount、可选selection及共享切分计数，不提供巨型身份映射。来源重切累计改变行完整投影最多16MiB，单行仍受1MiB/20000条目限制，超限整批不变。再次导入/粘贴追加复用共享用例；文件报告完整保留27字段，offsetUs为有符号Int64字符串，Error诊断与合法行并存不等同失败。options省略取原默认，显式null拒绝；输入目的地严格区分两命令。完整最终新/替换行仍受1MiB/20000项及累计16MiB预算，准备工作逻辑64MiB，成功回执受实际配置64KiB限制。波形提供同次音频准备的元数据和有界min/max float32 little-endian窗口，最多8192桶；元数据不接受query，窗口四字段必须唯一提供且拒绝未知query。Range一律400，HEAD所有状态无body。整个Host已保留峰值payload预算64MiB，不含临时prepare/窗口/元数据；缓存不足不阻断create/open，不可用有明确reason。身份不绑定歌词修订，不保证与浏览器逐sample对齐。历史静态样式批次仅canonical静态继承读写；后续公共package与当前统一Runtime来源见对应章节。Application用例、内部Worker能力和未来草案不能当作HTTP实现；G21～G24整体编辑及真实Worker同帧测量见行为§13.18～21；schema不证明真实Runtime像素或完整编排作者验收。
 
@@ -270,17 +256,9 @@ resolved-style按真实line推导clip/container及Core调度slot，nodePath包�
 
 历史合同1.32.1记录：当时orchestration/measurements的完整固定输入沿真实Worker握手选择三种静态来源、package-lyrics-scene-v1 或 package-lyrics-scene-presets-v1。后者仅表示直接包与固定静态预设的有限测量，不扩大 preview/validation/export 的来源准入；仍限 Color 背景与完整 codec/测量预算。产品保持0.98.1，本次为已实现行为的合同勘误，未新增 fresh HTTP 验收；详见统一API§13.21。
 
-## 已保存工程图片背景预览（产品0.99.0／合同1.33.0）
+## 统一 Runtime 输入与接口收口（合同1.60.0）
 
-历史0.99有限切片记录（现行来源见下方P1/P2节）：当时project预览自动选择project-image-preview-v1；runtime-info的兼容sourceProfile仍为static-lyrics-scene-v1，sourceProfiles仅在独立图片Worker握手成功后增加该值。客户端仍只交工程ID和精确修订，不提交图片bytes、路径、profile或grant。只读取ProjectStore已加载的固定Image闭包；原图2MiB、单边4096、解码16MiB、完整envelope4194280字节，超限拒绝。基础为无预设的static/static-analysis/直接package；该0.99预览验收未覆盖validation/export/measurement或模板候选图片输入。后续0.100图片正式验证另需独立project-image-validation-v1能力，见下节；此0.99历史切片当时不含export/measurement与模板候选图片输入。匹配发布d961895的有限fresh HTTP final6通过1175请求／9760断言；本地回归、Oracle预检与合同形状检查分开登记，具体范围和历史失败详见统一API§22与实施§77。
-
-## 已保存工程图片背景正式验证（产品0.100.0／合同1.34.0）
-
-历史0.100有限切片记录（现行来源见下方P1/P2节）：当时validation-capabilities/validation-jobs/result/diagnostics接入独立project-image-validation-v1来源；图片预览与包Worker能力不能代替独立图片验证探测。公共请求保持精确expectedRevision、framesPerOutput、metadata；不接图片bytes/path/profile/grant。Host固定ProjectStore已加载的受管Image闭包，仅无preset的static/static-analysis/直接package基础源；完整验证输入4194272字节（4MiB减32字节KTI1头），原图2MiB、单边4096、解码16MiB、基础snapshot4MiB。报告与诊断沿原Runtime和既有取消/deadline/close排水；图片export/measurement、video/font/preset组合与完整B3/B4/B5/B6独立。匹配发布7a03863（sourceDirty=false）的fresh HTTP final1有限切片通过1412请求／10582断言，两次Server exit0、33个观察身份（26个Worker）全部退出、3349文件凭证扫描通过；三基础源普通/透明各4帧、完整报告与原Runtime报告Oracle、错误/预算/控制及一次orderly restart/recovery在有限范围内。正式validation没有PNG，报告Oracle不构成像素验收；旧0.99 Worker独立10请求／476断言、199文件负例拒绝503 taskUnavailable／WorkerImageValidationUnavailable，未并入主计数。实际证据与范围见统一API§10.1和实施§78。
-
-## P1/P2 接口同步（合同1.36.0）
-
-现行P1/P2新增lyrics-import-plans、fonts、fonts/inspect和edit-previews四个公共操作，四个背景命令及project.applyEdits严格分型。创建可省略音频和歌词，直接从真实空工程开始；上传按流处理，部署字节限额maxAssetBytes/maxAssetQuotaBytes固定返回Int64或null。settings/resources提供背景与授权内容身份。匹配Worker独立协商后，preview/measurement/validation/export消费runtime-project-input-v1固定媒体/包字体闭包及完整包+预设来源，HTTP不接主机路径或私有grant；旧图片profile仅保留其历史能力与预算，不覆盖当前统一输入。候选candidateRevision与source.sourceRevision保持不透明candidate身份，baseProjectRevision仍是精确工程修订，测量候选三字段全有/全无且非null且expectedRevision必须匹配baseProjectRevision。导出quality三档和可空宿主策略沿原任务链；当前实际可用来源以各sourceProfiles为准，不从兼容单值推断。详见行为§6.12、§10、§11；合同形状、源码实现、真实Worker/HTTP及浏览器验收分开登记，历史证据数字不扩大为当前验收。
+合同1.60.0清理已下线的12条历史路由（5条无版本别名、5条recovery-jobs、POST edit-previews与POST resources/package-asset）及旧独立project-image-*来源profile；当前公开接口均位于/api/v1前缀下，preview/measurement/validation/export统一按实际Worker协商的sourceProfiles消费静态、包及runtime-project-input-v1闭包。创建可省略音频和歌词，上传按流处理，部署字节限额maxAssetBytes/maxAssetQuotaBytes固定返回Int64或null。详见行为§6.12、§10、§11。
 
 ## P3/P4 交接（历史合同1.38.1）
 

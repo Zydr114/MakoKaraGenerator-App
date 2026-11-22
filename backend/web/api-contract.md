@@ -1,5 +1,7 @@
 # 前后端 API 执行合同
 
+合同 **1.60.0**（2026-11-22，产品 **0.116.1**）：同步清理 12 条已下线历史路由（5 条无版本兼容别名、5 条 `/api/v1/recovery-jobs*` 路由、`POST /api/v1/project-sessions/{id}/edit-previews` 与 `POST /api/v1/project-sessions/{id}/resources/package-asset`）及已清退的独立 `project-image-*` 来源 profile（`project-image-preview-v1`、`project-image-validation-v1`、`project-image-export-v1`），冻结产物统一收口至 `backend/web/` 单一真值源，校验器直接针对当前 `1.60.0` 契约执行严格 OpenAPI 3.1 / `$ref` / JSON Schema 2020-12 / 全量正反例 / manifest SHA-256 门禁，不再保留历史版本回滚门禁。
+
 合同 **1.59.0**（2026-11-22，产品 **0.116.1**）：新增九条歌词打轴与非破坏性结构编辑原子命令（`lyrics.strikeBeat`、`lyrics.closeBeat`、`lyrics.togglePhraseEndHint`、`lyrics.splitLine`、`lyrics.mergeLines`、`lyrics.setRubySegments`、`lyrics.applyTextDiff`、`lyrics.clearLineTiming`、`lyrics.clearBranchTiming`，共 106 条具名命令），并在 `ProjectLyricTokenDto` 增加可选 `phraseEndHint`（未覆写时省略）、在 `LyricTimingCommandResultDto` 增加可选 `closeGuardApplied`。
 
 产品 **0.116.1** 在携带原生媒体探针的 Windows x64 部署中启用现有媒体特征轨，合同保持 **1.58.0**；协议、路由、字段和例子不变。详见[宿主媒体特征轨](../docs/architecture/backend-api.md#sdk2-m10-media-features)。

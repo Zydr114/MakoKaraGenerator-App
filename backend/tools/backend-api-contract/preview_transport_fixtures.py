@@ -1,28 +1,19 @@
-"""Contract 1.57 multi-device & multi-transport preview stream additions with reversible 1.56 example upgrades."""
+"""Contract 1.57+ multi-device & multi-transport preview stream additions."""
 import copy
 
 PREFIX = "preview-transport-"
 
 
-def transform(case, upgrade=True):
+def transform(case):
     if case.get("schema") != "GpuPreviewStreamState" or not isinstance(case.get("value"), dict):
         return case
     value = copy.deepcopy(case["value"])
-    if upgrade:
-        if "transport" not in value:
-            value["transport"] = "dma-buf"
-    else:
-        if value.get("transport") == "dma-buf":
-            del value["transport"]
+    value.setdefault("transport", "dma-buf")
     return {**case, "value": value}
 
 
 def migrate_cases(cases):
-    return [transform(case, upgrade=True) for case in cases]
-
-
-def restore_cases(cases):
-    return [transform(case, upgrade=False) for case in cases]
+    return [transform(case) for case in cases]
 
 
 def fixtures():

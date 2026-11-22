@@ -1,109 +1,59 @@
 # 冻结 API 合同生成与校验
 
-2026-11-15 前奏展示增强：产品 **0.113.0**，合同 **1.54.0**；新增 `orchestration.setCountdownPresentation` 命令、`CountdownShapeSpec`／`CountdownAnimationSpec`、`ProjectOrchestrationContentDto.{shape,animation}` 及 `setLeadInAttachment` 的 `CueTargetAboveStart` 枚举值，扩展 `lead_in_presentation_fixtures.py` 并更新渲染层新增 5 个源文件的 manifest 指纹。此前 1.53.0／0.112.91／0.112.90 历史说明保留原归属。
+当前工具目标为 **合同 1.60.0／产品 0.116.1／HTTP 协议 1**（2026-11-22），生产源码基线 `b5d4d71464a142cbc0e49806870526a5adb77e77`，单一真值源产物位于 `backend/web/`：
 
-2026-11-14 性能补充：产品 0.112.91，合同仍为 1.52.1；视频背景不可变快照改用保留格式的原始像素复制，增加内部性能日志阶段，无 HTTP 形状、fixture 或检查响应字段变化。基线 `baa5b43`，新增快照实现纳入指纹。此前 0.112.90 行为说明保留历史归属。
-
-本轮工具源码目标为 **合同1.58.0／产品0.116.0／协议1**（2026-11-20），生产源码基线 `83a7ba0637f1eae70ab228882eaac643d50dd42a`：新增只读列表端点 `GET /api/v1/gpu-preview-streams`（`GpuPreviewStreamListResponse`）与 `GpuPreviewStreamState.quarantined` 可选布尔字段（未隔离时省略，隔离时为 `true`），保留 1.57.0 `api` `"vulkan"|"cpu"` 与 `transport` `"dma-buf"|"shm"` 零静默降级语义。合同为115 paths／129 methods／680 schemas、4029例／2893反例。下述旧版本材料保留历史归属；合同生成不替代匹配发布与fresh HTTP验收。
-
-从 `backend/` 执行。本工具构建Contracts引用的离线CLI，不启动服务。`author_metadata_schema.py` 审阅真实CLR字段、nullable与构造默认值，复用现有 `AuthorPackageQuery` 和参数/导出/input/file/diagnostic DTO；检查响应独立且无reference，公共包引用kind继续仅为asset/library/configuration。采用配置采用inline完整八字段严格schema，避免改变package-files的既有配置语义；两个可空字段仍显式必填，UInt64种子采用十进制字符串并保留前导零。`author_metadata_fixtures.py` 覆盖精确整数、Int64 `files.size`、未来未知响应字段、完整采用、旧请求兼容和具名拒绝；运行期CAS/owner、重复JSON键、完整UTF-8预算、编译来源、原子存储和真实sampleOptions须由服务/HTTP核对。
-
-`freeze.py` 将本轮运行筛选与持久闭包接缝显式纳入指纹；已有新增路径／响应与fixture保留历史归属；`validate.py` 保留历史SDK2、作者、GPU/辉光及全量样例门禁，并单独扣除本轮尾部增量后核对旧3434/2548基线。当时 `BASELINE` 为已提交生产源码 `2eb0299`；当前基线见文首及 `freeze.py`，产品版本从 `Directory.Build.props` 读取。静态门禁不替代匹配发布、fresh HTTP或性能验收；进度见App根 `docs/plans/script-sdk-v2-phase-one-progress.md`。
-
-1.54.0 对应产品 `0.113.0`（基线 `f16d424`）：新增 `orchestration.setCountdownPresentation` 工程命令（命令上限 128KiB，第九十七种工程命令）、`CountdownShapeSpec`/`CountdownAnimationSpec`、`ProjectOrchestrationContentDto.{shape,animation}` 以及 `orchestration.setLeadInAttachment` 的 `CueTargetAboveStart` 附着模式（保留读模型 `attachmentMode` 对历史值的兼容），通过 `lead_in_presentation_fixtures.py` 在尾部追加 63 个正反例（总计 3995 例 / 2879 反例、672 schemas），并在 `validate.py` 内先验 1.54.0 语料再切片扣除尾部增量交付 `1.53.0` 及下游历史 SHA-256 门禁；`freeze.py` manifest 同步纳入 `LineRenderGeometry.cs`、`SceneTextMarkSample.cs`、`Effects/Svg/SvgNativePictureCompiler.Inline.cs`、`Effects/Svg/SvgStaticCompiler.Inline.cs`、`SkiaCountdownShapeRenderer.cs`。
-
-1.53.0 对应产品 `0.113.0`（基线 `c2fbff4`）：移除 SDK v1 后将 `AuthorSourceInspectionResponse` 的 `packageVersion.enum` 收窄为 `[3]`、`shaderProfile.enum` 收窄为 `["skia-ganesh-3.119.4-v2"]`，保持 115／128／667 路由与 schema 计数，并通过 `sdk_v1_removal_fixtures.py` 将历史 `author-metadata-inspection-response-v1` 迁移为反例且在尾部追加 `packageVersion=2` 与 `shaderProfile="skia-raster-3.119.4-v1"` 拒绝例（共 3932 例 / 2842 反例），同时按 `migrate_cases`/`restore_cases` 在 `validate.py` 内先验当前语料再还原至 1.52.1 语料执行下游历史 SHA-256 门禁；`freeze.py` manifest 同步替换为 `FrameOutput.cs`、`ImageEffectBindings.cs`、`ParticleCurves.cs`、`FrameEffectHost.{V2Particles,V2Sources}.cs`。
-
-1.52.1 是行为补丁：沿用1.52.0的115／128／667与全部3930个例子，`validate.py` 将1.52.1纳入全部历史门禁，未新增形状例。固定来源包括顶层目标存在性、实例投影、完整源指纹、持久／运行源材质目录、媒体依赖、材质编译准备、设备准入与诊断归属。同一候选另修复真实布局参考测量：严格匹配试样身份的代表行使用同一不可变试样解析器，同一源快照复用试样。fresh metadata、freeze write／默认检查、validate和前端合同副本测试的首轮日志保留于 `artifacts/orphan-preset-20261114/contract/`，包含布局修复的最终生成证据位于 `artifacts/orphan-preset-20261114/contract-final/`；运行验收另行登记。
-
-1.52.0 新增真实源材质失败：`source_material_failure_schema.py` 审阅可选 `BackendDiagnosticDto.sourceMaterialFailure`、完整 `BackendSourceMaterialFailureDto` 与 `BackendImageSurfaceBudgetDto` 的真实CLR字段／nullable／默认值。`originKind=sourceMaterialFailure` 必须有对应载荷、级别为error，并省略脚本occurrence与其他来源载荷；登记报告保留原始null槽位，既有报告不要求出现新增字段。实际 `ImageSurfaceBudgetExceeded` 可附活动／申请／上限表面数与规范十进制Int64字节字符串；来源不截断，完整JSON最多64KiB，服务另核固定工程归属、数值与跨字段身份。`source_material_failure_fixtures.py` 仅追加4个形状例；`validate.py` 先扣除新增尾部，再执行1.51.1及更早的完整门禁；`freeze.py` 先扣除该尾部再还原历史语料，纳入新增渲染结构提取与公开投影接缝的指纹。
-
-1.51.1 是行为补丁（M13 收口）：0.112.87（`PUT …/input` 切换 alphaMode 时按新模式固定媒体输入）与 0.112.88（模板工坊与作者草稿试样固定实例身份与种子）均在既有指纹清单内，不改路由、DTO、schema与例子。`freeze.py` 只改版本、基线 `a1f4379` 与scope；`validate.py` 把1.51.1并入现行门禁，历史1.51.0对应0.112.86。
-
-1.51.0 增加兜底诊断（P3 第 7 步 B）：`export_fallback_schema.py` 审阅三个DTO的新增CLR字段（类型、非空、默认值），新增 `BackendFallbackDiagnostic`（公共省略null形状，复用 `BackendDiagnosticDto` 并把来源收窄为imageEffect／material、级别为warning）与 `BackendFallbackDiagnosticRaw`（登记原样报告形状，空槽位与location／occurrence为null），给 `ExportReportDtoRaw` 加三项同有同无的字段（`dependentRequired`；登记报告按原字节返回，升级前登记的没有这三项）、`ExportJobResultDto` 加 `fallbackDiagnosticCount`（0..128）、`SceneMeasurementDataDto` 加 `fallbackDiagnostics`。`export_fallback_fixtures.py` 的 `migrate_cases` 给1.50.0例子集中的导出报告、job结果与测量例子补上空值字段，`restore_cases` 删去这些字段并核对其为空值，`fixtures()` 生成 `export-fallback-` 前缀的新例子。`freeze.py` 先还原1.50.0例子集，再按1.50.0流水线迁移并追加新例子；`validate.py` 对1.51.0扣除尾部新例子、还原1.50.0例子集交给其后的门禁，当前例子集整体按新spec校验。`render_backend_fixtures.fixtures()` 从例子集取样本，1.51.0 校验时传入还原后的1.50.0例子集。
-
-1.50.0 改样式形状（P3 第 7 步）：`static_style_schema.py` 改为43项属性路径表（`CHANGES`／`PROPERTIES`，另有元素可用的 `TOKEN_PROPERTIES` 与文字标记可用的 `MARK_PROPERTIES`），审阅两态外观、跟随联合（`followable`）、0..4层描边（`strokes_array`，响应侧 package 材质只在第0层，用 `prefixItems` 表达）、扫字样式与 `StylePropertyPath` 枚举，并收紧patch／restore的父叶冲突；`template_library_schema.py`、`p3_workshop_schema.py`、`basic_business_schema.py`、`editing_completion_schema.py` 改为引用这张表，模板 `properties` 与解析来源改为路径字符串，前奏外观改为两态。旧形状例子的处理在 `style_v2_fixtures.py`：`migrate_cases` 把1.49.2例子按新形状改写（旧属性名经原 `LegacyStylePropertyMap` 的映射表换为路径），主体已删除的例子退役；每个改写或退役例子的1.49.2原文按序号存于 `style_v2_legacy_cases.json`，`restore_legacy` 据此逐字节还原1.49.2例子集并核对其SHA-256。`fixtures()` 生成 `style-v2-` 前缀的新增例子。`freeze.py` 先还原1.49.2例子集、跑原有历史流水线，再迁移并追加新例子；`validate.py` 对1.50.0先扣除尾部新增例子、还原1.49.2例子集交给原有历史门禁，当前例子集（迁移后加新增）单独按新spec校验。旧的单态增量打印脚本 `static_style_fixtures.py` 已移除（其例子早已冻结在1.49.2例子集中，可从git历史取回）。
-
-1.49.2 是行为补丁（M12 收口）：0.112.41～0.112.67 的渲染与宿主优化不改公共HTTP，唯一对外可见的变化是缺背景媒体的预览诊断（预览诊断映射与Worker包诊断映射，均在既有指纹清单内）。`freeze.py` 只改版本、基线与scope（首次冻结于产品0.112.67、基线 `6e68996`；同日0.112.68只改GPU流Worker时钟校准重试，合同版本不变，基线更新为 `795ba4b` 并重生成指纹；2026-11-12 的0.112.69～0.112.72是渲染层结构整理，几何侧源码由 `SkiaRenderPipeline.*` 移到 `SkiaSceneGeometry.*`、对象绘制移到 `SkiaRenderPipeline.ObjectPlan*.cs`，指纹清单按新文件名更新，合同版本不变，基线更新为 `54ccae6`）；`validate.py` 把1.49.2并入现行门禁，历史1.49.1对应0.112.40。
-
-1.49.1 是行为补丁：变化的接缝（宿主分析服务与输入固定、试样与候选捕获、作者与工程正式验证）都已在既有指纹清单内，`freeze.py` 只改版本、基线与scope；`validate.py` 把1.49.1并入现行门禁，历史1.49.0对应0.112.39。
-
-1.49.0 新增作者草稿整份替换：`author_replacement_schema.py` 审阅 `AuthorPackageFilesRequest` 新增的可空 `replacedFiles`/`baseSourceRevision`、检查请求与响应、资源信息和提醒DTO的CLR字段，收紧修订、草稿身份、role、格式名、摘要、正尺寸与提醒码；`author_replacement_fixtures.py` 覆盖旧请求兼容、基准修订省略/null、替换项缺字段与未知字段、检查请求缺字段、图片/字体响应、未来未知字段与具名失败码。检查接口只读、无回执。`freeze.py` 把Host检查/保存接缝、共用图片/字体检查与Skia字体家族读取纳入指纹；`validate.py` 先扣除尾部增量，再核对1.48.0基线计数。历史1.48.0仍对应0.112.38。
-
-1.48.0 新增按帧检查投影：`preview_inspection_schema.py` 审阅 `PreviewFrameInspectionResponse` 的CLR字段并收紧多边形长度、点元数、进度范围、进度来源、SDK主版本、绑定种类、脚本ID与阶段；`preview_inspection_fixtures.py` 覆盖请求 inspect 的四种取值、响应缺字段与越界、带与不带 `inspectionUrl` 的帧元数据，以及 `previewInspectionUnavailable` 错误。`freeze.py` 把投影构建、单帧捕获、Worker检查位、Host保留与读取端点纳入指纹；`validate.py` 先扣除尾部增量，再核对1.47.0基线计数。历史1.47.0仍对应0.112.37。
-
-1.47.0 接通宿主媒体特征轨：`project.mediaFeaturesChanged` 事件、`media.features` 包能力与四个 `MediaFeature*` 失败码，透明输出固定 NoMedia；无 HTTP 形状增量，计数与1.46.1保持一致；历史1.46.1仍对应0.112.15。行为见[§28.6](../../docs/architecture/backend-api.md#sdk2-m10-media-features)。
-
-1.46.1 固定 SDK2 场景目录只读值的纯度修复：SourceNode／SourceProgram／SourceClip／SourceCue 可供真实作者读取与只读准备结果使用；随机哈希、IO、旧生命周期写者仍拒绝。无 HTTP 形状增量，计数与1.46.0保持一致；历史1.46.0仍对应0.112.14。
-
-1.56.0 对应产品 0.115.0：完整样式增加 `ruby.relativeScale`／`ruby.gapPx`，两项均为必返可空值；patch 显式 null 与 restore 分别表达回退歌词数值和恢复上层继承。标记不接受这两项。`ruby_style_fixtures.py` 对历史样式例子做可逆升级并追加正反例，验证时先对当前合同校验，再还原旧例并执行历史哈希门禁。合同生成和静态校验不代替实际 HTTP、渲染或跨平台验收。
+- 同步清理已下线的 12 条历史路由（5 条无版本兼容别名、5 条 `/api/v1/recovery-jobs*`、`POST /api/v1/project-sessions/{id}/edit-previews`、`POST /api/v1/project-sessions/{id}/resources/package-asset`）与已清退的独立 `project-image-*` 来源 profile（`project-image-preview-v1`、`project-image-validation-v1`、`project-image-export-v1`）；
+- 移除 5 个未导入孤立脚本、28,126 行历史语料归档 `style_v2_legacy_cases.json` 以及向历史版本倒推还原的 SHA-256 门禁；
+- `freeze.py` 保留纯正向模块化 fixture 刷新、CLR 反射核对、Server 路由 100% 双向匹配及 `backend/web/` 产物指纹；
+- `validate.py` 直接对当前 `1.60.0` 契约执行严格校验：OpenAPI 3.1 结构校验、全量内部 `$ref` 完整性、全量 Draft 2020-12 schema 合法性、全部正反例（3,984 例／2,862 反例）、`contract-manifest.json` 版本与产物 SHA-256 一致性，以及可选 `--http-log`／`--report`。
+- 当前合同规模：**103 个路径／115 个显式方法／686 个 schemas／106 种工程命令**。合同生成与静态校验不替代匹配发布、fresh HTTP 与运行回归验收。
 
 ## 检查当前合同
 
-使用仓库固定 .NET SDK 和 Python 3；Python验证依赖安装在仓库忽略的venv中，固定直接依赖版本，不修改系统Python或产品依赖。
+从仓库根目录执行（使用仓库固定 .NET SDK 与安装好 `requirements.txt` 的 Python 3 环境）：
 
 ```bash
-mkdir -p artifacts/api-contract
-python3 -m venv artifacts/api-contract/venv
-artifacts/api-contract/venv/bin/python -m pip install -r tools/backend-api-contract/requirements.txt
-flock -o /tmp/mkg-gpu-render-dotnet.lock dotnet build \
-  tools/backend-api-contract/ContractMetadata.csproj -c Release -m:1
-tools/backend-api-contract/bin/Release/net10.0/ContractMetadata \
-  artifacts/api-contract/clr-metadata.json
-python3 tools/backend-api-contract/freeze.py \
-  --metadata artifacts/api-contract/clr-metadata.json
-artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py \
-  --report artifacts/api-contract/validation.json
+# 方式一：自动运行 ContractMetadata.csproj 导出临时 CLR metadata 并检查零漂移
+python3 backend/tools/backend-api-contract/freeze.py --check
+
+# 方式二：先显式构建并导出 clr-metadata.json（如写入忽略目录 backend/artifacts/api-contract/）
+dotnet run --project backend/tools/backend-api-contract/ContractMetadata.csproj -- \
+  backend/artifacts/api-contract/clr-metadata.json
+python3 backend/tools/backend-api-contract/freeze.py \
+  --metadata backend/artifacts/api-contract/clr-metadata.json --check
+
+# 校验当前冻结 OpenAPI、$ref、Draft 2020-12 schemas、全量正反例及 manifest SHA-256
+python3 backend/tools/backend-api-contract/validate.py \
+  --report backend/artifacts/api-contract/validation.json
 ```
 
-每次新冻结必须先从当前源码执行上述dotnet build和刚生成的ContractMetadata apphost，不能复用其他提交生成的metadata。dotnet run会把不支持的-m:1透传为应用参数，因此此处将单节点编译与工具执行分开。默认freeze.py只检查，不改文件。检查内容：
+`freeze.py` 默认处于 `--check` 只读检查模式，不修改任何冻结文件。检查内容：
 
-- 编译Contracts后反射真实property类型、nullable、枚举、构造默认值与严格未知字段标记，再按显式公共路由图递归选取schema，排除私有Worker协议。派生record的继承属性必须匹配声明该属性的record构造参数；未知计算属性仍失败，不能跳过。
-- 单独审阅Server handler对应的HTTP DTO、匿名envelope、原始Core分析codec及跨字段语义覆盖；当前合同维护九十七个工程命令、五个模板库命令及作者配置分型，必填metadata、字符串Int64等由freeze.py维护。C#可空不等于HTTP可省略。
-- 自定义命令converter的具名分型分支通过显式type/CLR/字段映射审阅，反射得到的完整继承属性集合必须匹配；随后生成只含该分支wire字段的strict schema。旧五分支保留已知无关字段显式null兼容。批量时间声明1..1000条完整元素目标；重复目标、实际存在性与领域边界由服务校验。
-- S3a字段按真实converter维护：text必填非null但可空串；durationUs必填且允许显式null；afterLineId可省略/null；画布/帧率为正整数、四颜色为0..255整数；无入参type也拒绝无关null槽。feedback的selection明确区分保留选择建议、选择行与清空选择，不生成token/ruby复制映射。
-- S3b四来源命令保持nullable字段的presence语义：configure的language和link的primaryLineId必填但可null；add的language可省略。role/timingMode重用S1字符串enum，拒绝整数/null/未知枚举。来源ID按Core非空白原值校验，不新增128字符上限；branchResult仅为新增/删除真实变化提供实际来源选择，完整反馈继续受回执预算约束。
-- 元素结构五命令使用独立的非空白、最多128字符输入ID约束，不改变旧来源命令或时间schema。reassignTimeSlots/estimateTimes均必填非null布尔；segments为必填字符串数组、最多20000段（空数组形状合法），rule为六个显式字符串枚举。输入段数超限为413，空段/拼接/Unicode边界错误仍由真实领域回归核对422。tokenResult只有真实计数/建议选择，无身份映射；完整候选单行1MiB/20000条目、来源累计改变行16MiB预算由服务验收，schema不能证明预算或Core语义成立。
-- 再次导入/粘贴追加的destination按各命令独立strict union：import为existing/newBranch，append为existing/newTranslation；字段混用、缺失、显式null及primary新来源角色拒绝。options可省略，出现必须object；importerId/encodingName可null并允许未知提示回退，splitRule/estimateSplitTimes省略取none/false而显式null拒绝。metadata审阅抽象目的地record的非公开原构造参数，排除复制构造函数，仍拒绝未匹配属性。
-- importResult保真实行数/来源/行选择；仅文件导入有完整27字段report，offsetUs是有符号十进制Int64字符串，源行号0合法，原Error诊断与合法行可以并存。无问题maxSeverity省略；完整issues/候选/丢弃特征及切分统计不截断。逻辑准备工作64MiB、单行1MiB/20000项、新/替换行累计16MiB、实际配置完整回执预算及资源/写者/close/shutdown原子门禁，必须由服务与真实HTTP验收，schema不能证明内存或生命周期安全。
-- G11新增两个路径、三个方法：GET波形元数据、GET/HEAD峰值窗口。真实nullable DTO经显式oneOf覆盖：available=true全部音频/层级字段必填且不含reason；false仅session/available/reason/protocol四字段，reason精确noAudio/cacheBudgetExceeded/audioIdentityChanged。元数据不接受任何query；窗口waveformId/level/start/count四query全唯一必填，拒绝未知项，count1..8192，层末范围由Host核对。
-- 窗口是application/octet-stream，逐桶8字节Min/Max float32 little-endian（minmax-f32le-v1），不是JSON/PCM。HEAD所有状态无body、200保GET字节长度；ETag/If-None-Match可304且身份/归属先核，Range返回400 invalidRequest field=Range，不声明206/416。Host64MiB仅为已保留峰值payload，缓存不足不阻断create/open；source identity不绑歌词修订，也不承诺浏览器播放逐sample对齐。静态schema不证明float bits、缓存清理或时间基，须真实HTTP/Worker证据。
-- S1来源列表、歌词窗口及设置均声明必填expectedRevision；分页声明offset/limit范围、终页nextOffset省略及1MiB/20000条目的整体预算。schema只验证静态形状，跨页修订、offset不超过totalCount、合计条目与UTF-8字节预算继续由真实HTTP验证。
-- 源码中的显式MapGet/MapPost/MapPut/MapDelete/MapMethods与本轮预期126个显式方法（113路径，含5个兼容别名，精确值由fresh metadata生成后核对）双向比较，未识别映射方式直接失败。未来路由组/其他映射风格须更新提取器并审阅，不能让遗漏变成空结果。
-- 重生成内容与web/openapi.json、api-index.md及manifest逐字节一致；manifest覆盖行为正文、工具、Backend源码/项目及分析codec。内部无行为变化也会触发复核。
-- OpenAPI 3.1结构、全部引用、JSON Schema 2020-12、当前冻结的全部合成正反例（精确数量由validate报告固定；1.23历史1522例/1092反例，1.24迁移见下）、HEAD无body及操作身份唯一性；例子覆盖S2六命令、S3a十一命令、S3b四来源命令、五个元素结构命令、再次导入/粘贴追加两命令和预设五类目标／严格字段、完整元素/整行目标差别、微秒字符串、整数帧差、批次数量、分支无关字段拒绝、打点真实timingResult与内容feedback、来源branchResult和元素结构tokenResult。其余及旧五命令省略timingResult。
-
-静态样式增量以独立static_style_schema.py审阅24个typed属性union、四层target、read/write材质差别及required-null；Input独立限额不套legacy读取。manifest同时固定新增Application样式用例及canonical Core样式真值。756冻结例覆盖新目标／属性／null／静态材质／legacy大值；UTF-16、UTF-8和累计预算仍以服务实跑为准。
-
-这不是从C#自动推导所有业务语义。领域约束、身份/时序/租约、真实渲染、canonical字节和跨Runtime/Media修改继续要求相应HTTP及原有回归；manifest也不替代部署文件指纹。
+- 编译 `MakoKaraGenerator.Backend.Contracts` 后通过 `ContractMetadata.csproj` 反射真实属性类型、可空性、枚举、构造默认值与严格未知字段标记，再按显式公共路由图递归生成 schema，排除私有 Worker 协议。
+- 将 `ServerEndpoints*.cs` 中全部 `MapGet`/`MapPost`/`MapPut`/`MapDelete`/`MapMethods` 与 `freeze.py` 路由表做 100% 双向比较，未识别或遗漏的路由直接失败。
+- 核对重生成的 `backend/web/{openapi.json, api-index.md, examples.json, contract-manifest.json}` 与磁盘文件逐字节一致，并覆盖 `api-contract.md`、`frontend-workflows.md` 及相关后端源码指纹。
 
 ## 更新合同
 
-先按 [合同变更流程](../../web/api-contract.md#4-冻结后的双端变更流程)审阅实际行为差异；同步行为正文、工具映射/语义覆盖、合成例子及合同版本，再从当前代码导出metadata。本轮合同1.46.0增加精确作者源码声明检查与可选完整配置采用，并保留W8作者恢复、包文本编辑、源码历史/下载以及CPU/GPU选择与回显。P5合同1.38.1和0.105管线证据保留历史归属。显式写入：
+先按 [合同变更流程](../../web/api-contract.md#4-冻结后的双端变更流程) 审阅实际行为差异；同步行为文档、工具 schema/fixture 覆盖与合同版本号后，执行显式写入：
 
 ```bash
-python3 tools/backend-api-contract/freeze.py \
-  --metadata artifacts/api-contract/clr-metadata.json --write
+python3 backend/tools/backend-api-contract/freeze.py --write
+python3 backend/tools/backend-api-contract/freeze.py --check
+python3 backend/tools/backend-api-contract/validate.py
 ```
 
-之后重新执行默认检查及validate.py；不要直接编辑生成的OpenAPI/index/manifest。`--write`本身不代表差异已经批准或运行行为已经验证。新功能未实现前不能写入当前已实现规范，可在计划文档保存候选合同。
-
-`freeze.py`的`BASELINE`由审阅者固定为已提交的生产源码SHA，同时写入OpenAPI的`x-source-baseline`和manifest的`sourceBaselineCommit`；不是自动采用当前HEAD。metadata只导出CLR事实，不自行证明Git来源；必须先从该稳定源码重新构建/导出，再生成合同。manifest另按当前工作区逐文件记录源码与工具SHA，默认检查用于发现后续漂移；生产发布是否clean与输入匹配仍由发布manifest及Git核验独立证明。
+不要手工编辑生成的 `openapi.json`、`api-index.md`、`examples.json` 或 `contract-manifest.json`。`freeze.py` 中的 `BASELINE` 由审阅者固定为已提交的生产源码 SHA，同时写入 OpenAPI 的 `x-source-baseline` 和 manifest 的 `sourceBaselineCommit`；产品版本从 `backend/Directory.Build.props` 读取。
 
 ## 校验真实 HTTP 留档
 
-可选参数接受已经脱敏的、配对`*.request.json`/`*.response.json`留档，格式沿现有HTTP探针。它离线检查实际JSON响应，不重发请求，不读取bootstrap，不打印凭证。二进制/SSE、无配对文件及无映射请求分别跳过计数，不能把它们算成JSON验收。
+可选参数 `--http-log` 接受已脱敏的配对 `*.request.json`/`*.response.json` 留档，离线校验实际 JSON 请求与响应是否符合当前 OpenAPI schema（二进制/SSE、无配对文件及无映射请求分别跳过计数）：
 
 ```bash
-artifacts/api-contract/venv/bin/python tools/backend-api-contract/validate.py \
-  --http-log artifacts/backend-review-20261016/http-smoke \
-  --http-log artifacts/backend-review-20261016/no-audio-preview-final2 \
-  --report artifacts/api-contract/http-schema-validation.json
+python3 backend/tools/backend-api-contract/validate.py \
+  --http-log backend/artifacts/http-smoke \
+  --report backend/artifacts/api-contract/http-schema-validation.json
 ```
-
-本轮证据在`artifacts/backend-api-freeze-20261016/`：metadata工具首次编译因CA1869失败，改用缓存JsonSerializerOptions后通过；第一次留档验证因一个无配对二进制记录失败，修为显式跳过并记数。最终35例（23正/12反）、101份既有真实JSON响应通过，覆盖20个不同操作；另1份二进制留档未计入。该目录为本机证据，不提交原始HTTP会话或凭证，不把离线形状校验称作重新HTTP实跑。
-
-正常solution与独立metadata工具构建均零警告／错误；隔离metadata副本中把`LyricTokenDto.id`从string改为integer，默认检查明确拒绝OpenAPI漂移，未改生产源码。生产完整测试/浏览器/性能/长片仍按原暂停范围处理；本次未重新执行前轮982项产品回归。
 
 ## 独立模板库增量（0.84 / 合同1.9）
 

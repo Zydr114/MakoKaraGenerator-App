@@ -1,4 +1,4 @@
-"""Contract 1.56 Ruby layout additions with reversible 1.55 example upgrades."""
+"""Contract 1.56+ Ruby layout additions and forward style upgrades."""
 import copy
 
 from static_style_schema import PROPERTIES
@@ -14,35 +14,26 @@ def canonical(value):
     return len(CANONICAL_KEYS.intersection(value)) >= 3 and bool({"typography", "unsung", "sung", "wipe"}.intersection(value))
 
 
-def transform(value, upgrade=True):
+def transform(value):
     if isinstance(value, list):
-        result = [transform(item, upgrade) for item in value]
+        result = [transform(item) for item in value]
         if all(isinstance(item, dict) and set(item) == {"property", "sourcePath"} for item in result):
             paths = [item["property"] for item in result]
-            if upgrade and paths == OLD_PATHS:
+            if paths == OLD_PATHS:
                 sources = {item["property"]: item for item in result}
                 sources.update({path: {"property": path, "sourcePath": "project.baseStyle"} for path in RUBY_PATHS})
                 return [sources[path] for path in PROPERTIES]
-            if not upgrade and paths == PROPERTIES and all(item["sourcePath"] == "project.baseStyle" for item in result if item["property"] in RUBY_PATHS):
-                return [item for item in result if item["property"] not in RUBY_PATHS]
         return result
     if not isinstance(value, dict):
         return value
-    result = {key: transform(item, upgrade) for key, item in value.items()}
-    if canonical(result):
-        if upgrade and "ruby" not in result:
-            result["ruby"] = copy.deepcopy(RUBY_DEFAULT)
-        elif not upgrade and result.get("ruby") == RUBY_DEFAULT:
-            del result["ruby"]
+    result = {key: transform(item) for key, item in value.items()}
+    if canonical(result) and "ruby" not in result:
+        result["ruby"] = copy.deepcopy(RUBY_DEFAULT)
     return result
 
 
 def migrate_cases(cases):
     return [{**case, "value": transform(case["value"])} for case in cases]
-
-
-def restore_cases(cases):
-    return [{**case, "value": transform(case["value"], upgrade=False)} for case in cases]
 
 
 def fixtures():

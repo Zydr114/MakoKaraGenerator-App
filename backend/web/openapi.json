@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.59.0",
-    "description": "冻结合同1.59.0；HTTP协议1，产品0.116.1。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.60.0",
+    "description": "冻结合同1.60.0；HTTP协议1，产品0.116.1。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -20,7 +20,7 @@
   ],
   "x-product-version": "0.116.1",
   "x-http-protocol-version": "1",
-  "x-source-baseline": "d5d18653bb0891aa63f3fe7c42e7d8e6d5f0f3dc",
+  "x-source-baseline": "b5d4d71464a142cbc0e49806870526a5adb77e77",
   "x-behavior-contract": "api-contract.md",
   "x-options": {
     "status": 204,
@@ -2132,7 +2132,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -2160,24 +2160,6 @@
               }
             }
           }
-        },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
         },
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-receipt-location": "none"
@@ -3332,7 +3314,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -3517,24 +3499,6 @@
               }
             }
           }
-        },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
         },
         "x-receipt-location": "none"
       },
@@ -3705,7 +3669,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -3750,24 +3714,6 @@
             }
           }
         },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
-        },
         "x-source-material-failure": {
           "originKind": "sourceMaterialFailure",
           "maximumJsonBytes": 65536,
@@ -3784,7 +3730,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -3823,24 +3769,6 @@
             }
           }
         },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
-        },
         "x-source-material-failure": {
           "originKind": "sourceMaterialFailure",
           "maximumJsonBytes": 65536,
@@ -3857,7 +3785,7 @@
         "tags": [
           "section-10"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 0.100已保存工程Image背景正式验证有限来源见行为§10；独立Worker能力，复用既有job/report/diagnostics与取消、deadline、close排水。此0.100历史有限profile当时不覆盖图片export/measurement、video/font/preset组合；当前统一Runtime能力独立协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。",
         "x-behavior-section": "10",
         "parameters": [
           {
@@ -3902,16 +3830,6 @@
             }
           }
         },
-        "x-project-image-validation-profile": "project-image-validation-v1",
-        "x-project-image-validation-limits": {
-          "maxInputBytes": 4194272,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxReportBytes": 262144
-        },
         "x-receipt-location": "none"
       }
     },
@@ -3922,7 +3840,7 @@
         "tags": [
           "section-10"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 0.100已保存工程Image背景正式验证有限来源见行为§10；独立Worker能力，复用既有job/report/diagnostics与取消、deadline、close排水。此0.100历史有限profile当时不覆盖图片export/measurement、video/font/preset组合；当前统一Runtime能力独立协商。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。",
         "x-behavior-section": "10",
         "parameters": [
           {
@@ -3960,16 +3878,6 @@
               }
             }
           }
-        },
-        "x-project-image-validation-profile": "project-image-validation-v1",
-        "x-project-image-validation-limits": {
-          "maxInputBytes": 4194272,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxReportBytes": 262144
         },
         "x-receipt-location": "none"
       }
@@ -4829,7 +4737,7 @@
         "tags": [
           "section-9"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 0.99已保存工程Image背景有限预览见行为§22；该历史HTTP范围只接project预览。历史0.99图片能力不覆盖当时的export/measurement与模板候选；现行统一Runtime输入见本节P2扩展。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "9",
         "parameters": [
           {
@@ -4867,47 +4775,6 @@
           "maxPageItems": 128,
           "maxPages": 32
         },
-        "x-project-image-preview-profile": "project-image-preview-v1",
-        "x-project-image-preview-limits": {
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxSnapshotBytes": 4194280,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000
-        },
-        "x-project-image-preview-failures": [
-          {
-            "status": 503,
-            "code": "previewUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImagePreviewProfileMismatch"
-          },
-          {
-            "status": 503,
-            "code": "previewUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImagePreviewUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceChanged"
-          },
-          {
-            "status": 413,
-            "code": "resourceTooLarge",
-            "field": "background",
-            "failureCode": "SnapshotSizeExceeded"
-          }
-        ],
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-render-backend-values": [
           "cpu",
@@ -4934,7 +4801,7 @@
         "tags": [
           "section-9"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.99已保存工程Image背景有限预览见行为§22；该历史HTTP范围只接project预览。历史0.99图片能力不覆盖当时的export/measurement与模板候选；现行统一Runtime输入见本节P2扩展。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。",
         "x-behavior-section": "9",
         "parameters": [
           {
@@ -4972,15 +4839,6 @@
               }
             }
           }
-        },
-        "x-project-image-preview-profile": "project-image-preview-v1",
-        "x-project-image-preview-limits": {
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxSnapshotBytes": 4194280,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000
         },
         "x-receipt-location": "none"
       }
@@ -5051,7 +4909,7 @@
         "tags": [
           "section-9"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 0.99已保存工程Image背景有限预览见行为§22；该历史HTTP范围只接project预览。历史0.99图片能力不覆盖当时的export/measurement与模板候选；现行统一Runtime输入见本节P2扩展。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。",
         "x-behavior-section": "9",
         "parameters": [
           {
@@ -5104,15 +4962,6 @@
           "maxJsonBytes": 524288,
           "maxPageItems": 128,
           "maxPages": 32
-        },
-        "x-project-image-preview-profile": "project-image-preview-v1",
-        "x-project-image-preview-limits": {
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxSnapshotBytes": 4194280,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000
         },
         "x-receipt-location": "none"
       }
@@ -5183,7 +5032,7 @@
         "tags": [
           "section-9"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 0.99已保存工程Image背景有限预览见行为§22；该历史HTTP范围只接project预览。历史0.99图片能力不覆盖当时的export/measurement与模板候选；现行统一Runtime输入见本节P2扩展。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "9",
         "parameters": [
           {
@@ -5231,47 +5080,6 @@
           "maxPageItems": 128,
           "maxPages": 32
         },
-        "x-project-image-preview-profile": "project-image-preview-v1",
-        "x-project-image-preview-limits": {
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxSnapshotBytes": 4194280,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000
-        },
-        "x-project-image-preview-failures": [
-          {
-            "status": 503,
-            "code": "previewUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImagePreviewProfileMismatch"
-          },
-          {
-            "status": 503,
-            "code": "previewUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImagePreviewUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceChanged"
-          },
-          {
-            "status": 413,
-            "code": "resourceTooLarge",
-            "field": "background",
-            "failureCode": "SnapshotSizeExceeded"
-          }
-        ],
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-render-backend-values": [
           "cpu",
@@ -5874,71 +5682,6 @@
         "x-receipt-location": "body"
       }
     },
-    "/api/v1/project-sessions/{id}/edit-previews": {
-      "post": {
-        "operationId": "createEditPreview",
-        "summary": "创建或替换固定修订的只读编辑候选",
-        "tags": [
-          "section-6.12"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §6.12。 固定基础修订后复用单命令解释器创建只读候选，不改变工程/history；替换须匹配previewId与expectedPreviewGeneration，逐编辑反馈及candidateRevision沿现有preview会话返回。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
-        "x-behavior-section": "6.12",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PreviewSessionResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-runtime-input-profile": "runtime-project-input-v1",
-        "x-render-backend-values": [
-          "cpu",
-          "gpu"
-        ],
-        "x-render-backend-default": "existing-preview-or-startup",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectEditPreviewRequest"
-              }
-            }
-          }
-        },
-        "x-receipt-location": "metadata"
-      }
-    },
     "/api/v1/project-sessions/{id}/export-jobs": {
       "post": {
         "operationId": "exportProject",
@@ -5946,7 +5689,7 @@
         "tags": [
           "section-11"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
         "x-behavior-section": "11",
         "parameters": [
           {
@@ -5985,50 +5728,6 @@
             }
           }
         },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
-        },
-        "x-project-image-export-failures": [
-          {
-            "status": 503,
-            "code": "taskUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImageExportUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "exportInputRejected",
-            "field": "background",
-            "failureCode": "ProjectImageSourceUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "exportInputRejected",
-            "field": "background",
-            "failureCode": "ProjectImageSourceChanged"
-          },
-          {
-            "status": 413,
-            "code": "resourceTooLarge",
-            "field": "background",
-            "failureCode": "WorkerSnapshotBudgetExceeded"
-          }
-        ],
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-render-backend-values": [
           "cpu",
@@ -6853,7 +6552,7 @@
         "tags": [
           "section-13"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 只读，无metadata/回执/job，不创建preview资源；同一次真实Worker采样返回geometry与base64 PNG。layout代表试样，time为指定时间。候选测量须同时提供非null的previewId/expectedPreviewGeneration/candidateRevision并匹配同一owner、工程、generation与固定候选；基础expectedRevision仍核对当前工程。完整超限413，不截断。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 只读，无metadata/回执/job，不创建preview资源；同一次真实Worker采样返回geometry与base64 PNG。layout代表试样，time为指定时间。候选测量须同时提供非null的previewId/expectedPreviewGeneration/candidateRevision并匹配同一owner、工程、generation与固定候选；基础expectedRevision仍核对当前工程。完整超限413，不截断。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "13",
         "parameters": [
           {
@@ -6938,7 +6637,7 @@
         "tags": [
           "section-13"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 接受显式full草稿及固定库模板，包引用复用N05；保持精确来源与只读候选。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 接受显式full草稿及固定库模板，包引用复用N05；保持精确来源与只读候选。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "13",
         "parameters": [
           {
@@ -7307,65 +7006,6 @@
         "x-receipt-location": "none"
       }
     },
-    "/api/v1/project-sessions/{id}/resources/package-asset": {
-      "post": {
-        "operationId": "materializePackageResource",
-        "summary": "将已验证包内资源投影为当前客户端受控asset",
-        "tags": [
-          "section-17"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §17。",
-        "x-behavior-section": "17",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectPackageResourceAssetResponse"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectPackageResourceAssetRequest"
-              }
-            }
-          }
-        },
-        "x-receipt-location": "metadata"
-      }
-    },
     "/api/v1/project-sessions/{id}/save-jobs": {
       "post": {
         "operationId": "saveProject",
@@ -7630,7 +7270,7 @@
         "tags": [
           "section-10"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 0.100已保存工程Image背景正式验证有限来源见行为§10；独立Worker能力，复用既有job/report/diagnostics与取消、deadline、close排水。此0.100历史有限profile当时不覆盖图片export/measurement、video/font/preset组合；当前统一Runtime能力独立协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "10",
         "parameters": [
           {
@@ -7669,42 +7309,6 @@
             }
           }
         },
-        "x-project-image-validation-profile": "project-image-validation-v1",
-        "x-project-image-validation-limits": {
-          "maxInputBytes": 4194272,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxReportBytes": 262144
-        },
-        "x-project-image-validation-failures": [
-          {
-            "status": 503,
-            "code": "taskUnavailable",
-            "field": "worker",
-            "failureCode": "WorkerImageValidationUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceUnavailable"
-          },
-          {
-            "status": 422,
-            "code": "commandNotSupported",
-            "field": "background",
-            "failureCode": "ProjectImageSourceChanged"
-          },
-          {
-            "status": 413,
-            "code": "resourceTooLarge",
-            "field": "background",
-            "failureCode": "SnapshotSizeExceeded"
-          }
-        ],
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-render-backend-values": [
           "cpu",
@@ -8084,892 +7688,6 @@
         "x-receipt-location": "none"
       }
     },
-    "/api/v1/recovery-jobs": {
-      "get": {
-        "operationId": "recoveryJobs",
-        "summary": "读取旧主机持久任务记录",
-        "tags": [
-          "section-8"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §8。",
-        "x-behavior-section": "8",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RecoveryJobsResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-receipt-location": "none"
-      }
-    },
-    "/api/v1/recovery-jobs/{id}/analysis-result": {
-      "get": {
-        "operationId": "recoveredAnalysisResult",
-        "summary": "按profile权限读取旧主机完整分析",
-        "tags": [
-          "section-12"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §12。",
-        "x-behavior-section": "12",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          },
-          {
-            "$ref": "#/components/parameters/Range"
-          },
-          {
-            "$ref": "#/components/parameters/If-None-Match"
-          },
-          {
-            "$ref": "#/components/parameters/If-Range"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "206": {
-            "description": "单段部分字节；analysis片段不保证是完整JSON。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "304": {
-            "description": "If-None-Match命中，无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "416": {
-            "description": "无效/多段Range，无body；Content-Range: bytes */size。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "完整不可变内容；必须认证。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AudioAnalysisCanonical"
-                }
-              }
-            }
-          }
-        },
-        "x-receipt-location": "none"
-      },
-      "head": {
-        "operationId": "recoveredAnalysisResultHead",
-        "summary": "按profile权限读取旧主机完整分析",
-        "tags": [
-          "section-12"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §12。",
-        "x-behavior-section": "12",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          },
-          {
-            "$ref": "#/components/parameters/Range"
-          },
-          {
-            "$ref": "#/components/parameters/If-None-Match"
-          },
-          {
-            "$ref": "#/components/parameters/If-Range"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "错误状态沿GET，但HEAD传输没有响应body。"
-          },
-          "206": {
-            "description": "单段部分字节；analysis片段不保证是完整JSON。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "304": {
-            "description": "If-None-Match命中，无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "416": {
-            "description": "无效/多段Range，无body；Content-Range: bytes */size。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "完整不可变内容；必须认证。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "x-receipt-location": "none"
-      }
-    },
-    "/api/v1/recovery-jobs/{id}/export-content": {
-      "get": {
-        "operationId": "recoveredExportContent",
-        "summary": "按profile权限读取旧主机成片",
-        "tags": [
-          "section-11"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。",
-        "x-behavior-section": "11",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          },
-          {
-            "$ref": "#/components/parameters/Range"
-          },
-          {
-            "$ref": "#/components/parameters/If-None-Match"
-          },
-          {
-            "$ref": "#/components/parameters/If-Range"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "206": {
-            "description": "单段部分字节；analysis片段不保证是完整JSON。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "video/mp4": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "video/quicktime": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          },
-          "304": {
-            "description": "If-None-Match命中，无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "416": {
-            "description": "无效/多段Range，无body；Content-Range: bytes */size。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "完整不可变内容；必须认证。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "video/mp4": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "video/quicktime": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
-          }
-        },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
-        },
-        "x-receipt-location": "none"
-      },
-      "head": {
-        "operationId": "recoveredExportContentHead",
-        "summary": "按profile权限读取旧主机成片",
-        "tags": [
-          "section-11"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。",
-        "x-behavior-section": "11",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          },
-          {
-            "$ref": "#/components/parameters/Range"
-          },
-          {
-            "$ref": "#/components/parameters/If-None-Match"
-          },
-          {
-            "$ref": "#/components/parameters/If-Range"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "错误状态沿GET，但HEAD传输没有响应body。"
-          },
-          "206": {
-            "description": "单段部分字节；analysis片段不保证是完整JSON。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "304": {
-            "description": "If-None-Match命中，无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "416": {
-            "description": "无效/多段Range，无body；Content-Range: bytes */size。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "完整不可变内容；必须认证。HEAD无body。",
-            "headers": {
-              "ETag": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Accept-Ranges": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Length": {
-                "schema": {
-                  "type": "integer"
-                }
-              },
-              "Content-Range": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "Content-Disposition": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "x-receipt-location": "none"
-      }
-    },
-    "/api/v1/recovery-jobs/{id}/export-result": {
-      "get": {
-        "operationId": "recoveredExportResult",
-        "summary": "按profile权限读取旧主机导出报告",
-        "tags": [
-          "section-11"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §11。 0.101已保存工程Image导出使用独立project-image-export-v1 Worker能力；客户端仍只提交既有expectedRevision/format/includeAudio/metadata，Image任务的taskProfile/baseSourceProfile仅出现在登记job input/exportInput并由服务配对。此0.101历史独立图片导出profile只支持无预设三基础源且package无音轨；现行统一Runtime来源另行协商。 实际源材质失败停止导出并登记完整安全诊断；来源为sourceMaterialFailure，不制造脚本发生身份；表面超限附实际预算数值。",
-        "x-behavior-section": "11",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExportResultReport"
-                }
-              }
-            }
-          }
-        },
-        "x-project-image-export-profile": "project-image-export-v1",
-        "x-project-image-export-base-profiles": [
-          "static-lyrics-scene-v1",
-          "static-lyrics-scene-analysis-v1",
-          "package-lyrics-scene-v1"
-        ],
-        "x-project-image-export-limits": {
-          "maxInputBytes": 4194272,
-          "maxMetadataBytes": 32768,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxMediaBytes": 67108864,
-          "maxAudioBytes": 16777216,
-          "maxReportBytes": 262144
-        },
-        "x-source-material-failure": {
-          "originKind": "sourceMaterialFailure",
-          "maximumJsonBytes": 65536,
-          "runtimeOccurrence": false,
-          "budgetCode": "ImageSurfaceBudgetExceeded"
-        },
-        "x-receipt-location": "none"
-      }
-    },
-    "/api/v1/recovery-jobs/{id}/validation-result": {
-      "get": {
-        "operationId": "recoveredValidationResult",
-        "summary": "按profile权限读取旧主机验证报告",
-        "tags": [
-          "section-10"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 0.100已保存工程Image背景正式验证有限来源见行为§10；独立Worker能力，复用既有job/report/diagnostics与取消、deadline、close排水。此0.100历史有限profile当时不覆盖图片export/measurement、video/font/preset组合；当前统一Runtime能力独立协商。",
-        "x-behavior-section": "10",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationReportDtoRaw"
-                }
-              }
-            }
-          }
-        },
-        "x-project-image-validation-profile": "project-image-validation-v1",
-        "x-project-image-validation-limits": {
-          "maxInputBytes": 4194272,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxReportBytes": 262144
-        },
-        "x-receipt-location": "none"
-      }
-    },
     "/api/v1/render-backends": {
       "get": {
         "operationId": "renderBackends",
@@ -9020,7 +7738,7 @@
         "tags": [
           "section-9"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 0.99已保存工程Image背景有限预览见行为§22；该历史HTTP范围只接project预览。历史0.99图片能力不覆盖当时的export/measurement与模板候选；现行统一Runtime输入见本节P2扩展。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §9。 0.98直接效果包有限项目预览与完整诊断见行为§20；实际Worker能力门禁，不扩大B4/预设/媒体字体范围。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。",
         "x-behavior-section": "9",
         "parameters": [
           {
@@ -9057,15 +7775,6 @@
           "maxJsonBytes": 524288,
           "maxPageItems": 128,
           "maxPages": 32
-        },
-        "x-project-image-preview-profile": "project-image-preview-v1",
-        "x-project-image-preview-limits": {
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxSnapshotBytes": 4194280,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000
         },
         "x-runtime-input-profile": "runtime-project-input-v1",
         "x-receipt-location": "none"
@@ -9899,7 +8608,7 @@
         "tags": [
           "section-13"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。 接受显式full草稿及固定库模板，包引用复用N05；保持精确来源与只读候选。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。 接受显式full草稿及固定库模板，包引用复用N05；保持精确来源与只读候选。 显式设备选择见统一API§25；公共gpu实际使用Vulkan；不修改Host环境或其它客户端偏好。",
         "x-behavior-section": "13",
         "parameters": [
           {
@@ -10333,7 +9042,7 @@
         "tags": [
           "section-10"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 0.100已保存工程Image背景正式验证有限来源见行为§10；独立Worker能力，复用既有job/report/diagnostics与取消、deadline、close排水。此0.100历史有限profile当时不覆盖图片export/measurement、video/font/preset组合；当前统一Runtime能力独立协商。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant。旧图片有限profile的预算只适用于其历史路径；完整当前能力读取对应sourceProfiles。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §10。 P2共享固定Runtime输入按实际独立Worker能力消费媒体、包和预设闭包；HTTP不接主机路径或私有grant；完整当前能力读取对应sourceProfiles。",
         "x-behavior-section": "10",
         "parameters": [
           {
@@ -10362,402 +9071,7 @@
             }
           }
         },
-        "x-project-image-validation-profile": "project-image-validation-v1",
-        "x-project-image-validation-limits": {
-          "maxInputBytes": 4194272,
-          "maxImageBytes": 2097152,
-          "maxImageDimension": 4096,
-          "maxDecodedImageBytes": 16777216,
-          "maxBaseSnapshotBytes": 4194304,
-          "maxSourceValues": 200000,
-          "maxReportBytes": 262144
-        },
         "x-runtime-input-profile": "runtime-project-input-v1",
-        "x-receipt-location": "none"
-      }
-    },
-    "/assets": {
-      "post": {
-        "operationId": "uploadAssetAlias",
-        "summary": "上传恰好一个固定资源",
-        "tags": [
-          "section-5"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §5。 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。",
-        "x-behavior-section": "5",
-        "parameters": [
-          {
-            "name": "X-Mako-Request-Id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Mako-Host-Instance-Id",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "X-Mako-Valid-Until-Utc",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "fileName",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "原始上传的安全文件名。中文名使用URLSearchParams编码，避免Fetch头ByteString限制。"
-          },
-          {
-            "name": "X-Mako-Asset-Name",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            },
-            "description": "原始上传文件名备选；query优先。multipart也先取query/header，缺省才取文件part的filename。"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssetResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-canonical-path": "/api/v1/assets",
-        "requestBody": {
-          "required": true,
-          "description": "原始非空bytes须提供fileName或X-Mako-Asset-Name；multipart必须恰好一个文件，字段名任意（推荐file），filename优先query、其次header、最后文件part。该跨header/query/part门禁不由JSON Schema单独表达。实际MIME与字节配额读取capabilities。",
-          "content": {
-            "video/mp4": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "video/quicktime": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "video/webm": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "video/x-matroska": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "application/json": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "application/octet-stream": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "text/lrc": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "text/lyrics": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "application/ttml+xml": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/aac": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/flac": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/m4a": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/mp4": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/mpeg": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/ogg": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/wav": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/x-flac": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "audio/x-wav": {
-              "schema": {
-                "type": "string",
-                "format": "binary"
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              },
-              "encoding": {}
-            }
-          }
-        },
-        "x-receipt-location": "headers"
-      }
-    },
-    "/capabilities": {
-      "get": {
-        "operationId": "capabilitiesAlias",
-        "summary": "读取当前部署能力与限额",
-        "tags": [
-          "section-2"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §2。 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。",
-        "x-behavior-section": "2",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendCapabilitiesResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-canonical-path": "/api/v1/capabilities",
-        "x-receipt-location": "none"
-      }
-    },
-    "/health/live": {
-      "get": {
-        "operationId": "healthLiveAlias",
-        "summary": "读取存活与主机身份",
-        "tags": [
-          "section-2"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §2。 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。",
-        "x-behavior-section": "2",
-        "parameters": [],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-canonical-path": "/api/v1/health/live",
-        "security": [],
-        "x-receipt-location": "none"
-      }
-    },
-    "/project-sessions": {
-      "post": {
-        "operationId": "createProjectAlias",
-        "summary": "同步创建工程并返回摘要",
-        "tags": [
-          "section-6"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §6。 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。",
-        "x-behavior-section": "6",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectSessionSummaryResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-canonical-path": "/api/v1/project-sessions",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateProjectSessionRequest"
-              }
-            }
-          }
-        },
-        "x-receipt-location": "metadata"
-      }
-    },
-    "/project-sessions/{id}": {
-      "get": {
-        "operationId": "projectSummaryAlias",
-        "summary": "读取工程摘要",
-        "tags": [
-          "section-6"
-        ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §6。 兼容别名；新客户端使用对应/api/v1路径，认证/回执相同。",
-        "x-behavior-section": "6",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            },
-            "description": "采用服务返回的实际身份；不可由数组下标或本机路径推导。"
-          },
-          {
-            "$ref": "#/components/parameters/HostInstance"
-          }
-        ],
-        "responses": {
-          "default": {
-            "description": "统一BackendErrorResponse。HTTP状态/code映射及端点主要拒绝见行为§1.4与对应章节；不是RFC Problem Details。已开始的SSE/字节流若中断不保证还能返回JSON。",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BackendErrorResponse"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "成功；任务state及失败报告仍须检查。",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectSessionSummaryResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-canonical-path": "/api/v1/project-sessions/{id}",
         "x-receipt-location": "none"
       }
     }
@@ -15029,18 +13343,10 @@
             "type": "string"
           },
           "taskProfile": {
-            "type": "string",
-            "enum": [
-              "project-image-export-v1"
-            ]
+            "type": "string"
           },
           "baseSourceProfile": {
-            "type": "string",
-            "enum": [
-              "static-lyrics-scene-v1",
-              "static-lyrics-scene-analysis-v1",
-              "package-lyrics-scene-v1"
-            ]
+            "type": "string"
           },
           "quality": {
             "type": "string",
@@ -15071,34 +13377,7 @@
           "includeAudio",
           "quality"
         ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendExportInputDto",
-        "description": "普通导出省略taskProfile/baseSourceProfile；Image导出必须同时提供二者，并与job.input.sourceProfile配对。",
-        "allOf": [
-          {
-            "if": {
-              "required": [
-                "taskProfile"
-              ]
-            },
-            "then": {
-              "required": [
-                "baseSourceProfile"
-              ]
-            }
-          },
-          {
-            "if": {
-              "required": [
-                "baseSourceProfile"
-              ]
-            },
-            "then": {
-              "required": [
-                "taskProfile"
-              ]
-            }
-          }
-        ]
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendExportInputDto"
       },
       "BackendExportInputDtoRaw": {
         "type": "object",
@@ -15123,18 +13402,10 @@
             "type": "string"
           },
           "taskProfile": {
-            "type": "string",
-            "enum": [
-              "project-image-export-v1"
-            ]
+            "type": "string"
           },
           "baseSourceProfile": {
-            "type": "string",
-            "enum": [
-              "static-lyrics-scene-v1",
-              "static-lyrics-scene-analysis-v1",
-              "package-lyrics-scene-v1"
-            ]
+            "type": "string"
           },
           "quality": {
             "type": "string",
@@ -15166,34 +13437,7 @@
           "audio",
           "quality"
         ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendExportInputDto",
-        "description": "普通导出省略taskProfile/baseSourceProfile；Image导出必须同时提供二者，并与job.input.sourceProfile配对。",
-        "allOf": [
-          {
-            "if": {
-              "required": [
-                "taskProfile"
-              ]
-            },
-            "then": {
-              "required": [
-                "baseSourceProfile"
-              ]
-            }
-          },
-          {
-            "if": {
-              "required": [
-                "baseSourceProfile"
-              ]
-            },
-            "then": {
-              "required": [
-                "taskProfile"
-              ]
-            }
-          }
-        ]
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendExportInputDto"
       },
       "BackendFallbackDiagnostic": {
         "allOf": [
@@ -15486,13 +13730,11 @@
               "static-lyrics-scene-analysis-v1",
               "static-lyrics-scene-presets-v1",
               "package-lyrics-scene-v1",
-              "project-image-validation-v1",
-              "project-image-export-v1",
               "package-lyrics-scene-presets-v1",
               "runtime-project-input-v1",
               "author-script-sample-v1"
             ],
-            "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。历史Image导出profile另与exportInput任务字段配对。"
+            "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。"
           },
           "sourceSha256": {
             "type": "string",
@@ -15563,7 +13805,7 @@
           "frameRateDenominator"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendJobInputDto",
-        "description": "固定validation/export任务的实际输入；sourceProfile区分原静态、包、历史图片与统一Runtime来源，不能只按媒体类型推断。 authorDraft验证固定作者试样，源码修订为sha256，任务profile为author-script-sample-v1；DTO不包含taskProfile字段。",
+        "description": "固定validation/export任务的实际输入；sourceProfile区分静态、包与统一Runtime来源，不能只按媒体类型推断。 authorDraft验证固定作者试样，源码修订为sha256，任务profile为author-script-sample-v1；DTO不包含taskProfile字段。",
         "allOf": [
           {
             "if": {
@@ -15609,12 +13851,10 @@
                     "static-lyrics-scene-analysis-v1",
                     "static-lyrics-scene-presets-v1",
                     "package-lyrics-scene-v1",
-                    "project-image-validation-v1",
-                    "project-image-export-v1",
                     "package-lyrics-scene-presets-v1",
                     "runtime-project-input-v1"
                   ],
-                  "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。历史Image导出profile另与exportInput任务字段配对。"
+                  "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。"
                 }
               }
             }
@@ -15656,13 +13896,11 @@
               "static-lyrics-scene-analysis-v1",
               "static-lyrics-scene-presets-v1",
               "package-lyrics-scene-v1",
-              "project-image-validation-v1",
-              "project-image-export-v1",
               "package-lyrics-scene-presets-v1",
               "runtime-project-input-v1",
               "author-script-sample-v1"
             ],
-            "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。历史Image导出profile另与exportInput任务字段配对。"
+            "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。"
           },
           "sourceSha256": {
             "type": "string",
@@ -15741,7 +13979,7 @@
           "outputDurationUs"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.BackendJobInputDto",
-        "description": "固定validation/export任务的实际输入；sourceProfile区分原静态、包、历史图片与统一Runtime来源，不能只按媒体类型推断。 authorDraft验证固定作者试样，源码修订为sha256，任务profile为author-script-sample-v1；DTO不包含taskProfile字段。",
+        "description": "固定validation/export任务的实际输入；sourceProfile区分静态、包与统一Runtime来源，不能只按媒体类型推断。 authorDraft验证固定作者试样，源码修订为sha256，任务profile为author-script-sample-v1；DTO不包含taskProfile字段。",
         "allOf": [
           {
             "if": {
@@ -15787,12 +14025,10 @@
                     "static-lyrics-scene-analysis-v1",
                     "static-lyrics-scene-presets-v1",
                     "package-lyrics-scene-v1",
-                    "project-image-validation-v1",
-                    "project-image-export-v1",
                     "package-lyrics-scene-presets-v1",
                     "runtime-project-input-v1"
                   ],
-                  "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。历史Image导出profile另与exportInput任务字段配对。"
+                  "description": "实际协商并固定的来源profile；统一Runtime任务使用runtime-project-input-v1。"
                 }
               }
             }
@@ -19287,24 +17523,13 @@
             "type": "string"
           },
           "imageTaskProfile": {
-            "type": "string",
-            "enum": [
-              "project-image-export-v1"
-            ],
-            "description": "独立已保存Image导出任务profile；不改变sourceProfile兼容首选值。"
+            "type": "string"
           },
           "imageBaseProfiles": {
             "type": "array",
             "items": {
-              "type": "string",
-              "enum": [
-                "static-lyrics-scene-v1",
-                "static-lyrics-scene-analysis-v1",
-                "package-lyrics-scene-v1"
-              ]
-            },
-            "uniqueItems": true,
-            "description": "Image导出可用的基础snapshot来源；只公布实际Worker协商成功的三种基础profile。"
+              "type": "string"
+            }
           },
           "qualities": {
             "type": "array",
@@ -26486,8 +24711,7 @@
           "metadata"
         ],
         "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewProjectInputRequest",
-        "description": "固定工程ID和精确修订；Host根据完整源自动选择预览profile。图片仅从ProjectStore已加载的受管闭包固定，客户端不能提交profile、图片bytes、路径或grant。"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewProjectInputRequest"
       },
       "PreviewRenderBackendRequest": {
         "type": "object",
@@ -26530,7 +24754,7 @@
           "sourceProfile": {
             "type": "string",
             "const": "static-lyrics-scene-v1",
-            "description": "兼容单值，保持static-lyrics-scene-v1；当前输入能力读取sourceProfiles，不由此值推断图片支持。"
+            "description": "兼容单值，保持static-lyrics-scene-v1；当前实际输入能力读取sourceProfiles。"
           },
           "executionMode": {
             "type": "string"
@@ -26607,7 +24831,6 @@
                 "static-lyrics-scene-analysis-v1",
                 "static-lyrics-scene-presets-v1",
                 "package-lyrics-scene-v1",
-                "project-image-preview-v1",
                 "package-lyrics-scene-presets-v1",
                 "runtime-project-input-v1"
               ]
@@ -26633,8 +24856,7 @@
           "clientLeaseExpiryPolicy",
           "eventDelivery"
         ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewRuntimeInfoResponse",
-        "description": "Worker配置及启动时各独立来源探测的当前事实；enabled/status并非图片能力证明。GET不重新握手，创建及实际open再次核对能力。"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewRuntimeInfoResponse"
       },
       "PreviewSessionRequest": {
         "type": "object",
@@ -26690,7 +24912,6 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewSessionRequest",
-        "description": "固定工程ID和精确修订；Host根据完整源自动选择预览profile。图片仅从ProjectStore已加载的受管闭包固定，客户端不能提交profile、图片bytes、路径或grant。",
         "allOf": [
           {
             "if": {
@@ -26808,8 +25029,7 @@
           "committable",
           "renderBackend"
         ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewSessionResponse",
-        "description": "沿既有preview/generation/sourceRevision身份规则；不新增图片profile或原始图片/主机路径字段。packageClosure只表示包内闭包摘要。"
+        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.PreviewSessionResponse"
       },
       "PreviewSessionStateResponse": {
         "type": "object",
@@ -26821,8 +25041,7 @@
             "$ref": "#/components/schemas/BackendErrorResponse"
           },
           "renderFailureCode": {
-            "type": "string",
-            "description": "异步失败稳定码。图片完整解码失败为PackageImageDecodeFailed，尺寸/解码预算为PackageImageBudgetExceeded；复用WorkerPackageTimedOut/WorkerPackageCompilationFailed/WorkerRuntimeDiagnosticError等既有会话码。失败无latestFrame。"
+            "type": "string"
           }
         },
         "required": [
@@ -28272,79 +26491,6 @@
           }
         ],
         "description": "按数组顺序复用单命令解释器；不接受历史、资源导入、外部任务或嵌套批处理。不另设编辑项数门槛，完整候选与回执仍按实际配置验证。"
-      },
-      "ProjectEditPreviewRequest": {
-        "type": "object",
-        "properties": {
-          "expectedRevision": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-int64-string": true,
-            "description": "十进制Int64字符串；范围与领域关系由服务校验。前端保留字符串/BigInt。"
-          },
-          "edits": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProjectEditDtoInput"
-            }
-          },
-          "size": {
-            "$ref": "#/components/schemas/PreviewSizeDtoInput"
-          },
-          "alphaMode": {
-            "$ref": "#/components/schemas/PreviewAlphaMode",
-            "default": "opaque"
-          },
-          "previewId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expectedPreviewGeneration": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-int64-string": true,
-                "description": "十进制Int64字符串；范围与领域关系由服务校验。前端保留字符串/BigInt。"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "metadata": {
-            "$ref": "#/components/schemas/RequestMetadataDtoInput"
-          },
-          "renderBackend": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "cpu",
-                  "gpu"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "严格cpu/gpu；新候选省略/null使用启动默认，指定previewId替换现有候选时保留当前选择。"
-          }
-        },
-        "required": [
-          "expectedRevision",
-          "edits",
-          "size",
-          "metadata"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectEditPreviewRequest"
       },
       "ProjectEditResultDto": {
         "type": "object",
@@ -30061,82 +28207,6 @@
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectPackageClosureSummaryDto"
       },
-      "ProjectPackageResourceAssetRequest": {
-        "type": "object",
-        "properties": {
-          "expectedRevision": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-int64-string": true,
-            "description": "十进制Int64字符串；范围与领域关系由服务校验。前端保留字符串/BigInt。"
-          },
-          "resourceId": {
-            "type": "string"
-          },
-          "metadata": {
-            "$ref": "#/components/schemas/RequestMetadataDtoInput"
-          }
-        },
-        "required": [
-          "expectedRevision",
-          "resourceId",
-          "metadata"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectPackageResourceAssetRequest"
-      },
-      "ProjectPackageResourceAssetResponse": {
-        "type": "object",
-        "properties": {
-          "projectSessionId": {
-            "type": "string"
-          },
-          "projectRevision": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-int64-string": true,
-            "description": "十进制Int64字符串；范围与领域关系由服务校验。前端保留字符串/BigInt。"
-          },
-          "resourceId": {
-            "type": "string"
-          },
-          "packageId": {
-            "type": "string"
-          },
-          "packageRevision": {
-            "type": "string"
-          },
-          "packagePath": {
-            "type": "string"
-          },
-          "packageRole": {
-            "type": "string"
-          },
-          "asset": {
-            "$ref": "#/components/schemas/AssetResponse"
-          },
-          "contentUrl": {
-            "type": "string"
-          },
-          "protocolVersion": {
-            "type": "string",
-            "const": "1"
-          }
-        },
-        "required": [
-          "projectSessionId",
-          "projectRevision",
-          "resourceId",
-          "packageId",
-          "packageRevision",
-          "packagePath",
-          "packageRole",
-          "asset",
-          "contentUrl",
-          "protocolVersion"
-        ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectPackageResourceAssetResponse"
-      },
       "ProjectPresetApplicationDto": {
         "type": "object",
         "properties": {
@@ -31778,31 +29848,6 @@
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.RecoverProjectSessionRequest"
       },
-      "RecoveredJobResponse": {
-        "type": "object",
-        "properties": {
-          "job": {
-            "$ref": "#/components/schemas/JobResponse"
-          },
-          "previousHostInstanceId": {
-            "type": "string"
-          },
-          "outputRootGrantId": {
-            "type": "string"
-          },
-          "outputRelativePath": {
-            "type": "string"
-          },
-          "projectFileSha256": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "job",
-          "previousHostInstanceId"
-        ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.RecoveredJobResponse"
-      },
       "RecoveryCandidateResponse": {
         "type": "object",
         "properties": {
@@ -31844,25 +29889,6 @@
         },
         "required": [
           "candidates",
-          "protocolVersion"
-        ]
-      },
-      "RecoveryJobsResponse": {
-        "type": "object",
-        "properties": {
-          "jobs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecoveredJobResponse"
-            }
-          },
-          "protocolVersion": {
-            "type": "string",
-            "const": "1"
-          }
-        },
-        "required": [
-          "jobs",
           "protocolVersion"
         ]
       },
@@ -43215,7 +41241,7 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ValidationJobRequest",
-        "description": "精确expectedRevision、framesPerOutput与metadata；Host固定当前授权工程完整Runtime输入，不接受媒体bytes/path/profile/grant。旧图片profile的有限基础源保持兼容，当前统一runtime能力独立协商。"
+        "description": "精确expectedRevision、framesPerOutput与metadata；Host固定当前授权工程完整Runtime输入，不接受媒体bytes/path/profile/grant。"
       },
       "ValidationJobResultDto": {
         "type": "object",
@@ -43316,7 +41342,7 @@
               "static-lyrics-scene-presets-v1",
               "package-lyrics-scene-v1"
             ],
-            "description": "兼容首选来源保持static-lyrics-scene-v1；图片能力只由sourceProfiles的独立Worker探测证明。"
+            "description": "兼容的首选验证来源；实际可用来源见 sourceProfiles。"
           },
           "maxFramesPerOutput": {
             "type": "integer",
@@ -43420,7 +41446,6 @@
                 "static-lyrics-scene-analysis-v1",
                 "static-lyrics-scene-presets-v1",
                 "package-lyrics-scene-v1",
-                "project-image-validation-v1",
                 "package-lyrics-scene-presets-v1",
                 "runtime-project-input-v1"
               ]

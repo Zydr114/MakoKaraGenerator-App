@@ -1,6 +1,6 @@
 # 前端 API 调用速查
 
-本文是产品 **0.108.0**、API 合同 **1.40.0**、HTTP 协议 **1** 的前端使用顺序。它只描述当前公开 HTTP；字段形状以同一提交的 [openapi.json](openapi.json) 和 [api-contract.md](api-contract.md) 为准，跨请求语义以 [详细行为合同](../docs/architecture/backend-api.md) 为准。当前清单为 108 个路径、120 个显式方法、96 个工程命令。CPU/GPU选择与作者闭包分别按当前合同使用，各版本功能与性能证据单列。
+本文是产品 **0.116.1**、API 合同 **1.60.0**、HTTP 协议 **1** 的前端使用顺序。它只描述当前公开 HTTP；字段形状以同一提交的 [openapi.json](openapi.json) 和 [api-contract.md](api-contract.md) 为准，跨请求语义以 [详细行为合同](../docs/architecture/backend-api.md) 为准。当前清单为 103 个路径、115 个显式方法、106 个工程命令（准确计数以 [api-index.md](api-index.md) 为准）。CPU/GPU选择与作者闭包分别按当前合同使用，各版本功能与性能证据单列。
 
 ## 1. 从启动到第一个业务请求
 
@@ -111,9 +111,8 @@ HTTP seek 会创建新 generation，旧 generation 的迟到帧不会发布。�
 
 工程预览会话可以在**同一 client 所有的工程之间**换源：仍发送 `source.kind:"project"`，并提供目标工程的精确 `sourceId/sourceRevision`；服务重新捕获目标工程并推进 generation。工程来源与 `authorDraft` 来源不能互换，作者会话也不能换成另一个草稿；这类换源返回 `422 commandNotSupported`。authorDraft 会话只能在同一 `draftId` 内更新 draft/source 修订和试样选择，详见 §8。
 
-### 5.2 编辑候选、模板试样和 authorDraft
+### 5.2 预设候选、模板试样和 authorDraft
 
-- 工程编辑候选：`POST /api/v1/project-sessions/{id}/edit-previews`，候选只读，不改工程历史；候选的 `candidateRevision` 是不透明身份。
 - 预设候选：`POST /api/v1/project-sessions/{id}/preset-application-previews`，固定模板/草稿来源和目标；正式写入仍由工程 command 完成。
 - 模板固定试样：`POST /api/v1/template-preview-options` → `POST /api/v1/template-preview-sessions`，试样不创建工程。
 - 同帧测量：`POST /api/v1/project-sessions/{id}/orchestration/measurements`，读取真实 Worker 的 geometry/layout union 和 PNG；候选测量同时带 previewId、expectedPreviewGeneration、candidateRevision。
@@ -146,7 +145,7 @@ HTTP seek 会创建新 generation，旧 generation 的迟到帧不会发布。�
 
 ### 6.1 重启后的读取
 
-当前 live job 只属于当前 client/host。服务重启后重新 bootstrap/登记；不能用旧 access 或旧 client 读取 live job。profile-wide 恢复读取使用 `GET /api/v1/recovery-jobs`，再按登记的 job 类型调用 recovery-result/content 路由。恢复读取不恢复旧 owner，不自动重跑 unknown，也不把恢复结果放回 live job 列表。保留原报告的renderBackend；历史缺失值不根据当前默认补成CPU/GPU。
+当前 live job 只属于当前 client/host。服务重启后重新 bootstrap/登记；不能用旧 access 或旧 client 读取 live job。工程恢复候选使用 `GET /api/v1/recovery-candidates` 发现，再经 `POST /api/v1/project-sessions/recover-jobs` 显式恢复。
 
 ## 7. 完整模板和预设工坊
 

@@ -284,8 +284,12 @@ describe('语境化空格语义与打轴变速偏好工具', () => {
   it('前端 token-semantics 与后端 LyricTokenSemantics 规则完全一致', () => {
     expect(classifyToken(' ')).toBe('whitespace');
     expect(classifyToken('、')).toBe('punctuation');
+    expect(classifyToken('～')).toBe('punctuation');
     expect(classifyToken('ー')).toBe('content');
     expect(classifyToken('々')).toBe('content');
+    expect(classifyToken('♪')).toBe('content');
+    expect(classifyToken('🎵')).toBe('content');
+    expect(classifyToken('')).toBe('content');
 
     const en = [{ text: 'Hello' }, { text: ' ' }, { text: 'world' }];
     expect(derivePhraseEndHint(en, 0)).toBe(false);

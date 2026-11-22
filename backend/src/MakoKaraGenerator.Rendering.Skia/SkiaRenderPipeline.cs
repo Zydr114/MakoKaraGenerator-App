@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Collections.Immutable;
+using System.Runtime.ExceptionServices;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Media;
 using MakoKaraGenerator.Core.Projects;
@@ -43,6 +44,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
 {
     private readonly SkiaSceneGeometry _geometry;
     private readonly IBackgroundFrameSourceResolver _backgroundResolver;
+    private readonly bool _ownsBackgroundResolver;
     private readonly ImageSurfaceBudgetSession _surfaceBudget;
     private readonly bool _ownsSurfaceBudget;
     private readonly SceneImageEffectResources? _imageEffects;
@@ -89,6 +91,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         // explicit Vulkan initialization therefore cannot leak the layout engine or budget.
         _device = device ?? SkiaRenderDeviceFactory.Create();
         _deviceLifetime = device is null || ownsDevice ? new(_device) : null;
+        _ownsBackgroundResolver = backgroundResolver is null;
         _ownsSurfaceBudget = surfaceBudget is null;
         _imageEffects = imageEffects;
         _svgEffects = svgEffects;
@@ -110,7 +113,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             _spriteProgram?.Dispose();
             initializedGeometry?.Dispose();
             if (_ownsSurfaceBudget) initializedBudget?.Dispose();
-            if (backgroundResolver is null) initializedResolver?.Dispose();
+            if (_ownsBackgroundResolver) initializedResolver?.Dispose();
             _deviceLifetime?.Dispose();
             throw;
         }
@@ -460,17 +463,19 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
             return;
         }
 
-        _compositionProgram.Dispose();
-        if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose();
-        _spriteProgram?.Dispose();
-        if (_ownsSurfaceBudget) _surfaceBudget.Dispose();
-        _backgroundResolver.Dispose();
-
-        _geometry.Dispose();
-
-        _deviceLifetime?.Dispose();
-
         _disposed = true;
+        Exception? error = SkiaNativeResourceCleanup.Run(null,
+            _compositionProgram.Dispose,
+            () => { if (_isolationResources.IsValueCreated) _isolationResources.Value.Dispose(); },
+            () => _spriteProgram?.Dispose(),
+            () => { if (_ownsSurfaceBudget) _surfaceBudget.Dispose(); },
+            () => { if (_ownsBackgroundResolver) _backgroundResolver.Dispose(); },
+            _geometry.Dispose,
+            () => _deviceLifetime?.Dispose());
+        if (error is not null)
+        {
+            ExceptionDispatchInfo.Capture(error).Throw();
+        }
     }
 
     /// <summary>

@@ -45,13 +45,7 @@ internal sealed partial class FrameEffectHost
     {
         query.Budget.Endpoint(source, timeUs, query.Request.TimeUs);
         var scene = _geometry.GetSceneFrame(_snapshot, timeUs);
-        // No legacy instance is called during supplement queries. Reject only a
-        // legacy geometry writer whose real output binding can affect this source.
         V2AnchorWriters writers = new(this, source, scene);
-        foreach (var legacy in _instances.Where(static item => !item.IsPureText))
-            if (writers.May(legacy))
-                throw new EffectOutputException("FinalAnchorLegacyDependencyUnsupported",
-                    "最终锚点依赖有状态 v1 文字输出：" + legacy.Definition.Id.Value);
         var (continuous, start, end) = V2AnchorRegionCore(owner, source, timeUs, scene, writers, token);
         if (!continuous) return At(timeUs, timeUs, timeUs);
         long grid = SemanticSimulationGrid.IndexAtOrBefore(timeUs);
@@ -78,7 +72,7 @@ internal sealed partial class FrameEffectHost
                     // This call has no particle/visual reference, and keeps every
                     // loaded pure instance and its original Declare result.
                     text = Evaluate(nodeUs, query.Request.OutputMode, query.Request.Target, diagnostics, token,
-                        pureTextOnly: true, anchorBudget: query.Budget);
+                        anchorBudget: query.Budget);
                     long bytes = 1024L + text.FinalGeometry.Sum(static item => 768L + item.Clusters.Length * 192L)
                         + 512L * (text.FinalLineGeometry.Length + text.FinalMarkGeometry.Length + text.FinalGroupGeometry.Length);
                     query.Particles.ReserveBytes(owner.Pure!.ParticleOwner!, bytes, query.Request.TimeUs);

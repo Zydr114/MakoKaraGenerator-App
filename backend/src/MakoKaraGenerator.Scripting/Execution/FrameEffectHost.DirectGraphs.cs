@@ -13,7 +13,7 @@ internal sealed partial class FrameEffectHost
 
     private ActiveEffect LoadHostDirectGraph(CompiledFrameEffect definition)
     {
-        if (!definition.IsV2 || definition.Artifact is not null || definition.EntryType is not null
+        if (definition.Artifact is not null || definition.EntryType is not null
             || definition.PackageDeclaration is not EffectGraphDefinition graph)
             throw new EffectOutputException("InvalidDirectGraphActivity", "宿主直接图须为无 DLL 的固定 v2 图导出。");
         var scope = ResolvedSourceSubscription.Create(_timeline ?? throw new EffectOutputException("PureSourceIndexRequired", "纯图需要固定源订阅。"), definition.Binding, definition.Subscription);

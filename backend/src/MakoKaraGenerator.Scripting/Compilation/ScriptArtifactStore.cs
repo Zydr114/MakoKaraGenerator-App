@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -21,6 +22,7 @@ public static class ScriptArtifactStore
 {
     /// <summary>默认持久缓存配额 256 MiB；源码与 IPC 预算保持独立。</summary>
     public const long DefaultMaximumCacheBytes = 256L * 1024 * 1024;
+    internal static readonly TimeSpan DefaultLockTimeout = TimeSpan.FromSeconds(30);
     private static readonly string[] ArtifactFileNames = ["build.json", "effect.dll", "effect.pdb"];
     private static readonly JsonSerializerOptions Json = new()
     { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, RespectRequiredConstructorParameters = true, MaxDepth = 16 };
@@ -46,6 +48,25 @@ public static class ScriptArtifactStore
     public static string Publish(string root, ScriptCompilationResult result, ScriptArtifactBudget? budget = null,
         long maximumCacheBytes = DefaultMaximumCacheBytes, CancellationToken cancellationToken = default)
     {
+        var (effectiveBudget, manifest, bytes) = PreparePublish(root, result, budget, maximumCacheBytes);
+        Directory.CreateDirectory(root);
+        using var gate = AcquireLock(root, "cache", cancellationToken);
+        return PublishUnderLock(root, result, effectiveBudget, manifest, bytes, maximumCacheBytes, cancellationToken);
+    }
+
+    /// <summary>异步获取跨进程缓存锁并发布成功结果，避免阻塞线程池；已有代次必须完全匹配。</summary>
+    public static async Task<string> PublishAsync(string root, ScriptCompilationResult result, ScriptArtifactBudget? budget = null,
+        long maximumCacheBytes = DefaultMaximumCacheBytes, CancellationToken cancellationToken = default)
+    {
+        var (effectiveBudget, manifest, bytes) = PreparePublish(root, result, budget, maximumCacheBytes);
+        Directory.CreateDirectory(root);
+        using var gate = await AcquireLockAsync(root, "cache", cancellationToken).ConfigureAwait(false);
+        return PublishUnderLock(root, result, effectiveBudget, manifest, bytes, maximumCacheBytes, cancellationToken);
+    }
+
+    private static (ScriptArtifactBudget Budget, byte[] Manifest, long Bytes) PreparePublish(string root, ScriptCompilationResult result,
+        ScriptArtifactBudget? budget, long maximumCacheBytes)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(root); ArgumentNullException.ThrowIfNull(result);
         budget ??= ScriptArtifactBudget.Default; budget.Validate();
         if (result.Descriptor is not { } descriptor) throw new InvalidDataException("脚本产物缺少完整身份描述。");
@@ -54,7 +75,12 @@ public static class ScriptArtifactStore
         byte[] manifest = JsonSerializer.SerializeToUtf8Bytes(new ArtifactManifest(3, descriptor, result.Diagnostics), Json);
         if (manifest.LongLength > budget.MaximumManifestBytes) throw new InvalidDataException("脚本产物清单超过字节预算。");
         long bytes = checked(result.PeImage.Length + (long)result.PdbImage.Length + manifest.Length);
-        Directory.CreateDirectory(root); using var gate = AcquireLock(root, "cache", cancellationToken);
+        return (budget, manifest, bytes);
+    }
+
+    private static string PublishUnderLock(string root, ScriptCompilationResult result, ScriptArtifactBudget budget,
+        byte[] manifest, long bytes, long maximumCacheBytes, CancellationToken cancellationToken)
+    {
         CleanupStaging(root, cancellationToken);
         string final = Path.Combine(root, result.ArtifactHash);
         if (Directory.Exists(final))
@@ -115,10 +141,37 @@ public static class ScriptArtifactStore
     public static ScriptArtifactLease? TryAcquireLease(string root, string artifactHash, ScriptArtifactBudget? budget,
         long? maximumCacheBytes, CancellationToken cancellationToken = default)
     {
+        var effectiveBudget = ValidateLeaseInputs(root, artifactHash, budget, maximumCacheBytes);
+        using var gate = AcquireLock(root, "cache", cancellationToken);
+        return TryAcquireLeaseUnderLock(root, artifactHash, effectiveBudget, maximumCacheBytes, cancellationToken);
+    }
+
+    /// <summary>异步获取跨进程缓存锁并检查产物租约；正常淘汰竞争返回缓存未命中。</summary>
+    public static Task<ScriptArtifactLease?> TryAcquireLeaseAsync(string root, string artifactHash, ScriptArtifactBudget? budget = null,
+        CancellationToken cancellationToken = default)
+        => TryAcquireLeaseAsync(root, artifactHash, budget, null, cancellationToken);
+
+    /// <summary>异步获取跨进程缓存锁并取用产物租约，同时可在同一闸门内执行配额清理。</summary>
+    public static async Task<ScriptArtifactLease?> TryAcquireLeaseAsync(string root, string artifactHash, ScriptArtifactBudget? budget,
+        long? maximumCacheBytes, CancellationToken cancellationToken = default)
+    {
+        var effectiveBudget = ValidateLeaseInputs(root, artifactHash, budget, maximumCacheBytes);
+        using var gate = await AcquireLockAsync(root, "cache", cancellationToken).ConfigureAwait(false);
+        return TryAcquireLeaseUnderLock(root, artifactHash, effectiveBudget, maximumCacheBytes, cancellationToken);
+    }
+
+    private static ScriptArtifactBudget ValidateLeaseInputs(string root, string artifactHash, ScriptArtifactBudget? budget, long? maximumCacheBytes)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(root); ScriptCompilationInput.ValidateHash(artifactHash);
         if (maximumCacheBytes is { } maximum) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
         budget ??= ScriptArtifactBudget.Default; budget.Validate();
-        using var gate = AcquireLock(root, "cache", cancellationToken); CleanupStaging(root, cancellationToken);
+        return budget;
+    }
+
+    private static ScriptArtifactLease? TryAcquireLeaseUnderLock(string root, string artifactHash, ScriptArtifactBudget budget,
+        long? maximumCacheBytes, CancellationToken cancellationToken)
+    {
+        CleanupStaging(root, cancellationToken);
         string directory = Path.Combine(root, artifactHash);
         if (!Directory.Exists(directory)) return null;
         var lease = OpenLease(root, artifactHash, FileShare.Read);
@@ -307,17 +360,54 @@ public static class ScriptArtifactStore
         return new(path, FileMode.OpenOrCreate, FileAccess.Read, share);
     }
     private static string LeasePath(string root, string hash) => Path.Combine(root, ".locks", "lease-" + hash);
-    private static FileStream AcquireLock(string root, string name, CancellationToken token)
-        => AcquireLockAsync(root, name, token).GetAwaiter().GetResult();
-    private static async Task<FileStream> AcquireLockAsync(string root, string name, CancellationToken token)
+    internal static FileStream AcquireLock(string root, string name, CancellationToken token, TimeSpan? timeout = null)
     {
+        TimeSpan effectiveTimeout = timeout ?? DefaultLockTimeout;
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(effectiveTimeout, TimeSpan.Zero, nameof(timeout));
         string folder = Path.Combine(root, ".locks"); Directory.CreateDirectory(folder); RejectLink(folder);
         string path = Path.Combine(folder, name); RejectLink(path);
+        long startedAt = Stopwatch.GetTimestamp();
         while (true)
         {
             token.ThrowIfCancellationRequested();
             try { return new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-            catch (IOException error) when (IsSharingViolation(error)) { await Task.Delay(20, token).ConfigureAwait(false); }
+            catch (IOException error) when (IsSharingViolation(error))
+            {
+                TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
+                if (elapsed >= effectiveTimeout)
+                    throw new TimeoutException($"等待脚本产物文件锁 '{name}' 超时（>{effectiveTimeout.TotalSeconds:0.###}s）。", error);
+                int delayMs = (int)Math.Min(20, Math.Max(1, Math.Ceiling((effectiveTimeout - elapsed).TotalMilliseconds)));
+                if (token.CanBeCanceled)
+                {
+                    if (token.WaitHandle.WaitOne(delayMs)) token.ThrowIfCancellationRequested();
+                }
+                else
+                {
+                    Thread.Sleep(delayMs);
+                }
+            }
+        }
+    }
+
+    internal static async Task<FileStream> AcquireLockAsync(string root, string name, CancellationToken token, TimeSpan? timeout = null)
+    {
+        TimeSpan effectiveTimeout = timeout ?? DefaultLockTimeout;
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(effectiveTimeout, TimeSpan.Zero, nameof(timeout));
+        string folder = Path.Combine(root, ".locks"); Directory.CreateDirectory(folder); RejectLink(folder);
+        string path = Path.Combine(folder, name); RejectLink(path);
+        long startedAt = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            try { return new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException error) when (IsSharingViolation(error))
+            {
+                TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
+                if (elapsed >= effectiveTimeout)
+                    throw new TimeoutException($"等待脚本产物文件锁 '{name}' 超时（>{effectiveTimeout.TotalSeconds:0.###}s）。", error);
+                int delayMs = (int)Math.Min(20, Math.Max(1, Math.Ceiling((effectiveTimeout - elapsed).TotalMilliseconds)));
+                await Task.Delay(delayMs, token).ConfigureAwait(false);
+            }
         }
     }
     private static bool IsSharingViolation(IOException error) => (error.HResult & 0xffff) is 11 or 32 or 33;

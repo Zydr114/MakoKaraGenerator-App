@@ -277,6 +277,32 @@ public sealed class SharedCompilationTests
         Assert.Equal(1, compiler.CompilationCount);
     }
 
+    [Fact]
+    public async Task 异步发布与租约及文件锁超时上限生效不永久挂死()
+    {
+        using TemporaryDirectory temporary = new();
+        var compiler = new ScriptCompiler(References);
+        var compiled = await compiler.CompileAsync(Sources(), ["Probe"]);
+        Assert.True(compiled.Succeeded);
+
+        string published = await ScriptArtifactStore.PublishAsync(temporary.Path, compiled);
+        Assert.True(Directory.Exists(published));
+        using (var lease = await ScriptArtifactStore.TryAcquireLeaseAsync(temporary.Path, compiled.ArtifactHash))
+        {
+            Assert.NotNull(lease);
+            Assert.Equal(compiled.ArtifactHash, lease!.Artifact.ArtifactHash);
+        }
+
+        using var held = await ScriptArtifactStore.AcquireLockAsync(temporary.Path, "timeout-probe", CancellationToken.None, TimeSpan.FromSeconds(5));
+        var asyncTimeout = await Assert.ThrowsAsync<TimeoutException>(() =>
+            ScriptArtifactStore.AcquireLockAsync(temporary.Path, "timeout-probe", CancellationToken.None, TimeSpan.FromMilliseconds(80)));
+        Assert.IsType<IOException>(asyncTimeout.InnerException);
+
+        var syncTimeout = Assert.Throws<TimeoutException>(() =>
+            ScriptArtifactStore.AcquireLock(temporary.Path, "timeout-probe", CancellationToken.None, TimeSpan.FromMilliseconds(80)));
+        Assert.IsType<IOException>(syncTimeout.InnerException);
+    }
+
     private static async Task WaitForReady(string root, string label)
     {
         var elapsed = Stopwatch.StartNew();

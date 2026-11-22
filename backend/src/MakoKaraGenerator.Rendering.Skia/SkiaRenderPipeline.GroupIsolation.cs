@@ -58,7 +58,7 @@ public sealed partial class SkiaRenderPipeline
             {
                 var owner = group.Opacity!;
                 diagnostics.Add(new(owner.InstanceId, owner.ArtifactHash, "RenderGroupIsolation", request.TimeUs,
-                    new(DiagnosticSeverity.Warning, "GroupIsolationChangesOrder", "组 " + owner.Opacity.Target.NodeId.Value + " 的后代原本与外部内容交错；组隔离后作为连续单位在首项位置合成喵。")) { PackageIdentity = owner.PackageIdentity });
+                    new(DiagnosticSeverity.Warning, "GroupIsolationChangesOrder", "组 " + owner.Opacity.Target.NodeId.Value + " 的后代原本与外部内容交错；组隔离后作为连续单位在首项位置合成。")) { PackageIdentity = owner.PackageIdentity });
             }
         DrawChildren(main, root);
 

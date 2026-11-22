@@ -131,7 +131,8 @@ public sealed class ScriptCompiler : IScriptCompilationService
         using IDisposable? processLock = _artifactRoot is null ? null
             : await ScriptArtifactStore.AcquireCompilationLockAsync(_artifactRoot, input.ArtifactHash, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
-        using var lease = _artifactRoot is null ? null : ScriptArtifactStore.TryAcquireLease(_artifactRoot, input.ArtifactHash, _artifactBudget, _maximumCacheBytes, token);
+        using var lease = _artifactRoot is null ? null
+            : await ScriptArtifactStore.TryAcquireLeaseAsync(_artifactRoot, input.ArtifactHash, _artifactBudget, _maximumCacheBytes, token).ConfigureAwait(false);
         if (lease is not null)
         {
             var cached = lease.Artifact;
@@ -140,11 +141,11 @@ public sealed class ScriptCompiler : IScriptCompilationService
             return cached;
         }
         await CompilationGate.WaitAsync(token).ConfigureAwait(false);
-        try { return Compile(input, token); }
+        try { return await CompileAsyncCore(input, token).ConfigureAwait(false); }
         finally { CompilationGate.Release(); }
     }
 
-    private ScriptCompilationResult Compile(ScriptCompilationInput input, CancellationToken token)
+    private async Task<ScriptCompilationResult> CompileAsyncCore(ScriptCompilationInput input, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         string fingerprint = input.ArtifactHash;
@@ -174,7 +175,8 @@ public sealed class ScriptCompiler : IScriptCompilationService
         if (result.Succeeded)
         {
             result = result with { Descriptor = ScriptArtifactDescriptor.Create(input, result) };
-            if (_artifactRoot is not null) ScriptArtifactStore.Publish(_artifactRoot, result, _artifactBudget, _maximumCacheBytes, token);
+            if (_artifactRoot is not null)
+                await ScriptArtifactStore.PublishAsync(_artifactRoot, result, _artifactBudget, _maximumCacheBytes, token).ConfigureAwait(false);
             else result.Descriptor.ValidateResult(result, _artifactBudget);
         }
         return result;

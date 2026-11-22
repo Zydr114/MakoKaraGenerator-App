@@ -185,6 +185,7 @@ public sealed class GroupOpacityIsolationTests
         using var fresh = cached.Render(request); using var hit = cached.Render(request);
         var diagnostic = Assert.Single(fresh.SceneDiagnostics);
         Assert.Equal("GroupIsolationChangesOrder", diagnostic.Diagnostic.Code); Assert.Equal("group", diagnostic.InstanceId.Value);
+        Assert.EndsWith("合成。", diagnostic.Diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal(fresh.SceneDiagnostics.ToArray(), hit.SceneDiagnostics.ToArray()); Assert.Equal(fresh.Pixels.ToArray(), hit.Pixels.ToArray());
         Close(CapturedReference(request, .5), fresh.Pixels.ToArray());
     }

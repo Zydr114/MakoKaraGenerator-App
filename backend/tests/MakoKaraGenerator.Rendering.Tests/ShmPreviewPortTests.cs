@@ -326,6 +326,99 @@ public sealed class ShmPreviewPortTests
         frame.Lease.ReleaseAfterConsumerCompletion(frame.Lease.Token);
     }
 
+    [Fact]
+    public void ReadPixels抛出异常时透传InnerException并隔离端口()
+    {
+        using var inner = new CpuSkiaRenderDevice();
+        var rootCause = new InvalidOperationException("simulated readback fault");
+        using var throwing = new HookedRenderDevice(inner, (_, _, _, _) => throw rootCause);
+        var target = new RenderTarget { PixelWidth = 64, PixelHeight = 64 };
+        ulong seq = 0;
+        bool streamFailed = false;
+        using var backing = new UnmanagedMemoryShmBacking(64 * 64 * 4 * 3);
+        var port = new ShmPreviewPort(
+            throwing.SynchronizationRoot,
+            throwing.PreviewIdentity,
+            target,
+            PreviewPixelFormat.Bgra8888,
+            requestedStrideBytes: 0,
+            producerEpoch: 1,
+            poolGeneration: 1,
+            maximumAllocationBytes: 1024 * 1024,
+            shmToken: null,
+            failStream: () => streamFailed = true,
+            nextSequence: () => ++seq,
+            customBacking: backing);
+
+        var info = new SKImageInfo(64, 64, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using (IPreviewFrameTarget frameTarget = port.BeginFrame(throwing, info, target))
+        {
+            var error = Assert.Throws<GpuPreviewException>(() => frameTarget.Commit());
+            Assert.Equal("PreviewReadbackFailed", error.Code);
+            Assert.Same(rootCause, error.InnerException);
+            Assert.True(streamFailed);
+        }
+
+        var disposeError = Assert.Throws<GpuPreviewException>(() => port.Dispose());
+        Assert.Equal("GpuPreviewNotDrained", disposeError.Code);
+    }
+
+    [Fact]
+    public async Task 并发Dispose必须等待ReadPixels退出而不提前释放共享后备内存()
+    {
+        using var inner = new CpuSkiaRenderDevice();
+        using var enteredReadPixels = new ManualResetEventSlim(false);
+        using var allowReadPixelsFinish = new ManualResetEventSlim(false);
+        using var backing = new TrackingShmBacking(64 * 64 * 4 * 3);
+        bool backingDisposedDuringReadPixels = false;
+
+        using var hooked = new HookedRenderDevice(inner, (surface, info, destination, rowBytes) =>
+        {
+            enteredReadPixels.Set();
+            Assert.True(allowReadPixelsFinish.Wait(TimeSpan.FromSeconds(5)));
+            backingDisposedDuringReadPixels = backing.Disposed;
+            return inner.ReadPixels(surface, info, destination, rowBytes);
+        });
+
+        var target = new RenderTarget { PixelWidth = 64, PixelHeight = 64 };
+        ulong seq = 0;
+        var port = new ShmPreviewPort(
+            hooked.SynchronizationRoot,
+            hooked.PreviewIdentity,
+            target,
+            PreviewPixelFormat.Bgra8888,
+            requestedStrideBytes: 0,
+            producerEpoch: 1,
+            poolGeneration: 1,
+            maximumAllocationBytes: 1024 * 1024,
+            shmToken: null,
+            failStream: () => { },
+            nextSequence: () => ++seq,
+            customBacking: backing);
+
+        var info = new SKImageInfo(64, 64, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using IPreviewFrameTarget frameTarget = port.BeginFrame(hooked, info, target);
+        Task<PreviewFrameLease> commitTask = Task.Run(() => frameTarget.Commit());
+        Assert.True(enteredReadPixels.Wait(TimeSpan.FromSeconds(5)));
+
+        Task disposeTask = Task.Run(() =>
+        {
+            // Commit 尚未返回且有未归还租约，Dispose 会按协议抛出 GpuPreviewNotDrained，但绝不能在 ReadPixels 期间释放 backing。
+            Assert.Throws<GpuPreviewException>(() => port.Dispose());
+        });
+
+        // 给并发 Dispose 足够时间到达锁等待点；在 ReadPixels 结束前 backing 必须仍存活。
+        await Task.Delay(80);
+        Assert.False(backing.Disposed);
+        Assert.False(disposeTask.IsCompleted);
+
+        allowReadPixelsFinish.Set();
+        using PreviewFrameLease lease = await commitTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(backingDisposedDuringReadPixels);
+        Assert.True(backing.Disposed);
+    }
+
     [DllImport("kernel32.dll", EntryPoint = "OpenFileMappingW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr Win32TestOpenFileMappingW(uint dwDesiredAccess, int bInheritHandle, string lpName);
 
@@ -363,5 +456,39 @@ public sealed class ShmPreviewPortTests
             inner.ReadPixels(image, imageInfo, destination, rowBytes);
 
         public void Dispose() => inner.Dispose();
+    }
+
+    private sealed class HookedRenderDevice(
+        ISkiaRenderDevice inner,
+        Func<SKSurface, SKImageInfo, IntPtr, int, bool> readPixels) : ISkiaRenderDevice
+    {
+        public object SynchronizationRoot => inner.SynchronizationRoot;
+        public SkiaRenderDeviceInfo Info => inner.Info;
+        public PreviewDeviceIdentity PreviewIdentity => inner.PreviewIdentity;
+        public SKSurface CreateSurface(SKImageInfo imageInfo) => inner.CreateSurface(imageInfo);
+        public void FlushAndSubmit(SKSurface surface) => inner.FlushAndSubmit(surface);
+        public SKImage? RasterizeImage(SKImage image) => inner.RasterizeImage(image);
+        public bool ReadPixels(SKSurface surface, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+            => readPixels(surface, imageInfo, destination, rowBytes);
+        public bool ReadPixels(SKImage image, SKImageInfo imageInfo, IntPtr destination, int rowBytes)
+            => inner.ReadPixels(image, imageInfo, destination, rowBytes);
+        public void Dispose() => inner.Dispose();
+    }
+
+    private sealed class TrackingShmBacking(ulong totalBytes) : IShmPoolBacking
+    {
+        private readonly UnmanagedMemoryShmBacking _inner = new(totalBytes);
+        private int _disposed;
+
+        public bool Disposed => Volatile.Read(ref _disposed) != 0;
+        public string ResourceName => _inner.ResourceName;
+        public IntPtr BasePointer => _inner.BasePointer;
+        public ulong TotalBytes => _inner.TotalBytes;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            _inner.Dispose();
+        }
     }
 }

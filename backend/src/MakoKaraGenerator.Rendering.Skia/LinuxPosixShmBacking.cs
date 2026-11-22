@@ -125,7 +125,15 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
         }
     }
 
+    ~LinuxPosixShmBacking() => DisposeCore();
+
     public void Dispose()
+    {
+        DisposeCore();
+        GC.SuppressFinalize(this);
+    }
+
+    private void DisposeCore()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         IntPtr current = Interlocked.Exchange(ref _pointer, IntPtr.Zero);
@@ -135,7 +143,10 @@ internal sealed partial class LinuxPosixShmBacking : IShmPoolBacking
         }
 
         // 若消费者在 openReadOnly 中已先行 unlink，此处忽略 ENOENT 幂等兜底。
-        _ = PosixUnlink(ResourceName);
+        if (!string.IsNullOrEmpty(ResourceName))
+        {
+            _ = PosixUnlink(ResourceName);
+        }
     }
 
     private static string ValidateOrGenerateToken(string? token)

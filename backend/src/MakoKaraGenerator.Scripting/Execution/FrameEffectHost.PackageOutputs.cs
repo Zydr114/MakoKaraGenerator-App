@@ -41,11 +41,8 @@ internal sealed partial class FrameEffectHost
         if (!declaration.Outputs.Any(item => item.Kind == "ImageGraph" && item.Target == target))
             throw new EffectOutputException("UndeclaredPackageOutput", "图目标未在固定包控制器输出中声明：" + target);
         var package = definition.PackageDefinition ?? throw new EffectOutputException("PackageDefinitionMissing", "真实图绑定须有完整固定包定义。");
-        if (definition.IsV2)
-        {
-            if (!package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
-                throw new EffectOutputException("UndeclaredCapability", "包未声明能力：image.graph");
-        }
+        if (!package.Contents.Requires.Contains(V2.CapabilityNames.ImageGraph, StringComparer.Ordinal))
+            throw new EffectOutputException("UndeclaredCapability", "包未声明能力：image.graph");
         var graph = package.GetGraph(binding.Graph.Identity.ExportId);
         if (!graph.BindingKinds.Contains(PackageSdkParameters.BindingKind(definition.Binding), StringComparer.Ordinal))
             throw new EffectOutputException("PackageBindingNotAllowed", "图导出未允许该实例绑定类别。");
@@ -53,8 +50,7 @@ internal sealed partial class FrameEffectHost
         if (declared.Length == 0) throw new EffectOutputException("UndeclaredPackageOutput", "图导出未声明本次真实目标类别。");
         if (declared.Length != 1 || declaration.Outputs.Count(item => item.Kind == "ImageGraph" && item.Target == target) != 1)
             throw new EffectOutputException("PackageOutputPlanPending", "多个同类别具名输出须接入完整执行计划，不能猜测。");
-        bool RequiresPending(EffectOutputDefinition output) => !output.Requires.IsEmpty
-            && (!definition.IsV2 || output.Requires.Any(requirement => !GroupGraphEffectAdmission.IsAllowedRequirement(output, requirement)));
+        bool RequiresPending(EffectOutputDefinition output) => output.Requires.Any(requirement => !GroupGraphEffectAdmission.IsAllowedRequirement(output, requirement));
         var controllerOutput = declaration.Outputs.Single(item => item.Kind == "ImageGraph" && item.Target == target);
         if (binding.Target is ImageEffectTarget.Group)
         {
@@ -66,7 +62,7 @@ internal sealed partial class FrameEffectHost
             catch (EffectPackageException error) { throw new EffectOutputException(error.Code, error.Message); }
         }
         if (RequiresPending(declared[0]) || !declared[0].DependsOn.IsEmpty
-            || (definition.IsV2 && (RequiresPending(controllerOutput) || !controllerOutput.DependsOn.IsEmpty)))
+            || RequiresPending(controllerOutput) || !controllerOutput.DependsOn.IsEmpty)
             throw new EffectOutputException("PackageOutputPlanPending", "图导出或控制器的额外能力／跨输出执行计划尚未接通。");
         if (controllerOutput.Bypass is not null && controllerOutput.Bypass != declared[0].Bypass)
             throw new EffectOutputException("PackageGraphBypassMismatch", "控制器旁路与本次绑定的真实图导出不一致。");

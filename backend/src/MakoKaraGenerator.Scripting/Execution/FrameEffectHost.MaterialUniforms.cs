@@ -13,22 +13,6 @@ internal sealed partial class FrameEffectHost
 
         internal void Observe(ActiveEffect active, FrameOutput output, GraphBindingBudget budget, CancellationToken token)
         {
-            if (!active.Definition.IsV2)
-            {
-                // Legacy edits retain their existing eager identity semantics, but
-                // a real legacy replacement also closes any preceding v2 scope.
-                foreach (var item in output.TokenStyles.Select(item => (Target: (TextTarget)new TextTarget.Family(item.Target), Update: item.Update))
-                    .Concat(output.MarkStyles.Select(item => (Target: (TextTarget)new TextTarget.Mark(item.Target), Update: item.Update))))
-                    foreach (var edit in item.Update.MaterialEdits)
-                        switch (edit)
-                        {
-                            case MaterialEdit.ReplaceMaterial replace: Reset(item.Target, replace.Slot); break;
-                            case MaterialEdit.Uniform uniform:
-                                if (_scopes.TryGetValue((item.Target, uniform.Slot), out var scope)) scope.Remove((uniform.Handle, uniform.NodeId, uniform.Name));
-                                break;
-                        }
-                return;
-            }
             if (output.MaterialWrites.IsDefault) throw new EffectOutputException("InvalidMaterialWrite", "材质事务不能是 default。");
             foreach (var write in output.MaterialWrites)
             {

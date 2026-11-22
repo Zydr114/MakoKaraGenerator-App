@@ -5,12 +5,12 @@ namespace MakoKaraGenerator.Scripting.Execution;
 
 internal sealed partial class FrameEffectHost
 {
-    private static void ComposeGroups(ImmutableArray<GroupTransform> output, Dictionary<GroupTarget, Affine2> combined, SceneFrame scene, bool appendBefore = false)
+    private static void ComposeGroups(ImmutableArray<GroupTransform> output, Dictionary<GroupTarget, Affine2> combined, SceneFrame scene)
     {
         foreach (var transform in output)
         {
             var previous = combined.GetValueOrDefault(transform.Target, Affine2.Identity);
-            var local = appendBefore ? transform.LocalMatrix.Compose(previous) : previous.Compose(transform.LocalMatrix);
+            var local = transform.LocalMatrix.Compose(previous);
             if (!local.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例组矩阵不可逆。");
             var basis = scene.GroupGeometries.Single(item => item.Target == transform.Target);
             var world = basis.BaseWorldMatrix.Compose(local);

@@ -67,9 +67,6 @@ internal sealed partial class FrameEffectHost
         }
     }
 
-    private static Affine2 ComposeFor(ActiveEffect active, Affine2 previous, Affine2 next)
-        => active.Pure is null ? previous.Compose(next) : next.Compose(previous);
-
     private static FrameOutput EvaluatePure(ActiveEffect active, TextFrameHostInputs frame, SceneFrame scene,
         ImmutableArray<GroupGeometrySample> writableGroups, CancellationToken token)
     {

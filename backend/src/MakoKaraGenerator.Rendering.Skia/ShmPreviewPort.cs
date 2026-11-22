@@ -204,44 +204,37 @@ internal sealed class ShmPreviewPort : IPreviewPort
 
     private Lease CommitSlot(ISkiaRenderDevice device, SKSurface surface, SKImageInfo surfaceInfo, PreviewFrameToken token)
     {
-        IntPtr destination;
         lock (_gate)
         {
             EnsureOpen();
             EnsureNotQuarantined();
             Slot slot = FindMatchingSlot(token, SlotState.Writing);
             ulong byteOffset = checked((ulong)token.SlotId * _slotSizeBytes);
-            destination = checked((IntPtr)((long)_backing!.BasePointer + (long)byteOffset));
-            _ = slot;
-        }
+            IntPtr destination = checked((IntPtr)((long)_backing!.BasePointer + (long)byteOffset));
 
-        // 严禁前置调用 device.FlushAndSubmit(surface)：
-        // Skia Ganesh 的 surface.ReadPixels 内部已自动合并 Flush、Staging 拷贝与单次 Fence 等待。
-        bool ok;
-        try
-        {
-            ok = device.ReadPixels(surface, surfaceInfo, destination, checked((int)PoolInfo.StrideBytes));
-        }
-        catch (Exception error)
-        {
-            lock (_gate) QuarantineCore();
-            throw new GpuPreviewException("PreviewReadbackFailed", $"SHM 端口单次 ReadPixels 异常：{error.Message}");
-        }
+            // 严禁前置调用 device.FlushAndSubmit(surface)：
+            // Skia Ganesh 的 surface.ReadPixels 内部已自动合并 Flush、Staging 拷贝与单次 Fence 等待。
+            // 在 _gate 锁内完成 ReadPixels，防止并发 Dispose 提前 munmap(_backing) 导致写入已释放内存（UAF）。
+            bool ok;
+            try
+            {
+                ok = device.ReadPixels(surface, surfaceInfo, destination, checked((int)PoolInfo.StrideBytes));
+            }
+            catch (Exception error)
+            {
+                QuarantineCore();
+                throw new GpuPreviewException("PreviewReadbackFailed", $"SHM 端口单次 ReadPixels 异常：{error.Message}", innerException: error);
+            }
 
-        if (!ok)
-        {
-            lock (_gate) QuarantineCore();
-            throw new GpuPreviewException("PreviewReadbackFailed", $"Skia {device.Info.Backend} 表面向 SHM 槽位 ReadPixels 返回失败。");
-        }
+            if (!ok)
+            {
+                QuarantineCore();
+                throw new GpuPreviewException("PreviewReadbackFailed", $"Skia {device.Info.Backend} 表面向 SHM 槽位 ReadPixels 返回失败。");
+            }
 
-        // 确保像素写入对其他进程只读视图全局可见后再发布 FrameReady 消息。
-        Thread.MemoryBarrier();
+            // 确保像素写入对其他进程只读视图全局可见后再发布 FrameReady 消息。
+            Thread.MemoryBarrier();
 
-        lock (_gate)
-        {
-            EnsureOpen();
-            EnsureNotQuarantined();
-            Slot slot = FindMatchingSlot(token, SlotState.Writing);
             slot.State = SlotState.Ready;
             return new Lease(this, token);
         }

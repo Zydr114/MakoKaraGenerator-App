@@ -12,19 +12,57 @@ public sealed partial class SkiaRenderPipeline
     private static readonly Dictionary<string, CachedInlineSvg> InlineSvgCache = new(StringComparer.Ordinal);
     private static readonly Queue<string> InlineSvgCacheOrder = new();
 
-    private sealed class CachedInlineSvg(SKPicture unitPicture, SKPath silhouettePath, float aspectRatio)
+    internal sealed class CachedInlineSvg(SKPicture unitPicture, SKPath silhouettePath, float aspectRatio)
     {
+        private int _refCount = 1;
+
         internal SKPicture UnitPicture { get; } = unitPicture;
         internal SKPath SilhouettePath { get; } = silhouettePath;
         internal float AspectRatio { get; } = aspectRatio;
+        internal bool IsDisposed => Volatile.Read(ref _refCount) == 0;
+
+        internal bool TryAddRef()
+        {
+            while (true)
+            {
+                int current = Volatile.Read(ref _refCount);
+                if (current <= 0) return false;
+                if (Interlocked.CompareExchange(ref _refCount, current + 1, current) == current) return true;
+            }
+        }
+
+        internal void Release()
+        {
+            int remaining = Interlocked.Decrement(ref _refCount);
+            if (remaining == 0)
+            {
+                Exception? error = SkiaNativeResourceCleanup.Run(null, UnitPicture.Dispose, SilhouettePath.Dispose);
+                if (error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+            }
+            else if (remaining < 0)
+            {
+                throw new InvalidOperationException("CachedInlineSvg 引用计数下溢。");
+            }
+        }
     }
 
-    private static CachedInlineSvg ResolveInlineSvg(string svgXml)
+    internal sealed class InlineSvgLease : IDisposable
+    {
+        private CachedInlineSvg? _entry;
+
+        internal InlineSvgLease(CachedInlineSvg entry) => _entry = entry;
+
+        internal CachedInlineSvg Entry => _entry ?? throw new ObjectDisposedException(nameof(InlineSvgLease));
+
+        public void Dispose() => Interlocked.Exchange(ref _entry, null)?.Release();
+    }
+
+    internal static InlineSvgLease ResolveInlineSvg(string svgXml)
     {
         lock (InlineSvgCacheLock)
         {
-            if (InlineSvgCache.TryGetValue(svgXml, out var cached))
-                return cached;
+            if (InlineSvgCache.TryGetValue(svgXml, out var cached) && cached.TryAddRef())
+                return new InlineSvgLease(cached);
         }
 
         var budget = SvgResourceBudget.Default;
@@ -33,18 +71,36 @@ public sealed partial class SkiaRenderPipeline
         var (unitPicture, silhouettePath, aspectRatio) = nativeCompiler.CompileInline();
         var compiled = new CachedInlineSvg(unitPicture, silhouettePath, aspectRatio);
 
+        CachedInlineSvg? discarded = null;
+        CachedInlineSvg? evicted = null;
+        InlineSvgLease lease;
         lock (InlineSvgCacheLock)
         {
-            if (InlineSvgCache.TryGetValue(svgXml, out var existing))
-                return existing;
+            if (InlineSvgCache.TryGetValue(svgXml, out var existing) && existing.TryAddRef())
+            {
+                discarded = compiled;
+                lease = new InlineSvgLease(existing);
+            }
+            else
+            {
+                if (InlineSvgCache.Count >= MaxInlineSvgCacheEntries && InlineSvgCacheOrder.TryDequeue(out string? evictedKey)
+                    && InlineSvgCache.Remove(evictedKey, out var evictedEntry))
+                {
+                    evicted = evictedEntry;
+                }
 
-            if (InlineSvgCache.Count >= MaxInlineSvgCacheEntries && InlineSvgCacheOrder.TryDequeue(out string? evicted))
-                InlineSvgCache.Remove(evicted);
-
-            InlineSvgCache[svgXml] = compiled;
-            InlineSvgCacheOrder.Enqueue(svgXml);
-            return compiled;
+                // 缓存持有初始 1 份引用；调用方在入表前通过 TryAddRef 取得独立绘制租约。
+                if (!compiled.TryAddRef())
+                    throw new InvalidOperationException("新建 CachedInlineSvg 引用计数无效。");
+                InlineSvgCache[svgXml] = compiled;
+                InlineSvgCacheOrder.Enqueue(svgXml);
+                lease = new InlineSvgLease(compiled);
+            }
         }
+
+        discarded?.Release();
+        evicted?.Release();
+        return lease;
     }
 
     private static void DrawCountdownShapeState(SKCanvas canvas, RenderRequest request,
@@ -63,9 +119,10 @@ public sealed partial class SkiaRenderPipeline
         StrokeLayers strokes = style.Unsung.Strokes;
         float outlineReach = strokes.IsEnabled ? MathF.Max(strokes.TotalWidthPx, 0f) : 0f;
 
-        CachedInlineSvg? svg = null;
-        if (mark.Shape.Kind == CountdownShapeKind.CustomSvg && !string.IsNullOrWhiteSpace(mark.Shape.SvgXml))
-            svg = ResolveInlineSvg(mark.Shape.SvgXml);
+        using InlineSvgLease? svgLease = mark.Shape.Kind == CountdownShapeKind.CustomSvg && !string.IsNullOrWhiteSpace(mark.Shape.SvgXml)
+            ? ResolveInlineSvg(mark.Shape.SvgXml)
+            : null;
+        CachedInlineSvg? svg = svgLease?.Entry;
 
         (float Left, float Top, float Width, float Height) svgBox = default;
         if (svg is not null)

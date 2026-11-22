@@ -14,8 +14,7 @@ internal sealed partial class FrameEffectHost
 
     private void InitializeExitReplicas(TimelineProjection? timeline, CancellationToken token)
     {
-        var declarations = _definitions.Where(static definition => definition.IsV2
-            && definition.PackageDefinition!.Contents.LineExitDurationUs > 0).ToArray();
+        var declarations = _definitions.Where(static definition => definition.PackageDefinition is { Contents.LineExitDurationUs: > 0 }).ToArray();
         if (declarations.Length == 0) return;
         try
         {
@@ -58,7 +57,7 @@ internal sealed partial class FrameEffectHost
         catch (PreparedFrameException error)
         {
             var owner = error.BindingId is { } binding && _exitDurations.TryGetValue(binding, out var lifetime) ? lifetime.Owner
-                : _definitions.First(definition => definition.IsV2 && definition.PackageDefinition!.Contents.LineExitDurationUs > 0);
+                : _definitions.First(static definition => definition.PackageDefinition is { Contents.LineExitDurationUs: > 0 });
             throw Failure(owner, "PrepareExitReplica", scene.TimeUs, error, Diagnostics.Snapshot());
         }
     }

@@ -83,8 +83,27 @@ public sealed class GpuRenderFrame(RenderTarget target, long timeUs, GpuFrameLea
 }
 
 /// <summary>GPU 路径的明确失败；调用方不得静默回落 CPU 后宣称 GPU 成功。</summary>
-public sealed class GpuPreviewException(string code, string message) : InvalidOperationException(message)
+public sealed class GpuPreviewException : InvalidOperationException
 {
+    /// <summary>创建带稳定失败代码与诊断说明的预览异常。</summary>
+    /// <param name="code">可供有限能力／错误响应使用的稳定失败代码。</param>
+    /// <param name="message">面向调用方的错误说明。</param>
+    public GpuPreviewException(string code, string message)
+        : base(message)
+    {
+        Code = code;
+    }
+
+    /// <summary>创建带稳定失败代码、诊断说明与底层内部异常的预览异常。</summary>
+    /// <param name="code">可供有限能力／错误响应使用的稳定失败代码。</param>
+    /// <param name="message">面向调用方的错误说明。</param>
+    /// <param name="innerException">导致本次预览失败的底层异常。</param>
+    public GpuPreviewException(string code, string message, Exception? innerException)
+        : base(message, innerException)
+    {
+        Code = code;
+    }
+
     /// <summary>可供有限能力／错误响应使用的稳定失败代码。</summary>
-    public string Code { get; } = code;
+    public string Code { get; }
 }

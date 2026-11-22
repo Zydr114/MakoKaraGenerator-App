@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Text;
@@ -14,8 +15,7 @@ public sealed class TextFallbackCacheTests
     {
         const string text = "A夜星";
         var cache = new SkiaSceneGeometry.LayoutCache();
-        var key = new SkiaSceneGeometry.LayoutKey(text, Options.FamilyName, Options.FontSizePx, Options.FontWeight,
-            Options.IsBold, Options.IsItalic, Options.LetterSpacingPx, Options.FallbackFamilyNames);
+        var key = SkiaSceneGeometry.LayoutKey.Create(text, Options);
         using var first = new SkiaTextLayoutEngine();
         using var second = new SkiaTextLayoutEngine();
         using var reference = new SkiaTextLayoutEngine();
@@ -37,8 +37,7 @@ public sealed class TextFallbackCacheTests
         Assert.True(dynamicLine.UsedFallbackFont);
         string family = dynamicLine.Elements.First(element => element.IsFallback).FamilyName;
         var options = Options with { FallbackFamilyNames = [family] };
-        var key = new SkiaSceneGeometry.LayoutKey(text, options.FamilyName, options.FontSizePx, options.FontWeight,
-            options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
+        var key = SkiaSceneGeometry.LayoutKey.Create(text, options);
         var cache = new SkiaSceneGeometry.LayoutCache();
         using var first = new SkiaTextLayoutEngine();
         using var second = new SkiaTextLayoutEngine();
@@ -186,6 +185,66 @@ public sealed class TextFallbackCacheTests
         using var engine = new SkiaTextLayoutEngine((_, _) => null, (_, _) => null);
         var error = Assert.Throws<InvalidOperationException>(() => engine.Shape("朝の光", Options));
         Assert.Contains("无法读取字体数据", error.Message);
+    }
+
+    [Fact]
+    public void TextLayoutOptions按值比较回退字体列表并保持一致哈希()
+    {
+        ImmutableArray<string> firstFallbacks = ["Noto Sans CJK SC", "Noto Color Emoji"];
+        ImmutableArray<string> secondFallbacks = ["Noto Sans CJK SC", "Noto Color Emoji"];
+        ImmutableArray<string> reorderedFallbacks = ["Noto Color Emoji", "Noto Sans CJK SC"];
+        Assert.NotSame(firstFallbacks.AsMemory().ToArray(), secondFallbacks.AsMemory().ToArray());
+
+        TextLayoutOptions a = Options with { FallbackFamilyNames = firstFallbacks };
+        TextLayoutOptions b = Options with { FallbackFamilyNames = secondFallbacks };
+        TextLayoutOptions reordered = Options with { FallbackFamilyNames = reorderedFallbacks };
+        TextLayoutOptions defaultEmpty = Options with { FallbackFamilyNames = default };
+        TextLayoutOptions explicitEmpty = Options with { FallbackFamilyNames = [] };
+
+        Assert.Equal(a, b);
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+        Assert.NotEqual(a, reordered);
+        Assert.Equal(defaultEmpty, explicitEmpty);
+        Assert.Equal(defaultEmpty.GetHashCode(), explicitEmpty.GetHashCode());
+    }
+
+    [Fact]
+    public void 不同ImmutableArray实例相同回退字体命中布局缓存且超上限正常淘汰()
+    {
+        const string text = "Hello";
+        TextLayoutOptions firstOptions = Options with { FallbackFamilyNames = ImmutableArray.Create("DejaVu Sans", "Noto Sans CJK SC") };
+        TextLayoutOptions secondOptions = Options with { FallbackFamilyNames = ImmutableArray.Create("DejaVu Sans", "Noto Sans CJK SC") };
+        TextLayoutOptions separatorCollision = Options with { FallbackFamilyNames = ImmutableArray.Create("DejaVu Sans\u001FNoto Sans CJK SC") };
+
+        Assert.Equal(SkiaSceneGeometry.LayoutKey.Create(text, firstOptions), SkiaSceneGeometry.LayoutKey.Create(text, secondOptions));
+        Assert.NotEqual(SkiaSceneGeometry.LayoutKey.Create(text, firstOptions), SkiaSceneGeometry.LayoutKey.Create(text, separatorCollision));
+
+        var cache = new SkiaSceneGeometry.LayoutCache(maxEntries: 4);
+        using var geometry = new SkiaSceneGeometry(null, ownsLayoutEngine: true, cache, synchronizationRoot: null);
+
+        ShapedLine firstHit = geometry.GetLayout(text, firstOptions);
+        ShapedLine secondHit = geometry.GetLayout(text, secondOptions);
+        Assert.Same(firstHit, secondHit);
+        Assert.Equal(1, cache.Count);
+
+        // 填满并超过容量上限（4）后应按 FIFO 淘汰最早条目，且新条目继续被缓存而不永久退化。
+        ShapedLine item1 = geometry.GetLayout("line-1", firstOptions);
+        ShapedLine item2 = geometry.GetLayout("line-2", firstOptions);
+        ShapedLine item3 = geometry.GetLayout("line-3", firstOptions);
+        Assert.Equal(4, cache.Count);
+
+        ShapedLine item4 = geometry.GetLayout("line-4", firstOptions);
+        Assert.Equal(4, cache.Count);
+        Assert.Same(item4, geometry.GetLayout("line-4", secondOptions));
+        Assert.Same(item1, geometry.GetLayout("line-1", secondOptions));
+        Assert.Same(item2, geometry.GetLayout("line-2", secondOptions));
+        Assert.Same(item3, geometry.GetLayout("line-3", secondOptions));
+
+        // 最早的 text 已被淘汰，再次查询会重新整形并淘汰下一个最早条目。
+        ShapedLine recomputed = geometry.GetLayout(text, secondOptions);
+        Assert.NotSame(firstHit, recomputed);
+        Assert.Same(recomputed, geometry.GetLayout(text, firstOptions));
+        Assert.Equal(4, cache.Count);
     }
 
     private static byte[] Draw(SkiaTextLayoutEngine engine, ShapedLine line, TextLayoutOptions options)

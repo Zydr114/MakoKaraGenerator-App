@@ -26,7 +26,11 @@ internal sealed partial class SvgNativePictureCompiler
         {
             AlphaType = SKAlphaType.Premul,
             ColorType = SKColorType.Bgra8888,
-            Srgb = SKColorSpace.CreateSrgb(),
+            EnableSvgFonts = false,
+            EnableTextReferences = false,
+            EnableJavaScript = false,
+            EnableExternalJavaScript = false,
+            TypefaceProviders = [],
         };
         _convert = new(_settings);
     }

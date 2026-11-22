@@ -46,6 +46,40 @@ public sealed record TextLayoutOptions
 
     /// <summary>默认选项。</summary>
     public static TextLayoutOptions Default { get; } = new();
+
+    /// <inheritdoc/>
+    public bool Equals(TextLayoutOptions? other)
+    {
+        if (ReferenceEquals(this, other)) return true;
+        if (other is null) return false;
+        return StringComparer.Ordinal.Equals(FamilyName, other.FamilyName)
+            && EqualityComparer<float>.Default.Equals(FontSizePx, other.FontSizePx)
+            && FontWeight == other.FontWeight
+            && IsBold == other.IsBold
+            && IsItalic == other.IsItalic
+            && EqualityComparer<float>.Default.Equals(LetterSpacingPx, other.LetterSpacingPx)
+            && FallbackSequence(FallbackFamilyNames).SequenceEqual(FallbackSequence(other.FallbackFamilyNames), StringComparer.Ordinal);
+    }
+
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(FamilyName, StringComparer.Ordinal);
+        hash.Add(FontSizePx);
+        hash.Add(FontWeight);
+        hash.Add(IsBold);
+        hash.Add(IsItalic);
+        hash.Add(LetterSpacingPx);
+        foreach (string family in FallbackSequence(FallbackFamilyNames))
+        {
+            hash.Add(family, StringComparer.Ordinal);
+        }
+        return hash.ToHashCode();
+    }
+
+    private static ImmutableArray<string> FallbackSequence(ImmutableArray<string> values)
+        => values.IsDefault ? [] : values;
 }
 
 /// <summary>

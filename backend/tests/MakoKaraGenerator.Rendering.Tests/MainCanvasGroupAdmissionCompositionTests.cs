@@ -66,6 +66,7 @@ public sealed partial class MainCanvasImageEffectsTests
         using var fresh = cached.Render(Bindings(request, binding)); using var hit = cached.Render(Bindings(request, binding));
         var diagnostic = Assert.Single(fresh.SceneDiagnostics.Where(item => item.Diagnostic.Code == "GroupIsolationChangesOrder"));
         Assert.Equal("interleaved-parent", diagnostic.InstanceId.Value); Assert.Equal("artifact-interleaved-parent", diagnostic.ArtifactHash);
+        Assert.EndsWith("合成。", diagnostic.Diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal(fresh.SceneDiagnostics.ToArray(), hit.SceneDiagnostics.ToArray()); Close(fresh.PixelMemory.ToArray(), hit.PixelMemory.ToArray(), 0);
         Close(expected.PixelMemory.ToArray(), fresh.PixelMemory.ToArray(), 0);
         Assert.Equal(0, budget.Usage.ActiveSurfaces); Assert.Equal(0, budget.Usage.EstimatedBytes);

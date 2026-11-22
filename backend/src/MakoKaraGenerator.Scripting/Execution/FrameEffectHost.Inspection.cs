@@ -17,7 +17,7 @@ internal sealed partial class FrameEffectHost
             ImmutableArray<string> lines = scope is not null ? [.. scope.OutputScope.LineIds.Select(static id => id.Value)]
                 : definition.Binding is EffectBinding.Lines bound ? [.. bound.Ids.Select(static id => id.Value)] : [];
             var package = definition.PackageIdentity;
-            builder.Add(new(definition.Id.Value, package?.PackageId, package?.Revision, package?.ExportId, definition.IsV2 ? 2 : 1,
+            builder.Add(new(definition.Id.Value, package?.PackageId, package?.Revision, package?.ExportId, 2,
                 BindingKind(definition.Binding), lines, active?.TelemetryIdentity));
         }
         return builder.MoveToImmutable();

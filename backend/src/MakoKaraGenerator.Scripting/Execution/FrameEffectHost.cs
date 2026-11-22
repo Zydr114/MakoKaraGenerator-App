@@ -53,8 +53,7 @@ internal sealed partial class FrameEffectHost : IDisposable
     }
     internal void ValidateMediaOutput(OutputMode outputMode) => ProjectMediaFeatureAdmission.ValidateOutput(_mediaBinding, outputMode);
     private sealed record ActiveEffect(CompiledFrameEffect Definition, ScriptModule? Module,
-        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null, HostDirectGraphRuntime? HostGraph = null)
-    { internal bool IsPureText => Pure is not null || HostGraph is not null; }
+        DeterministicRandom Random, ResolvedSourceSubscription? Subscription, string? TelemetryIdentity, PureEffectRuntime? Pure = null, HostDirectGraphRuntime? HostGraph = null);
     public void Load(CancellationToken cancellationToken)
     {
         try
@@ -96,7 +95,7 @@ internal sealed partial class FrameEffectHost : IDisposable
     }
     public PreparedRenderFrame Evaluate(long timeUs, OutputMode outputMode, RenderTarget target,
         RuntimeDiagnosticBuffer diagnostics, CancellationToken cancellationToken,
-        bool pureTextOnly = false, V2AnchorQueryBudget? anchorBudget = null)
+        V2AnchorQueryBudget? anchorBudget = null)
     {
         ValidateMediaOutput(outputMode);
         SceneFrame scene = _geometry.GetSceneFrame(_snapshot, timeUs);
@@ -152,7 +151,6 @@ internal sealed partial class FrameEffectHost : IDisposable
             else if (binding.Target is ImageEffectTarget.Mark mark) markStyles.TryAdd(mark.Target, new());
         foreach (var active in _instances)
         {
-            if (pureTextOnly && !active.IsPureText) continue;
             cancellationToken.ThrowIfCancellationRequested();
             var definition = active.Definition;
             bool outside = OutsideFrame(definition.Binding);
@@ -216,7 +214,7 @@ internal sealed partial class FrameEffectHost : IDisposable
                 }
                 foreach (var transform in output.TokenTransforms)
                 {
-                    var local = ComposeFor(active, combined.GetValueOrDefault(transform.Target, Affine2.Identity), transform.LocalMatrix);
+                    var local = transform.LocalMatrix.Compose(combined.GetValueOrDefault(transform.Target, Affine2.Identity));
                     if (!local.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例变换组合不可逆。");
                     var basis = scene.TokenGeometries.Single(item => item.WithRuby == transform.Target).FamilyGeometry;
                     _ = (basis with { BaseWorldMatrix = basis.BaseWorldMatrix.Compose(local) }).WorldInkCorners;
@@ -231,14 +229,14 @@ internal sealed partial class FrameEffectHost : IDisposable
                 }
                 foreach (var transform in output.MarkTransforms)
                 {
-                    var local = ComposeFor(active, markTransforms.GetValueOrDefault(transform.Target, Affine2.Identity), transform.LocalMatrix);
+                    var local = transform.LocalMatrix.Compose(markTransforms.GetValueOrDefault(transform.Target, Affine2.Identity));
                     if (!local.TryInverse(out _)) throw new EffectOutputException("InvalidTransform", "跨实例标记变换组合不可逆。");
                     var basis = scene.MarkGeometries.Single(item => item.Target == transform.Target).Geometry;
                     _ = (basis with { BaseWorldMatrix = basis.BaseWorldMatrix.Compose(local) }).WorldInkCorners;
                     markTransforms[transform.Target] = local;
                 }
-                ComposeLines(output.LineTransforms, lineTransforms, scene, active.Pure is not null);
-                ComposeGroups(output.GroupTransforms, groupTransforms, scene, active.Pure is not null);
+                ComposeLines(output.LineTransforms, lineTransforms, scene);
+                ComposeGroups(output.GroupTransforms, groupTransforms, scene);
                 foreach (var opacity in output.GroupOpacities)
                 {
                     double factor = groupOpacities.GetValueOrDefault(opacity.Target, 1) * opacity.Factor;

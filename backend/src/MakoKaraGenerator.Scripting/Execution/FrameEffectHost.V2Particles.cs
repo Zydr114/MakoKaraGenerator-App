@@ -17,7 +17,6 @@ internal sealed partial class FrameEffectHost
             && item.Pure.Prepared.Particles.Continuous.IsEmpty && item.Pure.Prepared.Particles.Bursts.IsEmpty))
             return PreparePureTextSnapshots(text, diagnostics, pureOwners, token);
         var particleBudget = V2Budgets.CreateParticleQuery();
-        ReserveExistingOverlayBytes(text, particleBudget, token);
         var transaction = _v2AnchorMemo.Begin();
         V2AnchorRequest query = new(text, transaction, particleBudget, V2Budgets.CreateAnchorQuery(token));
         BirthWindow window = new(Math.Max(0, text.TimeUs - ParticleLimits.MaximumLifetimeUs), text.TimeUs);
@@ -33,8 +32,8 @@ internal sealed partial class FrameEffectHost
             selected.Add((active, births));
         }
         List<PreparedV2ParticleSnapshot> snapshots = [];
-        List<OverlayBatch> batches = [.. text.OverlayBatches];
-        long drawCount = batches.Sum(static batch => batch.ItemCount);
+        List<OverlayBatch> batches = [];
+        long drawCount = 0;
         foreach (var (active, rows) in selected)
         {
             var pure = active.Pure!; var owner = pure.ParticleOwner!;
@@ -125,7 +124,6 @@ internal sealed partial class FrameEffectHost
         // every public owner/window and the same conservative empty-read charge,
         // without creating schedules' query temporaries or an unused anchor memo.
         var budget = V2Budgets.CreateParticleQuery();
-        ReserveExistingOverlayBytes(text, budget, token);
         BirthWindow window = new(Math.Max(0, text.TimeUs - ParticleLimits.MaximumLifetimeUs), text.TimeUs);
         var snapshots = ImmutableArray.CreateBuilder<PreparedV2ParticleSnapshot>(pureOwners.Length);
         foreach (var active in pureOwners)
@@ -137,30 +135,8 @@ internal sealed partial class FrameEffectHost
             snapshots.Add(new(active.Definition.Id, new(window, []), [], []));
         }
         token.ThrowIfCancellationRequested();
-        var batches = text.OverlayBatches;
-        if (batches.Length > 1)
-        {
-            var order = _definitions.Select((definition, index) => (definition.Id, index))
-                .ToDictionary(static item => item.Id, static item => item.index);
-            batches = [.. batches.OrderBy(batch => order[batch.InstanceId])
-                .ThenBy(static batch => batch.Id.Value, StringComparer.Ordinal)];
-        }
         return text.WithV2ParticleSnapshots(snapshots.MoveToImmutable(), new(0, 0, 0, 0, 0))
-            .WithOverlaySnapshot(batches, diagnostics.Snapshot(), _visualBudget,
+            .WithOverlaySnapshot([], diagnostics.Snapshot(), _visualBudget,
                 owners: [.. _definitions.Select(definition => new PreparedOverlayOwner(definition.Id, definition.RuntimeHash, definition.PackageIdentity))]);
-    }
-
-    private void ReserveExistingOverlayBytes(PreparedRenderFrame frame, ParticleQueryBudget budget, CancellationToken token)
-    {
-        foreach (var batch in frame.OverlayBatches)
-        {
-            token.ThrowIfCancellationRequested();
-            var definition = _definitions.Single(item => item.Id == batch.InstanceId);
-            // Legacy output remains live while pure particles/visuals are prepared.
-            // Its original owner must be retained if this allocation crosses the cap.
-            ParticleOwner owner = new(definition.Id, definition.PackageIdentity, definition.RuntimeHash,
-                definition.Seed, _runtimeInputsFingerprint ?? "", "existing-overlay");
-            budget.ReserveBytes(owner, OverlayMemoryCost.Estimate(batch), frame.TimeUs);
-        }
     }
 }

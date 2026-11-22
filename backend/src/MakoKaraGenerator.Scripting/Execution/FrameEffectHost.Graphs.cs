@@ -16,11 +16,6 @@ internal sealed partial class FrameEffectHost
     private static void ValidatePureGraphWrites(CompiledFrameEffect definition, FrameOutput output,
         GraphBindingBudget frameBudget, CancellationToken token)
     {
-        if (!definition.IsV2)
-        {
-            if (!output.GraphWrites.IsEmpty) throw new EffectOutputException("InvalidGraphOutputStage", "纯图事务不能通过旧 SDK 生命周期发布。");
-            return;
-        }
         if (output.GraphWrites.IsDefault) throw new EffectOutputException("InvalidGraphBindingValue", "图写事务不能是 default。");
         Dictionary<ImageEffectTarget, ImageEffectBinding> final = [];
         foreach (var write in output.GraphWrites)

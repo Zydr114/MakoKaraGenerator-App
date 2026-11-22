@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Text;
@@ -70,30 +72,95 @@ public sealed partial class SkiaSceneGeometry : ILineGeometryProvider, IDisposab
     /// </remarks>
     internal ShapedLine GetLayout(string text, TextLayoutOptions options)
     {
-        LayoutKey key = new(text, options.FamilyName, options.FontSizePx, options.FontWeight,
-            options.IsBold, options.IsItalic, options.LetterSpacingPx, options.FallbackFamilyNames);
+        LayoutKey key = LayoutKey.Create(text, options);
 
         return _layouts.GetOrAdd(key, _layoutEngine, text, options);
     }
 
+    /// <summary>将回退字体列表规范化为无歧义的值比较键字符串。</summary>
+    internal static string NormalizeFallbackFamilyNames(ImmutableArray<string> fallbackFamilyNames)
+    {
+        if (fallbackFamilyNames.IsDefaultOrEmpty) return string.Empty;
+        StringBuilder builder = new();
+        foreach (string name in fallbackFamilyNames)
+        {
+            string value = name ?? string.Empty;
+            builder.Append(value.Length.ToString(CultureInfo.InvariantCulture));
+            builder.Append(':');
+            builder.Append(value);
+            builder.Append('\u001F');
+        }
+        return builder.ToString();
+    }
+
     /// <summary>布局缓存的键：文本 + 字体 + 字号（与时刻无关）。</summary>
     internal readonly record struct LayoutKey(string Text, string? FamilyName, float FontSizePx,
-        int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx, ImmutableArray<string> FallbackFamilyNames);
+        int FontWeight, bool IsBold, bool IsItalic, float LetterSpacingPx, string FallbackFamilyNamesKey)
+    {
+        internal static LayoutKey Create(string text, TextLayoutOptions options)
+            => new(text, options.FamilyName, options.FontSizePx, options.FontWeight,
+                options.IsBold, options.IsItalic, options.LetterSpacingPx,
+                NormalizeFallbackFamilyNames(options.FallbackFamilyNames));
+    }
 
     // The owner shares this only among renderers created for the same fixed font set.
     internal sealed class LayoutCache
     {
-        private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _entries = new();
-        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, ConcurrentDictionary<LayoutKey, ShapedLine>> _engineEntries = new();
-        private readonly object _gate = new();
+        internal const int DefaultMaxEntries = 2048;
+
+        private sealed class BoundedStore(int maxEntries)
+        {
+            private readonly ConcurrentDictionary<LayoutKey, ShapedLine> _entries = new();
+            private readonly Queue<LayoutKey> _order = new();
+            private readonly object _gate = new();
+
+            internal int Count => _entries.Count;
+
+            internal bool TryGetValue(LayoutKey key, out ShapedLine line)
+                => _entries.TryGetValue(key, out line!);
+
+            internal ShapedLine GetOrAdd(LayoutKey key, ShapedLine shaped)
+            {
+                lock (_gate)
+                {
+                    if (_entries.TryGetValue(key, out var existing)) return existing;
+                    while (_entries.Count >= maxEntries && _order.TryDequeue(out var oldest))
+                        _entries.TryRemove(oldest, out _);
+                    _entries[key] = shaped;
+                    _order.Enqueue(key);
+                    return shaped;
+                }
+            }
+
+            internal void Clear()
+            {
+                lock (_gate)
+                {
+                    _entries.Clear();
+                    _order.Clear();
+                }
+            }
+        }
+
+        private readonly int _maxEntries;
+        private readonly BoundedStore _shared;
+        private readonly ConditionalWeakTable<SkiaTextLayoutEngine, BoundedStore> _engineEntries = new();
         private readonly object _rubyGate = new();
         private readonly Dictionary<(LyricLine, LyricStyle), LineLayout> _ruby = [];
         private readonly ConditionalWeakTable<SkiaTextLayoutEngine, Dictionary<(LyricLine, LyricStyle), LineLayout>> _engineRuby = new();
-        internal int Count => _entries.Count;
+
+        internal LayoutCache(int maxEntries = DefaultMaxEntries)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxEntries);
+            _maxEntries = maxEntries;
+            _shared = new(maxEntries);
+        }
+
+        internal int Count => _shared.Count;
         internal int RubyBuildCount { get; private set; }
         internal void Clear()
         {
-            _entries.Clear(); _engineEntries.Clear();
+            _shared.Clear(); _engineEntries.Clear();
             lock (_rubyGate) { _ruby.Clear(); _engineRuby.Clear(); }
         }
 
@@ -118,25 +185,13 @@ public sealed partial class SkiaSceneGeometry : ILineGeometryProvider, IDisposab
 
         internal ShapedLine GetOrAdd(LayoutKey key, SkiaTextLayoutEngine engine, string text, TextLayoutOptions options)
         {
-            if (_entries.TryGetValue(key, out var existing)) return existing;
-            var local = _engineEntries.GetOrCreateValue(engine);
+            if (_shared.TryGetValue(key, out var existing)) return existing;
+            var local = _engineEntries.GetValue(engine, _ => new BoundedStore(_maxEntries));
             if (local.TryGetValue(key, out existing)) return existing;
             var shaped = engine.Shape(text, options);
             if (!engine.CanShareLayout(shaped, options))
-            {
-                lock (local)
-                {
-                    if (local.TryGetValue(key, out existing)) return existing;
-                    if (local.Count >= 2048) return shaped;
-                    return local.GetOrAdd(key, shaped);
-                }
-            }
-            lock (_gate)
-            {
-                if (_entries.TryGetValue(key, out existing)) return existing;
-                if (_entries.Count >= 2048) return shaped;
-                return _entries.GetOrAdd(key, shaped);
-            }
+                return local.GetOrAdd(key, shaped);
+            return _shared.GetOrAdd(key, shaped);
         }
     }
 }

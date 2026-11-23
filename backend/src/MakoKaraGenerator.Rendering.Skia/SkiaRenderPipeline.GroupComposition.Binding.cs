@@ -26,14 +26,23 @@ public sealed partial class SkiaRenderPipeline
             {
                 hasTargetInput = true;
                 var recipe = program.GetInputRecipe(declaration.Id);
-                var layers = SelectGroupLayers(request, state, scope, recipe, source);
-                selected.UnionWith(layers.SelectMany(layer => layer.Sources));
+                ColorLayer[]? layers = null;
+                if (source == GraphInputSource.TargetColor)
+                {
+                    layers = SelectGroupLayers(request, state, scope, recipe, source);
+                    selected.UnionWith(layers.SelectMany(layer => layer.Sources));
+                }
+                else
+                {
+                    // 覆盖率遮罩直接由原始几何捕获，不读取已融合彩色图层；只记录其声明覆盖的部件供整图替换一致性检查。
+                    selected.UnionWith(SelectGroupSources(request, state, scope, recipe, source));
+                }
                 if (!captures.TryGetValue((source, recipe), out var surface))
                 {
                     if (source == GraphInputSource.TargetColor)
                     {
                         // Color only: C_sel never contains B, even for replacement children.
-                        var payload = state.Own(ComposeClosedLayers(request, state, layers)); surface = payload.Color;
+                        var payload = state.Own(ComposeClosedLayers(request, state, layers!)); surface = payload.Color;
                     }
                     else
                     {

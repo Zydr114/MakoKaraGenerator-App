@@ -108,6 +108,13 @@ public sealed partial class SkiaRenderPipeline
             _ => false,
         };
     }
+    private static IEnumerable<PartSource> SelectGroupSources(RenderRequest request, ImageObjectState state,
+        ImageEffectTarget.Group scope, SceneCaptureRecipe recipe, GraphInputSource source)
+    {
+        var items = SelectCaptureItems(request.PreparedFrame!.HierarchyScene, new SceneCaptureTarget.Group(scope.Target), recipe);
+        return state.Layers.SelectMany(layer => layer.Sources)
+            .Where(part => MatchesGroupPart(part, recipe, source) && items.Any(item => Belongs(part.Member, item)));
+    }
     private static ColorLayer[] SelectGroupLayers(RenderRequest request, ImageObjectState state,
         ImageEffectTarget.Group scope, SceneCaptureRecipe recipe, GraphInputSource source)
     {

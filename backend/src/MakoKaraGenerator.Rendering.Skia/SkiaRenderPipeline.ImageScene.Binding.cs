@@ -35,12 +35,21 @@ public sealed partial class SkiaRenderPipeline
                 // 跨对象父组隔离后再开放；不能把未处理原始孩子作为已处理产物。
                 if (recipe.IncludeDescendantGroups && SelectCaptureItems(request.PreparedFrame!.HierarchyScene, target, recipe).Length > 1)
                     throw new PreparedFrameException("ImageEffectDescendantCompositionPending", "真实运行后代的父组隔离协调尚未接入。");
-                var layers = SelectImageLayers(state, binding.Binding.Target, recipe, source);
-                selected.UnionWith(layers.SelectMany(layer => layer.Sources));
+                ColorLayer[]? layers = null;
+                if (source == GraphInputSource.TargetColor)
+                {
+                    layers = SelectImageLayers(state, binding.Binding.Target, recipe, source);
+                    selected.UnionWith(layers.SelectMany(layer => layer.Sources));
+                }
+                else
+                {
+                    // 覆盖率遮罩直接由原始几何捕获，不读取已融合彩色图层；只记录其声明覆盖的部件供整图替换一致性检查。
+                    selected.UnionWith(SelectImageSources(state, binding.Binding.Target, recipe, source));
+                }
                 if (!captures.TryGetValue((source, recipe), out var surface))
                 {
                     surface = source == GraphInputSource.TargetColor
-                        ? state.Own(AssembleImageLayers(request, state, layers, null))
+                        ? state.Own(AssembleImageLayers(request, state, layers!, null))
                         : state.Own(CaptureSceneTarget(request, target, recipe, source, state.Bounds, program.Graph.Plan.Budget, state.Resources));
                     captures.Add((source, recipe), surface);
                 }
@@ -86,27 +95,30 @@ public sealed partial class SkiaRenderPipeline
             return surface;
         }
     }
+    private static bool MatchesImagePart(ImageEffectTarget scope, SceneCaptureRecipe recipe, GraphInputSource source, PartSource part)
+    {
+        if (scope is not ImageEffectTarget.Line && scope != part.Member) return false;
+        if (IsRuby(part.Part) && !recipe.IncludeRuby) return false;
+        bool fill = part.Part is SceneColorPart.BaseFill or SceneColorPart.RubyFill;
+        bool stroke = IsStrokePart(part.Part);
+        bool glow = part.Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
+        bool shadow = part.Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
+        return source switch
+        {
+            GraphInputSource.TargetColor => fill || stroke && recipe.IncludeStroke || shadow && recipe.IncludeShadow || glow && recipe.IncludeGlow,
+            GraphInputSource.GlyphCoverage or GraphInputSource.SungCoverage => fill,
+            GraphInputSource.StrokeCoverage => stroke,
+            GraphInputSource.TargetRegionCoverage => fill && recipe.Region != SceneCaptureRegion.Stroke || stroke && recipe.Region != SceneCaptureRegion.Fill,
+            _ => false,
+        };
+    }
+    private static IEnumerable<PartSource> SelectImageSources(ImageObjectState state, ImageEffectTarget scope, SceneCaptureRecipe recipe, GraphInputSource source)
+        => state.Layers.SelectMany(layer => layer.Sources).Where(part => MatchesImagePart(scope, recipe, source, part));
     private static ColorLayer[] SelectImageLayers(ImageObjectState state, ImageEffectTarget scope, SceneCaptureRecipe recipe, GraphInputSource source)
     {
-        bool Matches(PartSource part)
-        {
-            if (scope is not ImageEffectTarget.Line && scope != part.Member) return false;
-            if (IsRuby(part.Part) && !recipe.IncludeRuby) return false;
-            bool fill = part.Part is SceneColorPart.BaseFill or SceneColorPart.RubyFill;
-            bool stroke = IsStrokePart(part.Part);
-            bool glow = part.Part is SceneColorPart.BaseGlow or SceneColorPart.RubyGlow;
-            bool shadow = part.Part is SceneColorPart.BaseShadow or SceneColorPart.RubyShadow;
-            return source switch
-            {
-                GraphInputSource.TargetColor => fill || stroke && recipe.IncludeStroke || shadow && recipe.IncludeShadow || glow && recipe.IncludeGlow,
-                GraphInputSource.GlyphCoverage or GraphInputSource.SungCoverage => fill,
-                GraphInputSource.StrokeCoverage => stroke,
-                GraphInputSource.TargetRegionCoverage => fill && recipe.Region != SceneCaptureRegion.Stroke || stroke && recipe.Region != SceneCaptureRegion.Fill,
-                _ => false,
-            };
-        }
+        bool Matches(PartSource part) => MatchesImagePart(scope, recipe, source, part);
         var layers = state.Layers.Where(layer => layer.Sources.Any(Matches)).OrderBy(layer => layer.Order).ToArray();
-        foreach (var layer in layers) if (layer.Sources.Any(source => !Matches(source))) throw PartialFusion();
+        foreach (var layer in layers) if (layer.Sources.Any(part => !Matches(part))) throw PartialFusion();
         return layers;
     }
     private static PreparedFrameException PartialFusion() => new("ImageEffectPartialFusion", "后续捕获只选择已融合图片的一部分；请调整效果顺序或捕获范围。");

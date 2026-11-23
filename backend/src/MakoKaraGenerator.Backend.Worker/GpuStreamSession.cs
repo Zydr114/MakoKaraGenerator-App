@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using MakoKaraGenerator.Backend.Contracts;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
 using MakoKaraGenerator.Scripting;
@@ -214,10 +215,12 @@ internal sealed class GpuStreamSession : IAsyncDisposable
                         BeginRuntimeFailure("WorkerRuntimeDiagnosticError");
                         stopping = true;
                     }
-                    catch (Exception failure) when (KnownBudgetFailure(failure))
+                    catch (Exception failure) when (KnownRenderFailure(failure))
                     {
                         // Uncommitted BeginFrame targets automatically cancel and return their slot to Free.
                         // Earlier exported leases still require exact consumer completion; no synthetic ACK.
+                        if (DiagnosticSnapshotOf(failure) is { } snapshot)
+                            _diagnostics = GpuStreamDiagnostics.Summarize(snapshot);
                         _renderFailure = GpuStreamFailure.From(failure);
                         BeginRuntimeFailure(_renderFailure.Code);
                         stopping = true;
@@ -346,15 +349,28 @@ internal sealed class GpuStreamSession : IAsyncDisposable
         finally { _controls.Close(); _channel.Dispose(); }
     }
 
-    private static RuntimeDiagnosticSnapshot? RuntimeDiagnosticFailure(Exception failure) => failure switch
+    private static RuntimeDiagnosticSnapshot? DiagnosticSnapshotOf(Exception failure) => failure switch
     {
-        EffectFailureException { DiagnosticSnapshot: { HasError: true } actual } => actual,
-        RenderSessionFailureException { DiagnosticSnapshot: { HasError: true } actual } => actual,
+        EffectFailureException { DiagnosticSnapshot: { } actual } => actual,
+        RenderSessionFailureException { DiagnosticSnapshot: { } actual } => actual,
         _ => null,
     };
 
-    private static bool KnownBudgetFailure(Exception failure) => failure is ImageSurfaceBudgetException ||
-        failure is SourceMaterialFailureException { InnerException: ImageSurfaceBudgetException };
+    private static RuntimeDiagnosticSnapshot? RuntimeDiagnosticFailure(Exception failure) =>
+        DiagnosticSnapshotOf(failure) is { HasError: true } actual ? actual : null;
+
+    // 帧提交前的确定性效果/图/材质/预算失败不会污染已导出的帧租约，应等待在途租约自然归还后优雅终止，
+    // 而不是发 drained=false 误触发宿主不可逆故障隔离。
+    private static bool KnownRenderFailure(Exception failure) => failure is
+        EffectFailureException or
+        SourceMaterialFailureException or
+        RenderSessionFailureException or
+        PreparedFrameException or
+        ImageGraphException or
+        ImageSurfaceBudgetException or
+        ShaderProgramException or
+        EffectPackageException or
+        EffectOutputException;
 
     private void BeginRuntimeFailure(string code)
     {

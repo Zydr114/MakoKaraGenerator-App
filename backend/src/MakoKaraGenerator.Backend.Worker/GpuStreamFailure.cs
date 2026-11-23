@@ -3,6 +3,7 @@ using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Rendering.Skia;
+using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Backend.Worker;
 
@@ -17,11 +18,14 @@ internal sealed record GpuStreamFailure(string Code, string Type, string? Site, 
     {
         Exception? coded = failure;
         while (coded is not null && CodeOf(coded) is null) coded = coded.InnerException;
+        Exception? detailSource = failure;
+        while (detailSource is not null && detailSource is not (GpuPreviewException or ImageGraphException or ImageSurfaceBudgetException))
+            detailSource = detailSource.InnerException;
         Exception root = failure.GetBaseException();
         var site = root.TargetSite ?? failure.TargetSite;
         return new(coded is null ? FallbackCode : CodeOf(coded)!, root.GetType().Name,
             site is null ? null : Bound(site.DeclaringType?.Name + "." + site.Name),
-            coded is GpuPreviewException or ImageGraphException or ImageSurfaceBudgetException ? Bound(coded.Message) : null);
+            detailSource is null ? null : Bound(detailSource.Message));
     }
 
     private static string? CodeOf(Exception failure) => failure switch
@@ -30,10 +34,13 @@ internal sealed record GpuStreamFailure(string Code, string Type, string? Site, 
         GpuPreviewException gpu => gpu.Code,
         EffectFailureException effect => effect.Code,
         RenderSessionFailureException session => session.Code,
+        SourceMaterialFailureException material => material.Code,
+        PreparedFrameException prepared => prepared.Code,
         ImageGraphException graph => graph.Code,
         ImageSurfaceBudgetException budget => budget.Code,
         ShaderProgramException shader => shader.Code,
         EffectPackageException package => package.Code,
+        EffectOutputException output => output.Code,
         _ => null,
     };
 

@@ -298,6 +298,38 @@ public sealed class GpuStreamSessionTests
         Assert.Equal(earlierFrame, first.Released);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EffectFailureWithoutDiagnosticSnapshotDrainsEarlierLeaseWithoutQuarantine(bool earlierFrame)
+    {
+        using var channel = new Channel(); var first = new Lease(1);
+        var effectFailure = new EffectFailureException(
+            new EffectInstanceId("echo"), "artifact-echo", "RenderImageEffects", 1_000_000,
+            "ImageEffectPartialFusion",
+            new PreparedFrameException("ImageEffectPartialFusion", "后续捕获只选择已融合图片的一部分；请调整效果顺序或捕获范围。"));
+        await using var stream = new GpuStreamSession(Open, Pool, channel, (time, sequence, _) =>
+            earlierFrame && sequence == 1 ? ValueTask.FromResult(Frame(first, time)) : throw effectFailure, false);
+        channel.Control(1);
+        JsonElement? published = earlierFrame ? await channel.Wait("frame", 1) : null;
+        if (earlierFrame) channel.Control(2, "seek", 1_000_000);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        while (stream.ReadState().FailureCode is null) await Task.Delay(2, timeout.Token);
+        if (published is { } frame)
+        {
+            Assert.DoesNotContain(channel.Packets, packet => packet.GetProperty("type").GetString() == "failed");
+            Assert.False(first.Released); Assert.False(first.Quarantined);
+            channel.Release(frame);
+        }
+        var failure = await channel.Wait("failed", 1);
+        Assert.True(failure.GetProperty("drained").GetBoolean());
+        Assert.Equal("ImageEffectPartialFusion", failure.GetProperty("code").GetString());
+        Assert.Equal("PreparedFrameException", failure.GetProperty("failureType").GetString());
+        Assert.True(await stream.StopAsync(timeout.Token));
+        Assert.True(stream.ReadState().Drained); Assert.False(first.Quarantined);
+        Assert.Equal(earlierFrame, first.Released);
+    }
+
     [Fact]
     public async Task PendingExportHasDeadlineAndIsQuarantined()
     {

@@ -280,8 +280,7 @@ public static class ProjectStore
                 && parsed.Build >= 0
                 && parsed.ToString(3) == stored;
 
-            bool compatiblePatch = (ProductVersion.Current, stored) is ("0.116.1", "0.116.0");
-            if (!valid || stored != ProductVersion.Current && !compatiblePatch)
+            if (!valid || stored != ProductVersion.Current)
             {
                 Add(issues, DiagnosticCode.ApplicationVersionMismatch, IssueSeverity.Error,
                     $"工程版本：{stored ?? "未标注程序版本"}；当前程序版本：{ProductVersion.Current}。"

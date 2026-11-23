@@ -1,6 +1,6 @@
 # 前端 API 调用速查
 
-本文是产品 **0.116.1**、API 合同 **1.60.0**、HTTP 协议 **1** 的前端使用顺序。它只描述当前公开 HTTP；字段形状以同一提交的 [openapi.json](openapi.json) 和 [api-contract.md](api-contract.md) 为准，跨请求语义以 [详细行为合同](../docs/architecture/backend-api.md) 为准。当前清单为 103 个路径、115 个显式方法、106 个工程命令（准确计数以 [api-index.md](api-index.md) 为准）。CPU/GPU选择与作者闭包分别按当前合同使用，各版本功能与性能证据单列。
+本文是产品 **0.117.0**、API 合同 **1.60.0**、HTTP 协议 **1** 的前端使用顺序。它只描述当前公开 HTTP；字段形状以同一提交的 [openapi.json](openapi.json) 和 [api-contract.md](api-contract.md) 为准，跨请求语义以 [详细行为合同](../docs/architecture/backend-api.md) 为准。当前清单为 103 个路径、115 个显式方法、106 个工程命令（准确计数以 [api-index.md](api-index.md) 为准）。CPU/GPU选择与作者闭包分别按当前合同使用，各版本功能与性能证据单列。
 
 ## 1. 从启动到第一个业务请求
 

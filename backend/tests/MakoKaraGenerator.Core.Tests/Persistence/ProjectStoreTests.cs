@@ -129,6 +129,7 @@ public sealed class ProjectStoreTests : IDisposable
     [Theory]
     [InlineData(null)]
     [InlineData("0.1.0")]
+    [InlineData("0.116.1")]
     [InlineData("999.0.0")]
     [InlineData("0.2")]
     [InlineData("0.2.0.0")]
@@ -157,27 +158,6 @@ public sealed class ProjectStoreTests : IDisposable
         Assert.True(result.Report.Contains(DiagnosticCode.ApplicationVersionMismatch));
         Assert.Equal(beforeProject, File.ReadAllText(projectPath));
         Assert.Equal(beforeLyrics, File.ReadAllText(lyricsPath));
-    }
-
-    [Fact]
-    public void 便携版补丁允许打开同格式01160工程且保持源文件()
-    {
-        ProjectStore.Save(SampleProject(), _directory.Path);
-        string projectPath = _directory.FilePath(ProjectJson.ProjectFileName);
-        string lyricsPath = ProjectFileFixture.LyricsPath(_directory.Path);
-        JsonNode document = JsonNode.Parse(File.ReadAllText(projectPath))!;
-        document["applicationVersion"] = "0.116.0";
-        File.WriteAllText(projectPath, document.ToJsonString());
-        byte[] beforeProject = File.ReadAllBytes(projectPath);
-        byte[] beforeLyrics = File.ReadAllBytes(lyricsPath);
-
-        ProjectLoadResult result = ProjectStore.Load(_directory.Path);
-
-        Assert.Equal("0.116.1", ProductVersion.Current);
-        Assert.True(result.Loaded, result.Report.ToSummary());
-        Assert.False(result.Report.Contains(DiagnosticCode.ApplicationVersionMismatch));
-        Assert.Equal(beforeProject, File.ReadAllBytes(projectPath));
-        Assert.Equal(beforeLyrics, File.ReadAllBytes(lyricsPath));
     }
 
     [Fact]

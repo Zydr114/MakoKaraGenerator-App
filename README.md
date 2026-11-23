@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>跨平台卡拉 OK 歌词动画制作与字幕视频渲染工具</strong><br />
-  <sub>版本 <code>0.116.1</code> · 支持 Windows x64 &amp; Linux x64 · 桌面端 &amp; 浏览器端</sub>
+  <sub>版本 <code>0.117.0</code> · 支持 Windows x64 &amp; Linux x64 · 桌面端 &amp; 浏览器端</sub>
 </p>
 
 ---
@@ -37,13 +37,16 @@
 
 ### 2. 逐字歌词编辑与波形打轴（歌词页）
 
-- **多轨道歌词管理**：左侧列出全部歌词行并直观标记每句的时间轴完成度与起始时刻；支持创建与关联多个歌词分支（如主歌词、翻译、罗马音），轻松实现双语/多语字幕联动。
-- **词元级拆分与重排**：每句歌词会被拆分为独立的文本单元（Token），支持自由**拖拽排序、拆分字词、与后一个合并**，以及**整行平移**和单句起止时间微调。
-- **原生 Ruby 注音编辑**：选中任意文本单元即可为其添加或修改假名、拼音等注音（Furigana），并自动处理相邻注音之间的自然字距避让。
-- **音频波形打轴**：底部时间轴展示完整音频波形，提供**打点模式**（随音乐播放按键拍打逐字节奏）、**单行循环试听**与**吸附到帧**；右侧“逐字预览”面板实时高亮当前演唱进度。
+- **多轨道歌词管理**：左侧列出全部歌词行并直观标记每句的时间轴完成度与起始时刻；支持创建与关联多个歌词分支（如主歌词、翻译、罗马音），并在画布中联动显示伴随参考行。
+- **三种工作模式（打轴 / 编辑 / 全文快编）**：
+  - **打轴**：以动态滚动卡拉 OK 画布为核心，直观呈现字簇与 Mora 拍点标记；支持随音乐播放使用 `J` / `K` 轮指连打逐字/逐拍推进、`L` 收尾、退格 / `G` 撤回一拍、行级与来源级时间戳清零、可配置的按键延迟补偿，以及“跟随播放 / 锁定当前行 / 自由滚动”三种视图模式。
+  - **编辑**：支持在画布中直接拆分字词、与后一个合并、微调单个词元或单句起止时间，以及整行平移与补全缺失时间。
+  - **全文快编**：提供带行号的多行文本编辑器（支持切换 `二人[ふ・た・り]` 内联注音格式），实时预览行级与字素级 Diff，提交后无损保留未改动字符的已有时间戳、注音与样式覆写。
+- **日语自动注音与原生 Ruby 编辑**：集成 `@patdx/kuromoji` 分词与按需缓存的 `NAIST-jdic` 词典引擎（支持单行/整来源自动注音及自定义用户词典管理）；按 `F2` 可呼出原地注音浮窗，支持罗马音实时转平/片假名预览或 `Shift+Enter` 原样提交拼音、音标等多语种注音，并自动处理相邻注音之间的自然字距避让。
+- **音频波形时间轴与保调变速**：底部时间轴展示完整音频波形以及歌词行、词元与注音块，提供 `Q` / `W` 保调变速（`0.25x` ~ `2.0x`）、单行循环试听与吸附到帧；工具栏右侧可直达当前行所属样式与编排容器。
 
 <p align="center">
-  <img src="docs/images/workspace-lyrics.png" alt="歌词编辑、注音与波形打轴" width="100%" />
+  <img src="docs/images/workspace-lyrics.png" alt="歌词打轴画布、日语自动注音、原地注音浮窗与音频波形时间轴" width="100%" />
 </p>
 
 ---
@@ -112,6 +115,9 @@
 | [Material Color Utilities](https://github.com/material-foundation/material-color-utilities) | 从软件标志与主题色动态推导 Material 配色方案 | Apache-2.0 |
 | [Material Symbols](https://fonts.google.com/icons) | 界面矢量图标集 | Apache-2.0 |
 | [CodeMirror 6](https://codemirror.net/) | 特效包脚本在线编辑器与语法高亮 | MIT |
+| [wanakana](https://wanakana.com/) (`^5.3.1`) | 原地注音浮窗罗马音实时转平/片假名预览（[第三方声明](docs/third-party/phonetics/README.md)） | MIT |
+| [@patdx/kuromoji](https://github.com/patdx/kuromoji) (`^1.0.4`) | 日语形态素分词引擎（构建时剔除内置词典，[第三方声明](docs/third-party/phonetics/README.md)） | Apache-2.0（内嵌 `doublearray` 为 MIT） |
+| `NAIST-jdic` (`0.6.3b`) | 按需下载或本地导入的裁剪日语词典资产（未打入安装包，[第三方声明](docs/third-party/phonetics/README.md)） | BSD-3-Clause |
 | [Roboto Flex](https://github.com/TypeNetwork/Roboto-Flex) | 界面拉丁字母与数字展示字体（[许可原文](frontend/src/editor/theme/fonts/RobotoFlex-OFL.txt)） | OFL-1.1 |
 | [TypeScript](https://www.typescriptlang.org/) / [Vite](https://vite.dev/) / [Vitest](https://vitest.dev/) | 前端类型检查、构建打包与单元测试 | Apache-2.0 / MIT |
 
@@ -135,11 +141,12 @@
 | [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers) | Linux 原生 GPU 共享纹理桥接头文件 | Apache-2.0 / MIT |
 | [llvm-mingw](https://github.com/mstorsjo/llvm-mingw) | Windows 原生媒体探针跨平台编译工具链 | ISC / Apache-2.0 with LLVM Exception |
 
-### 歌词格式与生态兼容参考
+### 歌词格式、生态兼容与设计参考
 
 - **ASS / SSA**（含 **MakoLrcStudio** 逐字打轴与注音注释兼容）
 - **TTML**（含 **AMLL / Apple Music-like Lyrics** 逐字与翻译、Ruby 注音结构兼容）
 - **Enhanced LRC / LRC**、**SRT**、**WebVTT**、**UltraStar**
+- **[StrangeUtaGame](https://github.com/karaoke-studio/StrangeUtaGame)**（GPL-3.0）：歌词页动态滚动打轴画布、连打交互与注音工作流的界面设计灵感参考（仅参考交互设计思路，未引入或分发其源代码）
 
 ---
 

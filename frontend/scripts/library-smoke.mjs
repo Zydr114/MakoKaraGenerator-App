@@ -5,7 +5,7 @@
 // → 试样：多行样本、换目标、拖时刻、试播 → 保存后重读与保存前一致（参数原文、最大种子）→ 列表缩略图
 // → .mktpl：导出两个模板并核对，导入得到两个新 ID、定义一致，第三次传输写明要等几分钟 → 删除本次的模板。
 //
-// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffectsV2（找不到时跳过并写明原因）。
+// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端 tests/Fixtures/ScriptEffectsV2（找不到时跳过并写明原因）。
 // 个人库里只增删本次创建的模板。控件按 ARIA 角色和名称找（scripts/ui-query.mjs），区域用样式库自己的类名限定。
 // 用法：node scripts/library-smoke.mjs [--url http://localhost:5173] [--screenshot out.png] [--headed]
 
@@ -28,7 +28,7 @@ const { values } = parseArgs({
 const ORIGIN = new URL(values.url).origin;
 
 if (!sampleEffectsDir()) {
-  console.log('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定后端仓库），没有效果包可用，跳过样式库冒烟。');
+  console.log('[skipped] 找不到后端的 tests/Fixtures/ScriptEffectsV2，没有效果包可用，跳过样式库冒烟。');
   process.exit(0);
 }
 

@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <Compile Include="../Shared/*.cs" LinkBase="Shared" />
-    <None Include="../../samples/ScriptEffectsV2/WordEmphasis/**/*" Link="effect-packages-v2/WordEmphasis/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/ScriptEffectsV2/WordEmphasis/**/*" Link="effect-packages-v2/WordEmphasis/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

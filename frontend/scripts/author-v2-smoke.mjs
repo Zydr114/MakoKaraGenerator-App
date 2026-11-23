@@ -30,7 +30,7 @@ const output = resolve(values.output);
 mkdirSync(output, { recursive: false, mode: 0o700 });
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const save = (name, value) => writeFileSync(join(output, name), JSON.stringify(value, null, 2) + '\n');
-const root = join(resolveBackendRepo(), 'samples', 'ScriptEffectsV2', sample);
+const root = join(resolveBackendRepo(), 'tests', 'Fixtures', 'ScriptEffectsV2', sample);
 const manifestBytes = readFileSync(join(root, 'manifest.json'));
 const manifest = JSON.parse(manifestBytes.toString('utf8'));
 if (manifest.packageVersion !== 3 || !manifest.sdkVersion.startsWith('2.')) throw new Error('测试素材必须是 package3/SDK2。');

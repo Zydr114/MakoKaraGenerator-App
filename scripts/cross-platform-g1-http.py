@@ -361,7 +361,7 @@ class Session:
                 'decodedBytes': len(rgba), 'decodedSha256': sha(rgba), 'strictlyVerified': True, 'ffprobeFrames': int(video['nb_read_frames'])}
 
     def sdk2(self):
-        directory = ROOT / 'backend/samples/ScriptEffectsV2/WordEmphasis'
+        directory = ROOT / 'backend/tests/Fixtures/ScriptEffectsV2/WordEmphasis'
         raw_manifest = (directory / 'manifest.json').read_bytes()
         manifest = json.loads(raw_manifest)
         check(manifest['packageVersion'] == 3 and manifest['sdkVersion'].split('.')[0] == '2', 'real built-in SDK2 manifest')

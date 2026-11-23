@@ -7,7 +7,7 @@ import type { AuthorDraft } from '../../src/protocol';
 import { ContractRecorder, startTestBackend, type TestBackend } from '../support/backend';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过作者集成测试。');
+if (!samples) console.warn('[skipped] 找不到 tests/Fixtures/ScriptEffectsV2，跳过作者集成测试。');
 let backend: TestBackend;
 let client: MakoClient;
 let draft: AuthorDraft | undefined;

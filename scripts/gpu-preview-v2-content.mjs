@@ -1,6 +1,6 @@
 // P3 GPU 流的 SDK2 内容：经生产界面在样式库建一个含 SDK2 效果的行模板，再在外观页一次应用到全部歌词行。
 // 样式 P3 起可加 --v2-style（两态、硬边分层渐变、4 层描边、羽化加高亮），可以不带包单独测直绘路径。
-// 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/samples/ScriptEffectsV2 或
+// 只用界面操作与文件输入，不读取凭证、不直接发 HTTP；包取本仓库 backend/tests/Fixtures/ScriptEffectsV2 或
 // backend/tests/Fixtures/ScriptEffectsV2Perf（M12 测速用测试包）并校验清单 SHA。
 // 材质包与 M12 HTTP 探针一致：全部材质导出按顺序排开，未唱填充用第一个、已唱填充用最后一个。
 import { createHash } from 'node:crypto';
@@ -100,7 +100,7 @@ async function definitionStyle(page) {
   return JSON.parse(await page.eval(`document.querySelector('.template-json').textContent`)).style;
 }
 
-const PACKAGE_SOURCES = { samples: ['samples', 'ScriptEffectsV2'], 'perf-fixtures': ['tests', 'Fixtures', 'ScriptEffectsV2Perf'] };
+const PACKAGE_SOURCES = { samples: ['tests', 'Fixtures', 'ScriptEffectsV2'], 'perf-fixtures': ['tests', 'Fixtures', 'ScriptEffectsV2Perf'] };
 
 /** 包目录须恰好出现在样例与测速夹具两处之一，同名时报错而不是择一。 */
 async function packageRoot(name) {

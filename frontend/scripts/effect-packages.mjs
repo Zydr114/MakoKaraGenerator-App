@@ -1,5 +1,5 @@
-// 测试素材：把后端仓库 samples/ScriptEffectsV2 下的示例效果包打成 .mkfx（ZIP，根目录是 manifest.json；W7 设计 §4）。
-// 集成测试和 smoke 共用。找不到后端仓库时 sampleEffectsDir() 返回 null，调用方跳过并写明原因。
+// 测试素材：把后端 tests/Fixtures/ScriptEffectsV2 下的测试夹具效果包打成 .mkfx（ZIP，根目录是 manifest.json；W7 设计 §4）。
+// 集成测试和 smoke 共用。找不到目录时 sampleEffectsDir() 返回 null，调用方跳过并写明原因。
 
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -7,16 +7,16 @@ import { join, relative, sep } from 'node:path';
 import { crc32, deflateRawSync, deflateSync } from 'node:zlib';
 import { resolveBackendRepo } from './backend-launcher.mjs';
 
-/** 示例效果包目录；后端仓库不在时为 null。 */
+/** 测试夹具效果包目录；不存在时为 null。 */
 export function sampleEffectsDir() {
-  const dir = join(resolveBackendRepo(), 'samples', 'ScriptEffectsV2');
+  const dir = join(resolveBackendRepo(), 'tests', 'Fixtures', 'ScriptEffectsV2');
   return existsSync(join(dir, 'WordEmphasis', 'manifest.json')) ? dir : null;
 }
 
-/** 把一个示例包（例如 WordEmphasis）打成 .mkfx 的字节；找不到后端仓库时抛错。 */
+/** 把一个测试夹具包（例如 WordEmphasis）打成 .mkfx 的字节；找不到夹具目录时抛错。 */
 export function packSampleEffect(name) {
   const root = sampleEffectsDir();
-  if (!root) throw new Error(`找不到后端仓库的示例效果包（${resolveBackendRepo()}）；用 MAKO_BACKEND_REPO 指定后端仓库。`);
+  if (!root) throw new Error(`找不到后端的测试夹具效果包（${resolveBackendRepo()}）；请检查 tests/Fixtures/ScriptEffectsV2。`);
   const dir = join(root, name);
   return zipFiles(listFiles(dir).map((path) => ({ name: relative(dir, path).split(sep).join('/'), data: readFileSync(path) })));
 }
@@ -29,7 +29,7 @@ export function packSampleEffect(name) {
  */
 export function packVariantEffect(variant) {
   const root = sampleEffectsDir();
-  if (!root) throw new Error(`找不到后端仓库的示例效果包（${resolveBackendRepo()}）；用 MAKO_BACKEND_REPO 指定后端仓库。`);
+  if (!root) throw new Error(`找不到后端的测试夹具效果包（${resolveBackendRepo()}）；请检查 tests/Fixtures/ScriptEffectsV2。`);
   const base = { WordEmphasisCurves: 'WordEmphasis', SpriteTrailImages: 'SpriteTrail' }[variant];
   if (!base) throw new Error(`没有测试包 ${variant}`);
   const dir = join(root, base);

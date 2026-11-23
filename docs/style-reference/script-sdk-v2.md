@@ -4509,23 +4509,23 @@ SourceSubscription.Branch(BranchId id)
 
 ### 21.1 可直接参考的完整效果包
 
-示例根目录为 [`backend/samples/ScriptEffectsV2/`](../../backend/samples/ScriptEffectsV2)。每个目录包含完整清单和资源；C# 包包含入口源码。
+官方效果包（`.mkfx`）示例已迁移至独立 GitHub 仓库维护：[Zydr114/MakoKaraGenerator-OfficialMkfxSamples](https://github.com/Zydr114/MakoKaraGenerator-OfficialMkfxSamples)。以下主题分类可对照查阅对应效果模式：
 
 | 包 | 编写参考 |
 | --- | --- |
-| [WordEmphasis](../../backend/samples/ScriptEffectsV2/WordEmphasis) | 逐字进度、字族缩放、唱完回落 |
-| [RepeatEmphasis](../../backend/samples/ScriptEffectsV2/RepeatEmphasis) | 同文本演唱次数、范围选择、已唱填充 |
-| [ClusterExit](../../backend/samples/ScriptEffectsV2/ClusterExit) | 基础字和注音字簇错峰退场、整行变换 |
-| [WaveWarp](../../backend/samples/ScriptEffectsV2/WaveWarp) | 按当前进度生成局部网格、确定 Warp 范围 |
-| [CursorTrail](../../backend/samples/ScriptEffectsV2/CursorTrail) | 连续发射、分段速率、Bridge、自动圆点 |
-| [EventBurst](../../backend/samples/ScriptEffectsV2/EventBurst) | 真实事件、Burst 计划与四类锚点 |
-| [VectorTrail](../../backend/samples/ScriptEffectsV2/VectorTrail) | 自定义粒子、圆点、线段、带状拖尾与图片精灵 |
-| [SpriteTrail](../../backend/samples/ScriptEffectsV2/SpriteTrail) | 图片参数、粒子旋转与拖尾淡出 |
-| [StarSweep](../../backend/samples/ScriptEffectsV2/StarSweep) | 最终播放头、SVG 矢量和跟随图元 |
-| [AdaptiveStroke](../../backend/samples/ScriptEffectsV2/AdaptiveStroke) | 背景媒体特征、亮度和纹理自适应描边 |
-| [CustomInk](../../backend/samples/ScriptEffectsV2/CustomInk) | JSON 与 SkSL 材质包 |
-| [LineGlitch](../../backend/samples/ScriptEffectsV2/LineGlitch) | 图效果、图输入、整行图像处理 |
-| [GlassInk](../../backend/samples/ScriptEffectsV2/GlassInk) | 背景媒体、真实下层、区域覆盖与旁路 |
+| WordEmphasis | 逐字进度、字族缩放、唱完回落 |
+| RepeatEmphasis | 同文本演唱次数、范围选择、已唱填充 |
+| ClusterExit | 基础字和注音字簇错峰退场、整行变换 |
+| WaveWarp | 按当前进度生成局部网格、确定 Warp 范围 |
+| CursorTrail | 连续发射、分段速率、Bridge、自动圆点 |
+| EventBurst | 真实事件、Burst 计划与四类锚点 |
+| VectorTrail | 自定义粒子、圆点、线段、带状拖尾与图片精灵 |
+| SpriteTrail | 图片参数、粒子旋转与拖尾淡出 |
+| StarSweep | 最终播放头、SVG 矢量和跟随图元 |
+| AdaptiveStroke | 背景媒体特征、亮度和纹理自适应描边 |
+| CustomInk | JSON 与 SkSL 材质包 |
+| LineGlitch | 图效果、图输入、整行图像处理 |
+| GlassInk | 背景媒体、真实下层、区域覆盖与旁路 |
 
 ### 21.2 维护与进阶阅读
 

@@ -6,7 +6,7 @@
 // Quiet transport benchmark: node scripts/gpu-preview-p3.mjs --provider synthetic
 // Reanalyze: node scripts/gpu-preview-p3.mjs --analyze .local/gpu-preview-p3/<run>
 // SDK2 content: add --v2-samples t01|<names> [--v2-lines 72] to --finite/--debug; lyrics shrink to N lines every 5 s
-//   names come from backend/samples/ScriptEffectsV2 or backend/tests/Fixtures/ScriptEffectsV2Perf; --v2-params blurPx=8 rewrites package parameter defaults when packing.
+//   names come from backend/tests/Fixtures/ScriptEffectsV2 or backend/tests/Fixtures/ScriptEffectsV2Perf; --v2-params blurPx=8 rewrites package parameter defaults when packing.
 //   --v2-style twoState|bands|strokes|feather edits the template's style through the editor before saving; it can stand alone without --v2-samples.
 // Background image: --background-image <png> uploads it through project settings before SDK2 content (default: solid colour only).
 // and a UI-built SDK2 line template is applied to all of them before any timed phase.

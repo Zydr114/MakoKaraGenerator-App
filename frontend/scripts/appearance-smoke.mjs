@@ -11,7 +11,7 @@
 //   外观来源写明分配和目标，点来源选中那个目标；在样式库中编辑副本，保存并返回试看，应用后撤销 → 删除本次的模板。
 //
 // 控件按 ARIA 角色和可访问名称找（scripts/ui-query.mjs）；外观目标树的行按 data-target-key 点，检查器的路径在 .ihead 的 data-path 上。
-// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端仓库 samples/ScriptEffectsV2（找不到时跳过含效果模板的部分并写明原因）。
+// 前提：pnpm dev:backend 与 pnpm dev 都在运行；效果包取后端 tests/Fixtures/ScriptEffectsV2（找不到时跳过含效果模板的部分并写明原因）。
 // 个人库里只增删本次创建的模板。
 // 用法：node scripts/appearance-smoke.mjs [--url http://localhost:5173] [--screenshot out.png] [--headed]
 
@@ -512,7 +512,7 @@ try {
 
   // 8. 含效果的模板（W7 设计 §5 第 5～8 条）
   if (!sampleEffectsDir()) {
-    console.log('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定后端仓库），跳过含效果模板的部分。');
+    console.log('[skipped] 找不到后端的 tests/Fixtures/ScriptEffectsV2，跳过含效果模板的部分。');
   } else {
     writeFileSync(inkPath, packSampleEffect('CustomInk'));
     writeFileSync(emphasisPath, packSampleEffect('WordEmphasis'));

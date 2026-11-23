@@ -1,6 +1,6 @@
 // 连真实 Server 的完整模板（合同 1.37.0，规范 §24；W7 设计 §0、§2）：完整定义往返、效果包检查、工坊试样、
 // 用到编排节点和片段上、外观来源、.mktpl 往返与传输配额（G32）。
-// 效果包用后端仓库 samples/ScriptEffectsV2 的示例运行时打包；找不到后端仓库时整个文件跳过并写明原因。
+// 效果包用后端 tests/Fixtures/ScriptEffectsV2 的测试夹具运行时打包；找不到目录时整个文件跳过并写明原因。
 // 个人库属于本次运行的独立测试 profile（.dev/it-full-templates-*）；结束时删掉本文件写入的模板，目录留作证据。
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +26,7 @@ import { ContractRecorder, startTestBackend, type TestBackend } from '../support
 import { makeWav } from '../support/fixtures';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到后端仓库的 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过完整模板集成测试。');
+if (!samples) console.warn('[skipped] 找不到后端的 tests/Fixtures/ScriptEffectsV2，跳过完整模板集成测试。');
 
 let backend: TestBackend;
 let client: MakoClient;

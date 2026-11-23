@@ -1,6 +1,6 @@
 // 真实 Chrome 走作者草稿“替换包内图片”（合同 1.49.0）：导入 SDK v2 的 SpriteTrail→源码页签选 assets/spark.png→
 // 换 GIF 被拒→换 32×24 PNG 看到尺寸提醒→保存修订（提交 replacedFiles 与所看修订）→编译、采用→试样帧变化→清理。
-// 所有写操作都从界面发起，网络只旁观。需 pnpm dev:backend 与 pnpm dev；效果包取后端 samples/ScriptEffectsV2。
+// 所有写操作都从界面发起，网络只旁观。需 pnpm dev:backend 与 pnpm dev；效果包取后端 tests/Fixtures/ScriptEffectsV2。
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
@@ -20,7 +20,7 @@ const IMAGE = 'assets/spark.png';
 const sha = (data) => createHash('sha256').update(data).digest('hex');
 const files = { mkfx: join(output, 'SpriteTrail.mkfx'), png: join(output, 'orange-32x24.png'), gif: join(output, 'dot.gif') };
 const png = makePng(32, 24, [255, 140, 0, 255]);
-const sample = join(resolveBackendRepo(), 'samples', 'ScriptEffectsV2', 'SpriteTrail');
+const sample = join(resolveBackendRepo(), 'tests', 'Fixtures', 'ScriptEffectsV2', 'SpriteTrail');
 const list = (path) => statSync(path).isDirectory() ? readdirSync(path).sort().flatMap((entry) => list(join(path, entry))) : [path];
 writeFileSync(files.mkfx, zipFiles(list(sample).map((path) => ({ name: relative(sample, path).split(sep).join('/'), data: readFileSync(path) }))));
 writeFileSync(files.png, png);

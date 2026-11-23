@@ -69,7 +69,7 @@
   - **文字与注音**：自由选择系统字体与回退字体、字号、字重、斜体与字距，并独立设置 **Ruby 注音字号比例**与**与正文间距**。
   - **未唱 / 已唱双态外观**：分别为歌词未演唱与已演唱状态配置纯色或渐变填充、**最多 4 层描边**（支持实心色与多色标渐变）、投影阴影、**静态外辉光**（颜色、不透明度、扩张、模糊），以及扫字羽化与高亮效果。
 - **开关式模板继承与分级覆写**：在“样式库”中，每个外观参数右侧都配有独立开关——打开表示写入模板，关闭则由下层目标继承。在“外观”页可以将样式模板（支持 `.mktpl` 分享导入/导出）分别指派给工程默认、整条歌词轨道、特定片段、单行或单个文本单元，也可以直接做局部覆写。
-- **C# 动态特效与试样调试**：支持引入或在线编写可编程特效包（`.mkfx`），驱动逐字缩放、墨迹扩散、光标拖尾、粒子发射、波浪变形、故障风等动画，并支持配合图片/SVG 素材与自定义着色器（详见 [脚本 SDK v2 参考](docs/style-reference/script-sdk-v2.md) 与内置 13 个示例效果 [`backend/samples/ScriptEffectsV2/`](backend/samples/ScriptEffectsV2)）。样式库还提供固定样本棋盘格试样、字簇/注音/播放头/粒子出生点叠加层，以及**单帧成本分析**面板，帮助作者直观调优效果性能。
+- **C# 动态特效与试样调试**：支持引入或在线编写可编程特效包（`.mkfx`），驱动逐字缩放、墨迹扩散、光标拖尾、粒子发射、波浪变形、故障风等动画，并支持配合图片/SVG 素材与自定义着色器（详见 [脚本 SDK v2 参考](docs/style-reference/script-sdk-v2.md)；官方 `.mkfx` 效果包示例仓库见 GitHub：[Zydr114/MakoKaraGenerator-OfficialMkfxSamples](https://github.com/Zydr114/MakoKaraGenerator-OfficialMkfxSamples)）。样式库还提供固定样本棋盘格试样、字簇/注音/播放头/粒子出生点叠加层，以及**单帧成本分析**面板，帮助作者直观调优效果性能。
 
 <p align="center">
   <img src="docs/images/workspace-style-library.png" alt="样式库、动态特效试样与单帧成本面板" width="100%" />
@@ -210,7 +210,7 @@ pnpm package:windows --build
 - [`desktop/`](desktop)：Electron 桌面主进程、共享纹理/内存预览消费端与运行时路径管理
 - [`native/`](native)：桌面连续预览原生桥接库（`gpu-preview` / `shm-preview`）
 - [`scripts/`](scripts) & [`tests/`](tests)：构建、打包、冒烟与集成验证脚本
-- 扩展技术文档：[脚本 SDK v2 完整 API 参考](docs/style-reference/script-sdk-v2.md) · [GPU 预览流 v1 合同](docs/architecture/gpu-preview-stream-v1.md)
+- 扩展技术文档：[脚本 SDK v2 完整 API 参考](docs/style-reference/script-sdk-v2.md) · [GPU 预览流 v1 合同](docs/architecture/gpu-preview-stream-v1.md) · [官方 `.mkfx` 效果包示例仓库（GitHub）](https://github.com/Zydr114/MakoKaraGenerator-OfficialMkfxSamples)
 
 </details>
 

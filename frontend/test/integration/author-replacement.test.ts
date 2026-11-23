@@ -11,7 +11,7 @@ import { ContractRecorder, startTestBackend, type TestBackend } from '../support
 import { makePng } from '../support/fixtures';
 
 const samples = sampleEffectsDir();
-if (!samples) console.warn('[skipped] 找不到 samples/ScriptEffectsV2（MAKO_BACKEND_REPO），跳过替换素材集成测试。');
+if (!samples) console.warn('[skipped] 找不到 tests/Fixtures/ScriptEffectsV2，跳过替换素材集成测试。');
 const SERIF = '/usr/share/fonts/liberation/LiberationSerif-Regular.ttf';
 const MONO = '/usr/share/fonts/liberation/LiberationMono-Regular.ttf';
 const OTF = '/usr/share/fonts/gsfonts/NimbusMonoPS-Regular.otf';

@@ -13,7 +13,7 @@ import { packSampleEffect, packVariantEffect, sampleEffectsDir } from './effect-
 const { values } = parseArgs({ options: { url: { type: 'string', default: 'http://localhost:5173' }, headed: { type: 'boolean' }, screenshot: { type: 'string' } } });
 const samples = sampleEffectsDir();
 if (!samples) {
-  console.log('[skipped] 找不到 samples/ScriptEffectsV2（用 MAKO_BACKEND_REPO 指定），跳过作者冒烟。');
+  console.log('[skipped] 找不到 tests/Fixtures/ScriptEffectsV2，跳过作者冒烟。');
   process.exit(0);
 }
 const assets = mkdtempSync(join(tmpdir(), 'mako-author-smoke-'));

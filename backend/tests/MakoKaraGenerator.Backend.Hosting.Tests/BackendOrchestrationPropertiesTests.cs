@@ -16,9 +16,8 @@ public sealed class BackendOrchestrationPropertiesTests
     private static readonly ProjectOrchestrationPlacementDto Geometry = new(1.2, -.3, "TopLeft", 17, 1.4);
     private static readonly ProjectOrchestrationReferenceRectDto Rect = new(.8, .6);
     private static readonly ProjectOrchestrationSafeAreaDto Area = new(.1, .2, .85, .95);
-    private static readonly ProjectOrchestrationSceneTransformDto Channel = new(.7, .8, 13, -7, 9);
     private static ProjectOrchestrationSlotAnimationDto Animation => new("LeadBeforeNextStart", .3, "12000", "23000", 3,
-        "ReplacePrevious", "UntilNextReveal", "140000", "250000", Channel, Channel with { Opacity = 1 }, Channel with { Scale = 1.2 }, "EaseOut", "Linear");
+        "ReplacePrevious", "UntilNextReveal");
 
     [Fact]
     public async Task 节点布局程序属性单次历史精确回显撤销重做与静态闭包持久化保持()
@@ -104,8 +103,7 @@ public sealed class BackendOrchestrationPropertiesTests
         {
             ProjectCommandDto[] commands = [new SetOrchestrationLayoutDefaultPlacementCommandDto(program.DefaultContainerId, Geometry with { Scale = value }),
                 new SetOrchestrationNodeGeometryCommandDto(program.RootContainerId, Geometry with { Scale = value }, Rect),
-                new SetOrchestrationNodeGeometryCommandDto(program.RootContainerId, Geometry, Rect with { WidthRatio = value }),
-                new SetOrchestrationSlotAnimationCommandDto(program.DefaultContainerId, Animation with { EnterFrom = Channel with { Scale = value } })];
+                new SetOrchestrationNodeGeometryCommandDto(program.RootContainerId, Geometry, Rect with { WidthRatio = value })];
             foreach (var command in commands)
             {
                 var result = await f.Command("2", command); Assert.Equal(BackendErrorCode.InvalidRequest, result.Error!.Code);
@@ -119,10 +117,9 @@ public sealed class BackendOrchestrationPropertiesTests
             new SetOrchestrationLayoutDefaultPlacementCommandDto(program.DefaultContainerId, Geometry with { RotationDegrees = double.NegativeInfinity }),
             new SetOrchestrationLayoutSettingsCommandDto(program.DefaultContainerId, Area, double.NaN),
             new SetOrchestrationLayoutSettingsCommandDto(program.DefaultContainerId, Area with { Bottom = double.PositiveInfinity }, .9),
-            new SetOrchestrationSlotAnimationCommandDto(program.DefaultContainerId, Animation with { Hold = Channel with { Opacity = double.NaN } }),
             new SetOrchestrationSlotAnimationCommandDto(program.DefaultContainerId, Animation with { RevealProgress = double.NaN }),
             new SetOrchestrationProgramAnimationPolicyCommandDto("primary", "1"),
-            new SetOrchestrationSlotAnimationCommandDto(program.DefaultContainerId, Animation with { Easing = "1" }),
+            new SetOrchestrationSlotAnimationCommandDto(program.DefaultContainerId, Animation with { RevealMode = "1" }),
         }) Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Command("2", command)).Error!.Code);
         Assert.Equal(BackendErrorCode.RevisionConflict, (await f.Command("0", new SetOrchestrationNodeGeometryCommandDto(program.RootContainerId, Geometry, Rect))).Error!.Code);
         Assert.Equal("TargetStale", (await f.Command("2", new SetOrchestrationNodeGeometryCommandDto("absent", Geometry, Rect))).Error!.FailureCode);
@@ -157,7 +154,7 @@ public sealed class BackendOrchestrationPropertiesTests
         Assert.Single(results, r => r.Accepted); Assert.Equal(BackendErrorCode.RevisionConflict, Assert.Single(results, r => !r.Accepted).Error!.Code);
         Accepted(await f.Command("1", new BasicLayoutCommandDto("primary", "KaraokeDouble", null, "two", ["a", "b"], "selected", "retained", false)));
         string target = (await f.Model("2")).Programs.Single(p => p.BranchId == "primary").DefaultContainerId;
-        var input = new SetOrchestrationSlotAnimationCommandDto(target, Animation with { RevealDelayUs = "0012000", Easing = "linear" });
+        var input = new SetOrchestrationSlotAnimationCommandDto(target, Animation with { RevealDelayUs = "0012000", RevealMode = "leadBeforeNextStart" });
         var request = Fixture.Request("2", input);
         var first = Accepted(await f.Registry.ExecuteCommandAsync("client", f.Id, request));
         var replay = Accepted(await f.Registry.ExecuteCommandAsync("client", f.Id, request with { Command = input with { SlotAnimation = Animation } }));
@@ -183,9 +180,9 @@ public sealed class BackendOrchestrationPropertiesTests
             geometry.Replace("\"scale\":1.4", "\"scale\":1.4,\"scale\":2"), geometry.Replace("\"anchor\":\"TopLeft\"", "\"anchor\":\"1\""),
             geometry.Replace("\"widthRatio\":0.8", "\"widthRatio\":null"), geometry.Replace("\"widthRatio\":0.8", "\"widthRatio\":0.8,\"unknown\":0"),
             animation.Replace("\"revealDelayUs\":\"12000\"", "\"revealDelayUs\":12000"),
-            animation.Replace("\"enterDurationUs\":\"140000\"", "\"enterDurationUs\":\"-1\""),
-            animation.Replace("\"maxVisibleLines\":3", "\"maxVisibleLines\":3.5"), animation.Replace("\"easing\":\"Linear\"", "\"easing\":\"0\""),
-            animation.Replace("\"opacity\":0.7", "\"opacity\":0.7,\"opacity\":0.9"),
+            animation.Replace("\"revealLeadUs\":\"23000\"", "\"revealLeadUs\":\"-1\""),
+            animation.Replace("\"maxVisibleLines\":3", "\"maxVisibleLines\":3.5"), animation.Replace("\"revealMode\":\"LeadBeforeNextStart\"", "\"revealMode\":\"0\""),
+            animation.Replace("\"revealProgress\":0.3", "\"revealProgress\":0.3,\"revealProgress\":0.5"),
             "{\"type\":\"orchestration.setProgramAnimationPolicy\",\"branchId\":\"primary\"}",
             "{\"type\":\"orchestration.setSlotAnimation\",\"containerId\":\"node\"}",
         }) Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<ProjectCommandDto>(invalid, Json));

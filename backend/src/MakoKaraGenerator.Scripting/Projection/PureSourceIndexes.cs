@@ -247,7 +247,6 @@ public static class PureSourceIndexes
                 if (!scope.Matches(entered)) continue;
                 long? hide = raw.Hide;
                 bool hasSchedule = schedules.TryGetValue(LyricSceneSampler.SourceBindingKey(entered.Binding.BindingId.Value), out var plan);
-                bool inheritExit = true;
                 var original = sourceLines[entered.Binding.LineId.Value];
                 if (!hasSchedule && original.Branch.TimingMode == LyricBranchTimingMode.FollowPrimary && original.Line.PrimaryLineId is { } primaryLine
                     && enteredByLine.TryGetValue(new(primaryLine), out var associated))
@@ -258,36 +257,14 @@ public static class PureSourceIndexes
                         if (primary.Entered.TimeUs > entered.TimeUs || primary.Hide is { } primaryHide && primaryHide <= entered.TimeUs) continue;
                         if (!schedules.TryGetValue(LyricSceneSampler.SourceBindingKey(primary.Entered.Binding.BindingId.Value), out plan)) continue;
                         hasSchedule = true;
-                        inheritExit = _snapshot.LyricPresentation.ResolveDisplay(original.Branch.Id, _snapshot.LyricPresentation.FindProgram(original.Branch.Id)!.DefaultContainerId)
-                            .PolicyFor(original.Branch) == LyricBranchAnimationPolicy.FollowPrimary;
                         break;
                     }
                 }
                 TimeRange? preparation = hasSchedule && plan.Occurrence.Preparation is { } range
                     ? Clip(range.StartUs, range.EndUs, entered.TimeUs, hide) : null;
-                var exit = hasSchedule && inheritExit ? LayoutExit(plan.Branch, plan.Occurrence, entered.TimeUs, hide) : null;
-                result.Add(new(entered.Binding, entered.TimeUs, hide, raw.Ordinal, preparation, exit));
+                result.Add(new(entered.Binding, entered.TimeUs, hide, raw.Ordinal, preparation, null));
             }
             return result.ToImmutable();
-        }
-
-        private TimeRange? LayoutExit(LyricBranch branch, LyricDisplayOccurrence occurrence, long reveal, long? hide)
-        {
-            if (occurrence.SlotIndex < 0) return null;
-            var program = _snapshot.LyricPresentation.FindProgram(branch.Id)!;
-            var presentation = _snapshot.LyricPresentation.ResolveDisplay(branch.Id, occurrence.Segment.ContainerId(program));
-            if (presentation.SlotSequenceProfile is not { } profile || presentation.PolicyFor(branch) != LyricBranchAnimationPolicy.Karaoke
-                && !program.LeadIns.Any(static cue => cue.Enabled) && !program.Clips.Any(static clip => clip.ScheduleContext is not null)) return null;
-            long enter = presentation.FindLine(occurrence.Line.Id)?.EnterAnimation?.DurationUs ?? profile.EnterDurationUs;
-            long exit = profile.ExitDurationUs, span = occurrence.HideTimeUs - occurrence.RevealTimeUs;
-            if ((double)enter + exit > span)
-            {
-                enter = (long)Math.Floor(span * ((double)enter / ((double)enter + exit)));
-                exit = span - enter;
-            }
-            if (exit == 0 || Clip(occurrence.HideTimeUs - exit, occurrence.HideTimeUs, reveal, hide) is null) return null;
-            // Keep the original clock even if an actual visible window starts or ends inside it.
-            return new(occurrence.HideTimeUs - exit, occurrence.HideTimeUs);
         }
 
         private ImmutableArray<SourceCursorSegment> BuildCursors(ImmutableArray<SourcePresentationLoad> loads)

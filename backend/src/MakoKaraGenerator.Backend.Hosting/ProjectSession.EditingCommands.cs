@@ -22,8 +22,6 @@ public sealed partial class ProjectSession
         SplitOrchestrationClipCommandDto => command.Type == "orchestration.splitClip",
         MergeOrchestrationClipsCommandDto => command.Type == "orchestration.mergeClips",
         SetOrchestrationLayoutKindCommandDto => command.Type == "orchestration.setLayoutKind",
-        SetLineEnterAnimationCommandDto => command.Type == "orchestration.setLineEnterAnimation",
-        SetProjectEnterAnimationCommandDto => command.Type == "orchestration.setProjectEnterAnimation",
         SetLeadInAttachmentCommandDto => command.Type == "orchestration.setLeadInAttachment",
         SetLeadInGenerationCommandDto => command.Type == "orchestration.setLeadInGeneration",
         PreviewLeadInGenerationCommandDto => command.Type == "orchestration.previewLeadInGeneration",
@@ -238,7 +236,7 @@ public sealed partial class ProjectSession
         if (IsLeadInEditing(command)) return CanonicalLeadInEditingCommand(command);
         return command switch
         {
-            SetOrchestrationLayoutKindCommandDto or SetLineEnterAnimationCommandDto or SetProjectEnterAnimationCommandDto => CanonicalLayoutAndLineAnimationCommand(command),
+            SetOrchestrationLayoutKindCommandDto => CanonicalLayoutAndLineAnimationCommand(command),
             SetOrchestrationNodeGeometryCommandDto or SetOrchestrationLayoutSettingsCommandDto
                 or SetOrchestrationSlotAnimationCommandDto or SetOrchestrationProgramAnimationPolicyCommandDto => CanonicalOrchestrationPropertiesCommand(command),
             ApplyPresetApplicationCommandDto or UpdatePresetApplicationCommandDto or SetPresetApplicationEnabledCommandDto or RemovePresetApplicationCommandDto => ClonePresetApplicationCommand(command),

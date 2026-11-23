@@ -11,16 +11,15 @@ def cases():
 
     settings = dict(includeOpening=True, includeLongGaps=True, gapThresholdUs="5000000", durationUs="3000000",
                     indicatorContainerId=None, excludedLineIds=[])
-    animation = dict(durationUs="250000", easing="EaseOut", startOpacity=0, startScale=1, startOffsetPx=20)
     color = dict(red=255, green=255, blue=255, alpha=255)
-    fill = dict(material=dict(kind="solid", color=color))
+    fill = dict(kind="solid", color=color)
     typography = dict(fontFamilyName=None, fallbackFamilyNames=[], fontSizePx=32, fontWeight=400,
                       isBold=False, isItalic=False, letterSpacingPx=0)
-    appearance = dict(typography=typography, pendingFill=fill, elapsedFill=fill, stroke=None, shadow=None, opacity=1)
+    appearance = dict(typography=typography, pending=dict(fill=fill, strokes=[], shadow=None, glow=None),
+                      elapsed=dict(fill=fill, strokes=dict(kind="follow"), shadow=dict(kind="follow"), glow=dict(kind="follow")),
+                      opacity=1)
     commands = [
         ("SetOrchestrationLayoutKindCommandDtoInput", dict(type="orchestration.setLayoutKind", containerId="container", kind="Auto", slotIds=[], newSlotCount=0)),
-        ("SetLineEnterAnimationCommandDtoInput", dict(type="orchestration.setLineEnterAnimation", branchId="branch", lineId="line", animation=animation)),
-        ("SetProjectEnterAnimationCommandDtoInput", dict(type="orchestration.setProjectEnterAnimation", animation=animation)),
         ("SetLeadInGenerationCommandDtoInput", dict(type="orchestration.setLeadInGeneration", branchId="branch", settings=settings)),
         ("PreviewLeadInGenerationCommandDtoInput", dict(type="orchestration.previewLeadInGeneration", branchId="branch", settings=settings)),
         ("ApplyLeadInGenerationCommandDtoInput", dict(type="orchestration.applyLeadInGeneration", branchId="branch", settings=settings, selectedLineIds=["line"])),
@@ -33,6 +32,7 @@ def cases():
         ("SetCountdownAppearanceCommandDtoInput", dict(type="orchestration.setCountdownAppearance", containerId="countdown", appearance=appearance)),
         ("SetMarkAppearanceCommandDtoInput", dict(type="orchestration.setMarkAppearance", nodeId="mark", changes=[dict(property="opacity", value=.5)])),
     ]
+    by_op = {value["type"].split(".")[-1]: (schema, value) for schema, value in commands}
     metadata = dict(expectedRevision="0", requestId="fixture", hostInstanceId="host", validUntilUtc="2026-10-18T10:00:00Z")
     for schema, value in commands:
         operation = value["type"].split(".")[-1]
@@ -50,11 +50,10 @@ def cases():
                 for suffix, bad in (("blank", " \t"), ("long", "x" * (4097 if field == "leadInId" else 129)), ("null", None), ("number", 1)):
                     add(operation + "-" + field + "-" + suffix, schema, {**value, field: bad}, False)
     for mode, valid in (("FixedParent", True), ("CueTargetText", True), ("fixedParent", False), (None, False)):
-        add("attachment-mode-" + str(mode), commands[7][0], {**commands[7][1], "mode": mode}, valid)
-    for schema, command in commands[1:3]:
-        add(command["type"] + "-clear", schema, {**command, "animation": None})
-    add("set-generation-clear", commands[3][0], {**commands[3][1], "settings": None})
-    for schema, command in commands[4:6]:
+        add("attachment-mode-" + str(mode), by_op["setLeadInAttachment"][0], {**by_op["setLeadInAttachment"][1], "mode": mode}, valid)
+    add("set-generation-clear", by_op["setLeadInGeneration"][0], {**by_op["setLeadInGeneration"][1], "settings": None})
+    for op in ("previewLeadInGeneration", "applyLeadInGeneration"):
+        schema, command = by_op[op]
         add(command["type"] + "-null-settings", schema, {**command, "settings": None}, False)
     for field, bad in (("includeOpening", None), ("durationUs", "0"), ("gapThresholdUs", "-1"),
                        ("indicatorContainerId", " "), ("excludedLineIds", ["line", "line"])):
@@ -62,15 +61,7 @@ def cases():
     for field in settings:
         bad = copy.deepcopy(settings); del bad[field]
         add("settings-missing-" + field, "LeadInGenerationSettingsDtoInput", bad, False)
-    for field, bad in (("durationUs", "10000001"), ("durationUs", "-1"), ("easing", "easeOut"), ("startOpacity", 2),
-                       ("startScale", 0), ("startScale", 4.1), ("startOffsetPx", 10001)):
-        add("animation-invalid-" + field + "-" + str(bad), "ProjectLineEnterAnimationDtoInput", {**animation, field: bad}, False)
-    for duration in ("0", "+000000", "-0", "10000000"):
-        add("animation-duration-" + duration, "ProjectLineEnterAnimationDtoInput", {**animation, "durationUs": duration})
-    for field in animation:
-        bad = copy.deepcopy(animation); del bad[field]
-        add("animation-missing-" + field, "ProjectLineEnterAnimationDtoInput", bad, False)
-    layout_schema, layout = commands[0]
+    layout_schema, layout = by_op["setLayoutKind"]
     for name, changes, valid in (
         ("sequence-new", dict(kind="SlotSequence", newSlotCount=2), True),
         ("sequence-existing", dict(kind="SlotSequence", slotIds=["slot"], newSlotCount=0), True),
@@ -80,12 +71,12 @@ def cases():
         ("sequence-too-many-new", dict(kind="SlotSequence", newSlotCount=65), False),
         ("wrong-case", dict(kind="auto"), False)):
         add("layout-" + name, layout_schema, {**layout, **changes}, valid)
-    for name, command in (("mark", commands[8]), ("mark-text", commands[9])):
+    for name, command in (("mark", by_op["addMark"]), ("mark-text", by_op["setMarkText"])):
         add(name + "-text-max", command[0], {**command[1], "text": "x" * 4096})
         add(name + "-text-over", command[0], {**command[1], "text": "x" * 4097}, False)
     for prop in ("scale", "verticalCenterRatio", "horizontalAlignment"):
-        add("mark-disallowed-" + prop, commands[13][0], {**commands[13][1], "changes": [dict(property=prop, value=1)]}, False)
-    add("mark-clear-override", commands[13][0], {**commands[13][1], "changes": []})
+        add("mark-disallowed-" + prop, by_op["setMarkAppearance"][0], {**by_op["setMarkAppearance"][1], "changes": [dict(property=prop, value=1)]}, False)
+    add("mark-clear-override", by_op["setMarkAppearance"][0], {**by_op["setMarkAppearance"][1], "changes": []})
     for field in appearance:
         bad = copy.deepcopy(appearance); del bad[field]
         add("appearance-missing-" + field, "SceneTextAppearanceDtoInput", bad, False)
@@ -116,14 +107,11 @@ def cases():
         ("zero-width", dict(width=0)), ("width-over", dict(width=1281)), ("height-over", dict(height=721)),
         ("alpha-case", dict(alphaMode="Opaque")), ("metadata", dict(metadata={})), ("extra", dict(unknown=True))):
         add("measurement-invalid-" + name, "SceneMeasurementRequest", {**request, **changes}, False)
-    line = dict(projectSessionId="session", projectRevision="0", branchId="branch", lineId="line", localTransform=None,
-                localEnterAnimation=None, effectiveEnterAnimation=None, animationSource="none", protocolVersion="1")
+    line = dict(projectSessionId="session", projectRevision="0", branchId="branch", lineId="line", localTransform=None, protocolVersion="1")
     add("line-presentation-none", "ProjectLinePresentationResponse", line)
-    add("line-presentation-project", "ProjectLinePresentationResponse", {**line, "effectiveEnterAnimation": animation, "animationSource": "project"})
-    for field in ("localTransform", "localEnterAnimation", "effectiveEnterAnimation"):
+    for field in ("localTransform",):
         bad = copy.deepcopy(line); del bad[field]
         add("line-presentation-missing-" + field, "ProjectLinePresentationResponse", bad, False)
-    add("line-presentation-source-invalid", "ProjectLinePresentationResponse", {**line, "animationSource": "default"}, False)
     query = dict(expectedRevision="0", branchId="branch", lineId="line")
     add("line-presentation-query", "ProjectLinePresentationQuery", query)
     for field in query:
@@ -131,11 +119,9 @@ def cases():
         add("line-presentation-query-missing-" + field, "ProjectLinePresentationQuery", bad, False)
     add("line-presentation-query-extra", "ProjectLinePresentationQuery", {**query, "unknown": "x"}, False)
     program = dict(id="program", branchId="branch", rootContainerId="root", defaultContainerId="container", leadIns=[], leadInGeneration=None)
-    orchestration = dict(projectSessionId="session", projectRevision="0", nodes=[], programs=[program], projectEnterAnimation=None, protocolVersion="1")
+    orchestration = dict(projectSessionId="session", projectRevision="0", nodes=[], programs=[program], protocolVersion="1")
     add("orchestration-projection", "ProjectOrchestrationResponse", orchestration)
     add("orchestration-empty", "ProjectOrchestrationResponse", {**orchestration, "programs": []})
-    bad = copy.deepcopy(orchestration); del bad["projectEnterAnimation"]
-    add("orchestration-missing-project-animation", "ProjectOrchestrationResponse", bad, False)
     bad = copy.deepcopy(program); del bad["leadInGeneration"]
     add("program-missing-generation", "ProjectOrchestrationProgramDto", bad, False)
     cue = dict(id="cue", enabled=True, targetLineId="line", indicatorContainerId="countdown", durationUs="3000000", origin="Generated")
@@ -154,13 +140,14 @@ def cases():
     for field in ("candidates", "diagnostics", "selectedLineIds", "changed"):
         bad = copy.deepcopy(generation); del bad[field]
         add("generation-result-missing-" + field, "LeadInGenerationCommandResultDto", bad, False)
-    for operation in ("setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation", "setLeadInAttachment"):
+    for operation in ("setLayoutKind", "setLeadInAttachment"):
         add("properties-result-" + operation, "OrchestrationPropertiesCommandResultDto", dict(operation=operation, changed=False))
     element = dict(id="container", kind="container", representative=False, visible=False, opacity=1, geometryStatus="notVisible",
                    worldMatrix=None, pivot=None, worldCorners=[], fixedReference=None, editReference=None)
     measurement = dict(sourceSha256="a" * 64, sampleInputFingerprint="b" * 64, sourceProfile="static-lyrics-scene-v1",
                        samplingProfile="layout-reference-v1", mode="layout", timeUs=None, canvasWidth=1920, canvasHeight=1080,
-                       width=320, height=180, alphaMode="transparent", elements=[element], pngSha256="c" * 64, png="iVBORw0KGgo=")
+                       width=320, height=180, alphaMode="transparent", elements=[element], pngSha256="c" * 64, png="iVBORw0KGgo=",
+                       fallbackDiagnostics=[])
     response = dict(projectSessionId="session", projectRevision="0", measurement=measurement, protocolVersion="1")
     add("measurement-response", "SceneMeasurementResponse", response)
     add("measurement-response-png-array", "SceneMeasurementDataDto", {**measurement, "png": [137, 80, 78, 71]}, False)

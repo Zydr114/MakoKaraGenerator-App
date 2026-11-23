@@ -24,7 +24,7 @@ public sealed class StrokeLayersRenderingTests
         style = style with { Unsung = style.Unsung with { Strokes = strokes, Shadow = shadow, Glow = glow,
             Fill = new() { Color = fill ?? new(0, 0, 0, 0) } } };
         return Core.Projects.Project.Create("strokes", Composition.Create(Width, Height, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([line]), lyricStyle: style) with { EnterAnimation = null };
+            LyricsDocument.Create([line]), lyricStyle: style);
     }
 
     private static RenderRequest Request(Project project) => RenderRequest.At(ProjectSnapshot.FromProject(project), 500_000) with { TransparentBackground = true };

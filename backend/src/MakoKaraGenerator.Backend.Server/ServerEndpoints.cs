@@ -177,7 +177,7 @@ internal static partial class ServerEndpoints
                 "project-sessions.commands.orchestration.reorderChildren", "project-sessions.commands.orchestration.addSlot",
                 "project-sessions.commands.orchestration.removeNode", "project-sessions.commands.orchestration.reorderSlots",
                 "project-sessions.commands.orchestration.createCountdown", "project-sessions.commands.orchestration.createLeadIn",
-                "project-sessions.commands.orchestration.setLayoutKind", "project-sessions.commands.orchestration.setLineEnterAnimation", "project-sessions.commands.orchestration.setProjectEnterAnimation",
+                "project-sessions.commands.orchestration.setLayoutKind",
                 "project-sessions.commands.orchestration.setLeadInGeneration", "project-sessions.commands.orchestration.previewLeadInGeneration", "project-sessions.commands.orchestration.applyLeadInGeneration",
                 "project-sessions.commands.orchestration.setLeadInAttachment",
                 "project-sessions.commands.orchestration.deleteLeadInAndExclude", "project-sessions.commands.orchestration.addMark", "project-sessions.commands.orchestration.setMarkText",

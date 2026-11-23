@@ -93,8 +93,8 @@ public static partial class PresentationValidator
         HashSet<string> overrides = new(StringComparer.Ordinal);
         foreach (var line in tree.LineOverrides)
             if (!overrides.Add(line.LineId) || !project.Lyrics.Branches.Any(branch => branch.Id == line.BranchId && branch.Lines.Any(source => source.Id == line.LineId))
-                || line.LocalTransform is { IsValid: false } || line.EnterAnimation is { IsValid: false })
-                Error("行覆盖的源关联、位置或动画无效。", "lineOverrides[" + line.LineId + "]", DiagnosticCode.InvalidLinePlacement);
+                || line.LocalTransform is { IsValid: false })
+                Error("行覆盖的源关联或位置无效。", "lineOverrides[" + line.LineId + "]", DiagnosticCode.InvalidLinePlacement);
         return ValidationReport.From(issues).Merge(ValidateLeadIns(project));
     }
 }

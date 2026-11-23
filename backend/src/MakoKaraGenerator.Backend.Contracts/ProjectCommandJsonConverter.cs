@@ -459,7 +459,7 @@ public sealed class ProjectCommandJsonConverter : JsonConverter<ProjectCommandDt
         { ClipMembersCommandJson.Write(writer, value, options); return; }
         if (value is ReplaceProjectAudioAssetCommandDto or ClearProjectAudioCommandDto or RenameProjectCommandDto)
         { BasicMediaCommandJson.Write(writer, value, options); return; }
-        if (value is SetOrchestrationLayoutKindCommandDto or SetLineEnterAnimationCommandDto or SetProjectEnterAnimationCommandDto)
+        if (value is SetOrchestrationLayoutKindCommandDto)
         { OrchestrationEditingCompletionJson.Write(writer, value, options); return; }
         if (LeadInEditingCommandJson.IsType(value.Type))
         { LeadInEditingCommandJson.Write(writer, value, options); return; }

@@ -42,8 +42,7 @@ public sealed class LeadInRenderingTests
         var group = tree.FindNode(program.LeadIns[0].IndicatorContainerId)!;
         tree = tree with { Nodes = tree.Nodes.Replace(root, root with { Placement = ScenePlacement.Create(new(.58,.43), rotationDegrees: 21, scale: .8) })
             .Replace(group, group with { Placement = group.Placement with { Position = new(-.02,.015) } }),
-            LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", LocalTransform = new() { OffsetXRatio = .035, OffsetYRatio = -.018, RotationDegrees = 11, Scale = .9 },
-                EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = 0, StartOffsetPx = 10, StartScale = .8f, Easing = AnimationEasing.Linear } }) };
+            LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", LocalTransform = new() { OffsetXRatio = .035, OffsetYRatio = -.018, RotationDegrees = 11, Scale = .9 } }) };
         group = tree.FindNode(group.Id)!;
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree });
         using SkiaRenderPipeline pipeline = new(); var frame = pipeline.GetSceneFrame(snapshot, 10_000_000);
@@ -57,25 +56,24 @@ public sealed class LeadInRenderingTests
             * SceneMatrix.Translate(-640 * group.ReferenceRect.WidthRatio, -360 * group.ReferenceRect.HeightRatio/2);
         AssertMatrix(expected, owner.WorldMatrix);
         Assert.Equal(target.ElementId, owner.ParentId);
-        Assert.All(frame.TextMarks, mark => Assert.Equal(target.Transform.Opacity, mark.Opacity));
+        Assert.All(frame.TextMarks, mark => Assert.Equal(1, mark.Opacity));
         var hit = SceneEditorGeometry.ForNode(snapshot,frame,group.Id)!;
         foreach (var mark in frame.TextMarks)
             Assert.True(hit.Contains(mark.Geometry.Transform(new((mark.Geometry.TopLeft.X + mark.Geometry.BottomRight.X)/2,(mark.Geometry.TopLeft.Y + mark.Geometry.BottomRight.Y)/2))));
         var rootGeometry = SceneEditorGeometry.ForNode(snapshot,frame,root.Id)!;
         Assert.All(frame.TextMarks.SelectMany(mark => mark.Geometry.Corners()), point => Assert.True(rootGeometry.Contains(point, .001)));
         var stable = pipeline.GetNodeGeometry(snapshot,group.Id,"first")!;
-        Assert.NotEqual(hit.WorldMatrix, stable.WorldMatrix);
+        Assert.Equal(hit.WorldMatrix, stable.WorldMatrix);
         Assert.Equal(3,pipeline.GetSceneFrame(snapshot,0,"first").TextMarks.Length);
     }
 
     [Fact]
-    public void 固定父组不跟随换槽或目标动画但继承共同父组变换()
+    public void 固定父组不跟随换槽但继承共同父组变换()
     {
         var project = LeadInFixture.Create(true); var tree = project.LyricPresentation;
         var program = tree.FindProgram("primary")!; var group = tree.FindNode(program.LeadIns[0].IndicatorContainerId)!;
         var fixedGroup = group with { Attachment = new() { Mode = SceneAttachmentMode.FixedParent }, Placement = ScenePlacement.Create(new(.3,.3)) };
-        tree = tree with { Nodes = tree.Nodes.Replace(group,fixedGroup), LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary",LineId = "first",
-            EnterAnimation = new() { DurationUs = 3_000_000,StartOpacity = 0 } }) };
+        tree = tree with { Nodes = tree.Nodes.Replace(group,fixedGroup) };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree });
         using SkiaRenderPipeline pipeline = new();
         var first = pipeline.GetSceneFrame(snapshot,9_500_000); var chorus = pipeline.GetSceneFrame(snapshot,37_500_000);

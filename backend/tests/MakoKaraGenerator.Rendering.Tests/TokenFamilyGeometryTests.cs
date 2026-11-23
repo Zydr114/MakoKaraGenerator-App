@@ -17,8 +17,7 @@ public sealed class TokenFamilyGeometryTests
         var program = tree.FindProgram("primary")!; var root = tree.FindNode(program.RootContainerId)!;
         tree = tree with { Nodes = tree.Nodes.Replace(root, root with { Placement = ScenePlacement.Create(new(.57, .41), rotationDegrees: 23, scale: .8) }),
             LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first",
-                LocalTransform = new() { OffsetXRatio = .03, OffsetYRatio = -.02, Scale = .9, RotationDegrees = 11 },
-                EnterAnimation = new() { DurationUs = 2_000_000, StartScale = .8f, StartOffsetPx = 8, StartOpacity = 1 } }) };
+                LocalTransform = new() { OffsetXRatio = .03, OffsetYRatio = -.02, Scale = .9, RotationDegrees = 11 } }) };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree });
         using SkiaRenderPipeline pipeline = new();
         SceneFrame frame = pipeline.GetSceneFrame(snapshot, 10_000_000);

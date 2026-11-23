@@ -23,8 +23,7 @@ internal static partial class ProjectDtoMapper
             LeadIns = [.. program.LeadIns.Select(ToDto)], LeadInGeneration = ToDto(program.LeadInGeneration) })],
         LineOverrides = [.. tree.LineOverrides.Select(line => new LinePresentationDto { BranchId = line.BranchId, LineId = line.LineId,
             LocalTransform = line.LocalTransform is not { } local ? null : new() { OffsetXRatio = local.OffsetXRatio,
-                OffsetYRatio = local.OffsetYRatio, RotationDegrees = local.RotationDegrees, Scale = local.Scale },
-            EnterAnimation = ToDto(line.EnterAnimation) })],
+                OffsetYRatio = local.OffsetYRatio, RotationDegrees = local.RotationDegrees, Scale = local.Scale } })],
     };
 
     internal static LyricPresentationDefinition MapPresentation(LyricPresentationDto? dto, List<ProjectIssue> issues)
@@ -42,7 +41,7 @@ internal static partial class ProjectDtoMapper
                 ReferenceRect = new(node.ReferenceWidthRatio, node.ReferenceHeightRatio), Layout = node.Layout is not { } layout ? null : new()
                 { Kind = ParseBranchEnum<LyricContainerLayoutKind>(layout.Kind), DefaultPlacement = MapPlacement(layout.DefaultPlacement, "project.lyricPresentation.nodes.layout.defaultPlacement", issues),
                     SafeArea = MapSafeArea(layout.SafeArea), MaxWidthRatio = layout.MaxWidthRatio, SlotIds = layout.SlotIds is null ? [] : [.. layout.SlotIds],
-                    SlotAnimation = MapSlotAnimation(layout.SlotAnimation, $"project.lyricPresentation.nodes[{index}].layout.slotAnimation", issues) },
+                    SlotAnimation = MapSlotAnimation(layout.SlotAnimation) },
                 Content = MapContent(node.Content, $"project.lyricPresentation.nodes[{index}].content", issues),
                 Attachment = node.Attachment is null ? null : new() { Mode = ParseBranchEnum<SceneAttachmentMode>(node.Attachment.Mode) } })],
             Programs = [.. dto.Programs.Select(program => new LyricDisplayProgram { Id = program.Id ?? string.Empty, BranchId = program.BranchId ?? string.Empty,
@@ -56,8 +55,7 @@ internal static partial class ProjectDtoMapper
                 LeadInGeneration = MapGeneration(program.LeadInGeneration) })],
             LineOverrides = [.. dto.LineOverrides.Select(line => new LyricLinePresentation { BranchId = line.BranchId ?? string.Empty, LineId = line.LineId ?? string.Empty,
                 LocalTransform = line.LocalTransform is not { } local ? null : new() { OffsetXRatio = local.OffsetXRatio,
-                    OffsetYRatio = local.OffsetYRatio, RotationDegrees = local.RotationDegrees, Scale = local.Scale },
-                EnterAnimation = MapLineAnimation(line.EnterAnimation, "project.lyricPresentation.lineOverrides.enterAnimation", issues) })],
+                    OffsetYRatio = local.OffsetYRatio, RotationDegrees = local.RotationDegrees, Scale = local.Scale } })],
         };
     }
 }

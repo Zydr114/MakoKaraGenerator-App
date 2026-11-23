@@ -12,21 +12,17 @@ import {
   DEFAULT_COUNTDOWN_ANIMATION,
   DEFAULT_COUNTDOWN_SHAPE,
   DEFAULT_CUSTOM_SVG,
-  DEFAULT_ENTER_ANIMATION,
   defaultLeadInTarget,
   defaultSelection,
-  enterAnimationText,
   generationSettingsBlock,
   initialGenerationSettings,
   inlineSvgBlock,
-  isNeutralAnimation,
   leadInEditBlock,
   leadInsOf,
   leadInSpan,
   leadInsUsing,
   lineContainerText,
   lineDragTransform,
-  lineEnterCommand,
   lineLabel,
   lineTransformCommand,
   MODERN_COUNTDOWN_ANIMATION,
@@ -198,18 +194,6 @@ describe('句子：本句微调与进入动画（§14.7、§14.8）', () => {
       scale: 1.2,
     });
     expect(lineDragTransform(null, { ...reference, width: 0 }, 10, 10)).toBeUndefined();
-  });
-
-  it('进入动画：只带五个字段，null 清除；看不出效果的判断；描述', () => {
-    expect(lineEnterCommand('primary', 'l1', { ...DEFAULT_ENTER_ANIMATION, extra: 1 } as never)).toEqual({
-      type: 'orchestration.setLineEnterAnimation',
-      branchId: 'primary',
-      lineId: 'l1',
-      animation: DEFAULT_ENTER_ANIMATION,
-    });
-    expect(lineEnterCommand('primary', 'l1', null)).toMatchObject({ animation: null });
-    expect([isNeutralAnimation(DEFAULT_ENTER_ANIMATION), isNeutralAnimation({ ...DEFAULT_ENTER_ANIMATION, startOpacity: 1, startOffsetPx: 0 })]).toEqual([false, true]);
-    expect([enterAnimationText(DEFAULT_ENTER_ANIMATION), enterAnimationText(null)]).toEqual(['0.4 秒 · 渐出', '没有进入动画']);
   });
 
   it('句子显示在哪里：片段的目标容器，否则默认容器', () => {

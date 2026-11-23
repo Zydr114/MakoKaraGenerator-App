@@ -3,8 +3,8 @@
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "info": {
     "title": "MakoKaraGenerator local backend HTTP API",
-    "version": "1.60.0",
-    "description": "冻结合同1.60.0；HTTP协议1，产品0.117.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
+    "version": "1.61.0",
+    "description": "冻结合同1.61.0；HTTP协议1，产品0.117.0。只含当前公共HTTP，不含未来功能及私有Worker。与api-contract.md和其固定行为源共同执行。info.version是合同版本，不是产品/HTTP版本。普通响应可忽略未知字段；请求遵守声明字段及业务门禁。"
   },
   "servers": [
     {
@@ -5626,7 +5626,7 @@
     "/api/v1/project-sessions/{id}/commands": {
       "post": {
         "operationId": "executeCommand",
-        "summary": "提交一百零六种已开放具名命令之一",
+        "summary": "提交一百零四种已开放具名命令之一",
         "tags": [
           "section-6"
         ],
@@ -6451,11 +6451,11 @@
     "/api/v1/project-sessions/{id}/orchestration/line-presentation": {
       "get": {
         "operationId": "projectLinePresentation",
-        "summary": "读取精确修订的单句展示与进入动画继承",
+        "summary": "读取精确修订的单句展示",
         "tags": [
           "section-13"
         ],
-        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 所有query唯一必填，未知字段拒绝；精确修订不匹配409 revisionConflict。 localTransform/localEnterAnimation/effectiveEnterAnimation始终出现，可显式null；animationSource为line/project/none。",
+        "description": "执行行为见 api-contract.md 及 ../docs/architecture/backend-api.md §13。 所有query唯一必填，未知字段拒绝；精确修订不匹配409 revisionConflict。 localTransform始终出现，可显式null。",
         "x-behavior-section": "13",
         "parameters": [
           {
@@ -21861,8 +21861,6 @@
               "setSlotAnimation",
               "setProgramAnimationPolicy",
               "setLayoutKind",
-              "setLineEnterAnimation",
-              "setProjectEnterAnimation",
               "setLeadInAttachment"
             ]
           },
@@ -25664,12 +25662,6 @@
             "$ref": "#/components/schemas/SetOrchestrationLayoutKindCommandDtoInput"
           },
           {
-            "$ref": "#/components/schemas/SetLineEnterAnimationCommandDtoInput"
-          },
-          {
-            "$ref": "#/components/schemas/SetProjectEnterAnimationCommandDtoInput"
-          },
-          {
             "$ref": "#/components/schemas/SetLeadInGenerationCommandDtoInput"
           },
           {
@@ -25855,8 +25847,6 @@
             "styles.patch": "#/components/schemas/PatchStylesCommandDtoInput",
             "styles.restore": "#/components/schemas/RestoreStylesCommandDtoInput",
             "orchestration.setLayoutKind": "#/components/schemas/SetOrchestrationLayoutKindCommandDtoInput",
-            "orchestration.setLineEnterAnimation": "#/components/schemas/SetLineEnterAnimationCommandDtoInput",
-            "orchestration.setProjectEnterAnimation": "#/components/schemas/SetProjectEnterAnimationCommandDtoInput",
             "orchestration.setLeadInGeneration": "#/components/schemas/SetLeadInGenerationCommandDtoInput",
             "orchestration.previewLeadInGeneration": "#/components/schemas/PreviewLeadInGenerationCommandDtoInput",
             "orchestration.applyLeadInGeneration": "#/components/schemas/ApplyLeadInGenerationCommandDtoInput",
@@ -26035,7 +26025,7 @@
           },
           "propertiesResult": {
             "$ref": "#/components/schemas/OrchestrationPropertiesCommandResultDto",
-            "description": "G21布局/属性及G24进入动画的真实反馈；canonical值用精确修订读模型读取。"
+            "description": "G21布局/属性命令的真实反馈；canonical值用精确修订读模型读取。"
           },
           "leadInGenerationResult": {
             "$ref": "#/components/schemas/LeadInGenerationCommandResultDto"
@@ -26377,12 +26367,6 @@
           },
           {
             "$ref": "#/components/schemas/SetOrchestrationLayoutKindCommandDtoInput"
-          },
-          {
-            "$ref": "#/components/schemas/SetLineEnterAnimationCommandDtoInput"
-          },
-          {
-            "$ref": "#/components/schemas/SetProjectEnterAnimationCommandDtoInput"
           },
           {
             "$ref": "#/components/schemas/SetLeadInGenerationCommandDtoInput"
@@ -26794,94 +26778,6 @@
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectHistoryResponse"
       },
-      "ProjectLineEnterAnimationDto": {
-        "type": "object",
-        "properties": {
-          "durationUs": {
-            "type": "string",
-            "pattern": "^[+]?(?:0*[0-9]{1,7}|0*10000000)$|^-0+$",
-            "x-int64-string": true,
-            "description": "0..10000000微秒；原解析允许前导符号及零，服务canonical化。"
-          },
-          "easing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
-          },
-          "startOpacity": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "startScale": {
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 4
-          },
-          "startOffsetPx": {
-            "type": "number",
-            "minimum": -10000,
-            "maximum": 10000
-          }
-        },
-        "required": [
-          "durationUs",
-          "easing",
-          "startOpacity",
-          "startScale",
-          "startOffsetPx"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectLineEnterAnimationDto"
-      },
-      "ProjectLineEnterAnimationDtoInput": {
-        "type": "object",
-        "properties": {
-          "durationUs": {
-            "type": "string",
-            "pattern": "^[+]?(?:0*[0-9]{1,7}|0*10000000)$|^-0+$",
-            "x-int64-string": true,
-            "description": "0..10000000微秒；原解析允许前导符号及零，服务canonical化。"
-          },
-          "easing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
-          },
-          "startOpacity": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "startScale": {
-            "type": "number",
-            "exclusiveMinimum": 0,
-            "maximum": 4
-          },
-          "startOffsetPx": {
-            "type": "number",
-            "minimum": -10000,
-            "maximum": 10000
-          }
-        },
-        "required": [
-          "durationUs",
-          "easing",
-          "startOpacity",
-          "startScale",
-          "startOffsetPx"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectLineEnterAnimationDto"
-      },
       "ProjectLineLocalTransformDto": {
         "type": "object",
         "properties": {
@@ -27068,34 +26964,6 @@
               }
             ]
           },
-          "localEnterAnimation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectLineEnterAnimationDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "effectiveEnterAnimation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectLineEnterAnimationDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "animationSource": {
-            "type": "string",
-            "enum": [
-              "line",
-              "project",
-              "none"
-            ]
-          },
           "protocolVersion": {
             "type": "string",
             "const": "1"
@@ -27106,11 +26974,8 @@
           "projectRevision",
           "branchId",
           "lineId",
-          "animationSource",
           "protocolVersion",
-          "localTransform",
-          "localEnterAnimation",
-          "effectiveEnterAnimation"
+          "localTransform"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectLinePresentationResponse"
       },
@@ -27773,16 +27638,6 @@
           "protocolVersion": {
             "type": "string",
             "const": "1"
-          },
-          "projectEnterAnimation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectLineEnterAnimationDto"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [
@@ -27790,8 +27645,7 @@
           "projectRevision",
           "nodes",
           "programs",
-          "protocolVersion",
-          "projectEnterAnimation"
+          "protocolVersion"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationResponse"
       },
@@ -27857,77 +27711,6 @@
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationSafeAreaDto",
         "description": "四有限边界0..1，且right>left、bottom>top；跨字段有序关系由Core校验。"
       },
-      "ProjectOrchestrationSceneTransformDto": {
-        "type": "object",
-        "properties": {
-          "opacity": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "scale": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。",
-            "exclusiveMinimum": 0
-          },
-          "offsetXPx": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          },
-          "offsetYPx": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          },
-          "rotationDegrees": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          }
-        },
-        "required": [
-          "opacity",
-          "scale",
-          "offsetXPx",
-          "offsetYPx",
-          "rotationDegrees"
-        ],
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationSceneTransformDto"
-      },
-      "ProjectOrchestrationSceneTransformDtoInput": {
-        "type": "object",
-        "properties": {
-          "opacity": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1
-          },
-          "scale": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。",
-            "exclusiveMinimum": 0
-          },
-          "offsetXPx": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          },
-          "offsetYPx": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          },
-          "rotationDegrees": {
-            "type": "number",
-            "description": "有限JSON数值；服务拒绝NaN/Infinity。"
-          }
-        },
-        "required": [
-          "opacity",
-          "scale",
-          "offsetXPx",
-          "offsetYPx",
-          "rotationDegrees"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationSceneTransformDto"
-      },
       "ProjectOrchestrationSlotAnimationDto": {
         "type": "object",
         "properties": {
@@ -27977,45 +27760,6 @@
               "UntilNextReveal",
               "Immediate"
             ]
-          },
-          "enterDurationUs": {
-            "type": "string",
-            "pattern": "^0*(?:[0-9]{1,18}|[0-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6][0-9]{0}|9223372036854775807)$",
-            "x-int64-string": true,
-            "description": "非负Int64十进制微秒字符串；可带前导零，服务canonical化。"
-          },
-          "exitDurationUs": {
-            "type": "string",
-            "pattern": "^0*(?:[0-9]{1,18}|[0-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6][0-9]{0}|9223372036854775807)$",
-            "x-int64-string": true,
-            "description": "非负Int64十进制微秒字符串；可带前导零，服务canonical化。"
-          },
-          "enterFrom": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDto"
-          },
-          "hold": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDto"
-          },
-          "exitTo": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDto"
-          },
-          "exitEasing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
-          },
-          "easing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
           }
         },
         "required": [
@@ -28025,14 +27769,7 @@
           "revealLeadUs",
           "maxVisibleLines",
           "conflictPolicy",
-          "retentionPolicy",
-          "enterDurationUs",
-          "exitDurationUs",
-          "enterFrom",
-          "hold",
-          "exitTo",
-          "exitEasing",
-          "easing"
+          "retentionPolicy"
         ],
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationSlotAnimationDto"
       },
@@ -28085,45 +27822,6 @@
               "UntilNextReveal",
               "Immediate"
             ]
-          },
-          "enterDurationUs": {
-            "type": "string",
-            "pattern": "^0*(?:[0-9]{1,18}|[0-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6][0-9]{0}|9223372036854775807)$",
-            "x-int64-string": true,
-            "description": "非负Int64十进制微秒字符串；可带前导零，服务canonical化。"
-          },
-          "exitDurationUs": {
-            "type": "string",
-            "pattern": "^0*(?:[0-9]{1,18}|[0-8][0-9]{18}|9[0-1][0-9]{17}|92[0-1][0-9]{16}|922[0-2][0-9]{15}|9223[0-2][0-9]{14}|92233[0-6][0-9]{13}|922337[0-1][0-9]{12}|92233720[0-2][0-9]{10}|922337203[0-5][0-9]{9}|9223372036[0-7][0-9]{8}|92233720368[0-4][0-9]{7}|922337203685[0-3][0-9]{6}|9223372036854[0-6][0-9]{5}|92233720368547[0-6][0-9]{4}|922337203685477[0-4][0-9]{3}|9223372036854775[0-7][0-9]{2}|922337203685477580[0-6][0-9]{0}|9223372036854775807)$",
-            "x-int64-string": true,
-            "description": "非负Int64十进制微秒字符串；可带前导零，服务canonical化。"
-          },
-          "enterFrom": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDtoInput"
-          },
-          "hold": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDtoInput"
-          },
-          "exitTo": {
-            "$ref": "#/components/schemas/ProjectOrchestrationSceneTransformDtoInput"
-          },
-          "exitEasing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
-          },
-          "easing": {
-            "type": "string",
-            "enum": [
-              "Linear",
-              "EaseIn",
-              "EaseOut",
-              "EaseInOut"
-            ]
           }
         },
         "required": [
@@ -28133,14 +27831,7 @@
           "revealLeadUs",
           "maxVisibleLines",
           "conflictPolicy",
-          "retentionPolicy",
-          "enterDurationUs",
-          "exitDurationUs",
-          "enterFrom",
-          "hold",
-          "exitTo",
-          "exitEasing",
-          "easing"
+          "retentionPolicy"
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.ProjectOrchestrationSlotAnimationDto"
@@ -32797,59 +32488,6 @@
           "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"
         }
       },
-      "SetLineEnterAnimationCommandDtoInput": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "orchestration.setLineEnterAnimation"
-          },
-          "branchId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "\\S"
-          },
-          "lineId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "\\S"
-          },
-          "animation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectLineEnterAnimationDtoInput"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "branchId",
-          "lineId",
-          "animation"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.SetLineEnterAnimationCommandDto",
-        "x-capability": "project-sessions.commands.orchestration.setLineEnterAnimation",
-        "x-completion-limits": {
-          "maxIntentBytes": 16384,
-          "maxNodes": 2000,
-          "maxDepth": 64,
-          "maxInputItems": 20000,
-          "maxInputCharacters": 1048576,
-          "maxReadBytes": 1048576,
-          "maxReadItems": 20000,
-          "maxAnalyzedLines": 1000,
-          "maxMarks": 64,
-          "maxTextUtf16Units": 4096,
-          "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"
-        }
-      },
       "SetLineLocalTransformCommandDtoInput": {
         "type": "object",
         "properties": {
@@ -34122,45 +33760,6 @@
         ],
         "additionalProperties": false,
         "x-clr-type": "MakoKaraGenerator.Backend.Contracts.SetPresetApplicationEnabledCommandDto"
-      },
-      "SetProjectEnterAnimationCommandDtoInput": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "orchestration.setProjectEnterAnimation"
-          },
-          "animation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectLineEnterAnimationDtoInput"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "type",
-          "animation"
-        ],
-        "additionalProperties": false,
-        "x-clr-type": "MakoKaraGenerator.Backend.Contracts.SetProjectEnterAnimationCommandDto",
-        "x-capability": "project-sessions.commands.orchestration.setProjectEnterAnimation",
-        "x-completion-limits": {
-          "maxIntentBytes": 16384,
-          "maxNodes": 2000,
-          "maxDepth": 64,
-          "maxInputItems": 20000,
-          "maxInputCharacters": 1048576,
-          "maxReadBytes": 1048576,
-          "maxReadItems": 20000,
-          "maxAnalyzedLines": 1000,
-          "maxMarks": 64,
-          "maxTextUtf16Units": 4096,
-          "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"
-        }
       },
       "SetRubySegmentTextCommandDtoInput": {
         "type": "object",

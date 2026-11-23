@@ -42,8 +42,8 @@ public sealed partial class MainCanvasImageEffectsTests
         using var expected = renderer.Render(request);
         using var actual = renderer.Render(Bindings(request, Bind("parent", GroupRoot(request))));
         using var leaf = renderer.Render(Bindings(request, Bind("leaf-reference", Line(request))));
-        Close(leaf.Pixels.ToArray(), actual.Pixels.ToArray(), 2);
-        Close(expected.Pixels.ToArray(), actual.Pixels.ToArray(), 2);
+        Close(leaf.Pixels.ToArray(), actual.Pixels.ToArray(), 3);
+        Close(expected.Pixels.ToArray(), actual.Pixels.ToArray(), 3);
         Assert.Empty(actual.ImageEffectDiagnostics); Assert.Equal(0, budget.Usage.ActiveSurfaces); Assert.Equal(0, budget.Usage.EstimatedBytes);
     }
 

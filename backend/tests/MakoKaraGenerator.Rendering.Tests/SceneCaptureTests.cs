@@ -69,9 +69,7 @@ public sealed class SceneCaptureTests
         var tree = project.LyricPresentation; var program = tree.FindProgram("primary")!;
         var indicator = tree.FindNode(program.LeadIns[0].IndicatorContainerId)!;
         tree = tree with { Nodes = tree.Nodes.Replace(indicator, indicator with { Attachment = new()
-            { Mode = fixedParent ? SceneAttachmentMode.FixedParent : SceneAttachmentMode.CueTargetText } }),
-            LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", EnterAnimation = new()
-            { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = .8f, StartOffsetPx = 9, Easing = AnimationEasing.Linear } }) };
+            { Mode = fixedParent ? SceneAttachmentMode.FixedParent : SceneAttachmentMode.CueTargetText } }) };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree }); using SkiaRenderPipeline pipeline = new();
         var request = RenderRequest.At(snapshot, 10_000_000) with { TransparentBackground = true };
         using var expected = pipeline.Render(request); using var group = Capture(pipeline, request, new SceneCaptureTarget.Group(new(new(program.RootContainerId))));

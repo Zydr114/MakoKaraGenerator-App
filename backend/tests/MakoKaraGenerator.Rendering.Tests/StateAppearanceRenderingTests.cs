@@ -36,7 +36,7 @@ public sealed class StateAppearanceRenderingTests
         var style = LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 64 };
         style = style with { Unsung = unsung with { Fill = new() { Color = new(250, 250, 250) } }, Sung = sung with { Fill = new() { Color = new(250, 210, 0) } } };
         return Core.Projects.Project.Create("state", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000), LyricsDocument.Create([line]),
-            lyricStyle: style) with { EnterAnimation = null };
+            lyricStyle: style);
     }
     private static RenderRequest Request(Project p, long time = 1_000_000) => RenderRequest.At(ProjectSnapshot.FromProject(p), time) with { TransparentBackground = true };
     private static SceneCaptureTarget.Line Target(SkiaRenderPipeline r, RenderRequest q) => new(new(new("line"), new(r.GetSceneFrame(q.Project, q.TimeUs).Lines[0].BindingId!)));

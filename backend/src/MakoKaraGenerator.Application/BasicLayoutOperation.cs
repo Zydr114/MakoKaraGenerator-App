@@ -80,10 +80,17 @@ public static class BasicLayoutOperation
                 SlotAnimation = new() { MaxVisibleLines = slots.Length } } };
         List<LyricDisplayClip> clips = [];
         Dictionary<string, LyricDisplayClip[]> splits = new(StringComparer.Ordinal);
+        HashSet<string> candidateReplacedContainers = new(StringComparer.Ordinal);
+        if (selectedLineIds is null) candidateReplacedContainers.Add(program.DefaultContainerId);
         foreach (var clip in program.Clips)
         {
             if (!touched.Contains(clip) || Recognize(tree, clip.ContainerId) == preset) { clips.Add(clip); continue; }
-            if (clip.LineIds.All(requested.Contains)) { clips.Add(clip with { ContainerId = containerId, ScheduleContext = null }); continue; }
+            if (clip.LineIds.All(requested.Contains))
+            {
+                candidateReplacedContainers.Add(clip.ContainerId);
+                clips.Add(clip with { ContainerId = containerId, ScheduleContext = null });
+                continue;
+            }
             var context = clip.ScheduleContext ?? new LyricClipScheduleContext { LineIds = clip.LineIds };
             var runs = Runs(clip.LineIds, id => requested.Contains(id) ? 1 : 0);
             int retained = Array.FindIndex(runs, run => !requested.Contains(run[0]));
@@ -113,7 +120,16 @@ public static class BasicLayoutOperation
         var proposed = tree with { Nodes = tree.Nodes.Add(container).AddRange(slots), Programs = tree.Programs.SetItem(tree.Programs.IndexOf(program), next) };
         if (!PresentationEditor.TrySetTree(source, proposed, out Project result, out ValidationReport report))
         { error = new(BasicLayoutErrorCode.PresentationInvalid) { Validation = report }; return false; }
-        if (!ClipSplitReferences.TryRemap(result, splits, out result, out error)) return false;
+        HashSet<string> activeContainers = new(StringComparer.Ordinal);
+        foreach (var item in proposed.Programs)
+        {
+            activeContainers.Add(item.DefaultContainerId);
+            foreach (var clip in item.Clips) activeContainers.Add(clip.ContainerId);
+        }
+        var nodeRemaps = candidateReplacedContainers
+            .Where(oldId => oldId != containerId && !activeContainers.Contains(oldId))
+            .ToDictionary(oldId => oldId, _ => containerId, StringComparer.Ordinal);
+        if (!ClipSplitReferences.TryRemap(result, splits, nodeRemaps, out result, out error)) return false;
         if (selectedLineIds is not null)
         {
             // 校验上下文投影确实保留原调度，而不是只保留容器引用。

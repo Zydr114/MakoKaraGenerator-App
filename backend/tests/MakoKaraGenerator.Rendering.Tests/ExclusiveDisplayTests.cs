@@ -57,26 +57,21 @@ public sealed class ExclusiveDisplayTests
     }
 
     [Fact]
-    public void 居中保留自身进入动画源起点且共同父组变换不影响翻译()
+    public void 居中保持稳定源几何且共同父组变换不影响翻译()
     {
         var project = ExclusiveDisplayFixture.Create(); var tree = project.LyricPresentation;
         var root = tree.Nodes[0]; var placement = ScenePlacement.Create(new(.58, .45), rotationDegrees: 90, scale: .8);
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree with { Nodes = tree.Nodes.SetItem(0, root with { Placement = placement }) } });
         using SkiaRenderPipeline pipeline = new();
         var start = pipeline.GetSceneFrame(snapshot, 4_000_000);
-        var halfway = pipeline.GetSceneFrame(snapshot, 4_200_000);
         var center = start.Lines.Single(line => line.Branch.Id == "primary");
-        Assert.Equal(0, center.Transform.Opacity);
-        Assert.InRange(halfway.Lines.Single(line => line.Branch.Id == "primary").Transform.Opacity, .1, .99);
         var rest = pipeline.GetSceneFrame(snapshot, 4_600_000);
         var rested = rest.Lines.Single(line => line.Branch.Id == "primary");
-        Assert.Equal(1, rested.Transform.Opacity);
         Assert.Equal(640 * .58, rested.Geometry!.Pivot.X, 6); Assert.Equal(360 * .45, rested.Geometry.Pivot.Y, 6);
         Assert.Equal(new CanvasPoint(320, 360 * .86), rest.Lines.Single(line => line.Branch.Id == "translation").Geometry!.Pivot);
         var ruby = rest.Elements.Single(element => element.SourceBinding.RubyId == "center-ruby");
         Assert.Equal(rested.ElementId, ruby.ParentId); Assert.Equal(rested.Geometry.WorldMatrix, ruby.WorldMatrix);
-        var startCorner = center.Geometry!.Corners()[0]; var restCorner = rested.Geometry.Corners()[0];
-        Assert.Equal(-8, startCorner.X - restCorner.X, 6); Assert.Equal(0, startCorner.Y - restCorner.Y, 6);
+        Assert.Equal(center.Geometry!.Corners(), rested.Geometry.Corners());
     }
 
     [Fact]

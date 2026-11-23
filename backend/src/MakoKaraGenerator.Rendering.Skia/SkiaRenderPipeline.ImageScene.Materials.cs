@@ -116,7 +116,7 @@ public sealed partial class SkiaRenderPipeline
         var scene = request.PreparedFrame!.HierarchyScene;
         double opacity = member switch
         {
-            ImageEffectTarget.Token token => scene.Lines.Single(line => line.BindingId == token.Target.BindingId.Value).Transform.Opacity,
+            ImageEffectTarget.Token => 1d,
             ImageEffectTarget.Mark mark => scene.TextMarks.Single(item => item.NodeId == mark.Target.NodeId.Value && item.CueId == mark.Target.CueId.Value).Opacity
                 * request.PreparedFrame.GetMarkDrawingStyle(mark.Target).Opacity,
             _ => throw new PreparedFrameException("InvalidMaterialRegionTarget", "材质没有独立行或组区域。"),

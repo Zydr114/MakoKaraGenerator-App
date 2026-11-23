@@ -113,7 +113,7 @@ public sealed partial class V2ParticleBoundaryTests
             [LyricToken.Create("inner-word", "CD", new(500_000, 700_000), TimingStatus.Edited)]);
         var template = SamplingProject();
         var project = Project.Create(template.Name, template.Composition, LyricsDocument.Create([outer, inner]),
-            lyricStyle: template.LyricStyle) with { EnterAnimation = null };
+            lyricStyle: template.LyricStyle);
         var text = WithExit(TextPackage(SamplingText("""
             double shift = frame.Geometry.Length * 100;
             foreach (var token in frame.Geometry) output.AppendTransform(token.WithRuby, Affine2.Translation(shift, 0));
@@ -152,7 +152,7 @@ public sealed partial class V2ParticleBoundaryTests
             { RubyAnnotations = [RubyAnnotation.Create("ruby", "word", "xy")] };
         return Project.Create("M08 sampling boundaries", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 3_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with
-            { FontFamilyName = "DejaVu Sans", FontSizePx = 40, Stroke = null, Shadow = null, Glow = null }) with { EnterAnimation = null };
+            { FontFamilyName = "DejaVu Sans", FontSizePx = 40, Stroke = null, Shadow = null, Glow = null });
     }
 
     private static string DependencyWrite(string target, string parent) => "double shift = frame.TimeUs < 51237 ? 0 : 200;\n" + (target switch

@@ -84,7 +84,6 @@ public sealed class PackageProjectSnapshotCodecTests
         Assert.Equal(source.LyricPresentation, copy.LyricPresentation);
         Assert.Equal(source.LyricStyle, copy.LyricStyle);
         Assert.Equal(source.LyricStylePresetId, copy.LyricStylePresetId);
-        Assert.Equal(source.EnterAnimation, copy.EnterAnimation);
         Assert.Equal(source.Background, copy.Background);
         Assert.Equal(source.AudioPath, copy.AudioPath);
         Assert.Equal(source.AudioMedia, copy.AudioMedia);

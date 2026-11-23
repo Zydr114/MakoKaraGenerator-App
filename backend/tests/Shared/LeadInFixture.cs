@@ -25,7 +25,7 @@ internal static class LeadInFixture
         var project = Project.Create("前奏完整案例",Composition.Create(640,360,FrameRate.Fps30,RgbaColor.Black,57_000_000),
             lyrics with { Branches = lyrics.Branches.Add(translation) },lyricStyle:LyricStyle.Default with
             { FontFamilyName="Noto Sans CJK SC",FontSizePx=32,UnsungColor=RgbaColor.White,SungColor=new(255,0,0,255) });
-        var profile = SlotSequenceAnimationProfile.Default with { MaxVisibleLines=3,EnterDurationUs=0,ExitDurationUs=0,
+        var profile = SlotSequenceAnimationProfile.Default with { MaxVisibleLines=3,
             Slots=[.. SlotSequenceAnimationProfile.Default.Slots,SlotSequenceSlot.Create("third",ScenePlacement.Create(new(.5,.5)))] };
         project = PresentationEditor.SetBranch(project,new() { BranchId="primary",SlotSequenceProfile=slots?profile:null });
         project = PresentationEditor.SetBranch(project,new() { BranchId="translation",DefaultPlacement=ScenePlacement.Create(new(.5,.9)) });

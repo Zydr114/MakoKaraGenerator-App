@@ -35,7 +35,7 @@ public sealed class WipeHighlightRenderingTests
             Wipe = new WipeSpec { FeatherRatio = feather, Highlight = highlight },
         };
         return Core.Projects.Project.Create("highlight", Composition.Create(Width, Height, FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([line]), lyricStyle: style) with { EnterAnimation = null };
+            LyricsDocument.Create([line]), lyricStyle: style);
     }
 
     private static RenderRequest Request(Project project, long time) => RenderRequest.At(ProjectSnapshot.FromProject(project), time) with { TransparentBackground = true };

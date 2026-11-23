@@ -29,7 +29,7 @@ public sealed partial class SkiaRenderPipeline
         var frame = request.PreparedFrame?.HierarchyScene ?? _geometry.GetSceneFrame(request.Project, request.TimeUs, request.LayoutLineId);
         var item = SelectCaptureItems(frame, target, recipe).Single();
         _ = CaptureMatrix(item.Line?.Geometry?.WorldMatrix ?? item.Mark!.Geometry.WorldMatrix!.Value);
-        double opacity = item.Line?.Transform.Opacity ?? MarkOpacity();
+        double opacity = item.Line is not null ? 1d : MarkOpacity();
         if (!double.IsFinite(opacity) || opacity is < 0 or > 1)
             throw new PreparedFrameException("InvalidSceneColorPartOpacity", "真实共同透明度必须有限且在 [0,1]，不能夹值。");
         byte opacityByte = ToOpacityByte((float)opacity);

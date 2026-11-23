@@ -105,7 +105,7 @@ public sealed class V2ReloadIdentityTests
         var project = Project.Create("真实同源重入", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 3_000_000),
             LyricsDocument.Create([outer, inner]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White });
-        return ProjectSnapshot.FromProject(project with { EnterAnimation = null, Effects = new([package],
+        return ProjectSnapshot.FromProject(project with { Effects = new([package],
             [new ProjectEffectInstance { Id = "reload-exit", Name = "reload-exit", PackageId = package.PackageId, Revision = package.Revision, ExportId = "cluster-exit" }]) });
     }
 

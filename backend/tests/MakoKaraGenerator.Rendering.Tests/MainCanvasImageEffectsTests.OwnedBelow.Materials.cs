@@ -31,7 +31,7 @@ public sealed partial class MainCanvasImageEffectsTests
             LyricsDocument.Create([LyricLine.Create("line", "AB", new(0, 5_000_000), TimingStatus.Confirmed,
                 [LyricToken.Create("token", "AB", new(0, 4_000_000), TimingStatus.Confirmed)]) with
                 { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "xy")] }]), lyricStyle: style)
-            with { Effects = new([contents], []), EnterAnimation = null };
+            with { Effects = new([contents], []) };
         var snapshot = ProjectSnapshot.FromProject(project); PreparedRenderFrame frame;
         if (source)
         {

@@ -35,7 +35,7 @@ public sealed class V2PresentInstanceTests
         var project = Project.Create("present instances", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 181_000_000),
             LyricsDocument.Create(lines), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 40,
                 Stroke = null, Shadow = null, Glow = null });
-        var snapshot = ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         var effects = lines.Select((line, index) => compiled.CreateEffect("wave-warp", new($"warp-{index}"),
             new EffectBinding.Lines([new LineId(line.Id)]), (ulong)index)).ToImmutableArray();
         await using var session = await new PureFrameSourceFactory(effects, Fingerprint,

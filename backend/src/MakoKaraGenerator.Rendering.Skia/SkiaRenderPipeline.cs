@@ -540,20 +540,7 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         float baselineY = (float)geometry.BaselineY;
         float pivotX = (float)geometry.Pivot.X, pivotY = (float)geometry.Pivot.Y;
 
-        // 进入动画（ADR-0042）：
-        // 不透明度用<b>图层 alpha</b> 表达——它对渐变、描边、阴影一视同仁，
-        // 不必逐个颜色去乘 alpha（那样必然会漏掉某条绘制路径）；
-        // 位移与缩放走画布变换，且作用在"行自己的样式缩放"<b>之外</b>：
-        // 入场效果不该改变这一行的排版。
-        SceneTransform animation = scene.Transform;
-        bool animationLayer = capture?.IsCoverage != true && capture?.SuppressCommonOpacity != true && animation.Opacity < 1;
-        using var animationReservation = animationLayer ? capture?.Layer("CaptureEntranceLayer") : null;
         canvas.Save();
-        if (animationLayer)
-        {
-            using SKPaint layerPaint = new() { Color = SKColors.White.WithAlpha(ToOpacityByte((float)animation.Opacity)) };
-            canvas.SaveLayer(layerPaint);
-        }
         var matrix = geometry.WorldMatrix!.Value;
         canvas.Concat(new SKMatrix((float)matrix.A, (float)matrix.C, (float)matrix.Tx,
             (float)matrix.B, (float)matrix.D, (float)matrix.Ty, 0, 0, 1));
@@ -575,7 +562,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         {
             DrawChangedFamilies(canvas, request, request.PreparedFrame, scene, shaped, options, ruby,
                 lineStyle, composition, originX, baselineY, antialias, familyTransforms, familyStyles, capture, warpedFamilies, resources ?? capture?.Budget);
-            RestoreAnimationLayer(canvas, animationLayer);
             canvas.Restore();
             return;
         }
@@ -614,7 +600,6 @@ public sealed partial class SkiaRenderPipeline : IRenderPipeline, ILineGeometryP
         }
 
         DrawRuby(canvas, ruby, sample, line, lineStyle, composition, originX, baselineY, antialias, capture: capture);
-        RestoreAnimationLayer(canvas, animationLayer);
         canvas.Restore();
     }
 

@@ -30,9 +30,9 @@ public sealed record Project
     /// v23 保存效果闭包，v24 增加完整媒体与分析修订，v25 增加模板来源与图元层；
     /// v26 统一源材质，v27 保存固定组合预设应用，v28 保存片段调度上下文，v29 增加辉光，
     /// v30 以效果合同 2 明确保存开发期 v1／v2 包身份；v31 样式改为两态外观（已唱可跟随未唱）、多重描边与扫字样式，
-    /// 文字标记外观同样两态；v33 对应歌词 schema v21（PhraseEndHint）。仅支持当前程序版本，不转换旧工程。
+    /// 文字标记外观同样两态；v33 对应歌词 schema v21（PhraseEndHint）；v34 移除布局级进出场动画（SlotAnimation 仅保留调度，移除 EnterAnimation）。仅支持当前程序版本，不转换旧工程。
     /// </remarks>
-    public const int CurrentSchemaVersion = 33;
+    public const int CurrentSchemaVersion = 34;
 
     /// <summary>项目的 schema 版本。当前只接受当前程序版本和结构，不转换旧工程。</summary>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
@@ -103,15 +103,6 @@ public sealed record Project
     /// </remarks>
     public BackgroundSource Background { get; init; } = BackgroundSource.Color;
 
-    /// <summary>
-    /// 工程级默认的<b>行进入动画</b>；<see langword="null"/> 表示默认不做动画。
-    /// </summary>
-    /// <remarks>
-    /// 行级覆盖在 <see cref="LyricLinePresentation.EnterAnimation"/>：那里的 <see langword="null"/>
-    /// 表示"跟随这里"。两者都为空时不动画，因此动画是<b>显式启用</b>的。
-    /// </remarks>
-    public LineAnimation? EnterAnimation { get; init; }
-
     /// <summary>创建一个已校验的项目。</summary>
     /// <param name="name">项目名称，不可为空白。</param>
     /// <param name="composition">合成设置，默认为默认值。</param>
@@ -121,7 +112,6 @@ public sealed record Project
     /// <param name="lyricStylePresetId">基线样式来自的预设标识。</param>
     /// <param name="audioPath">音频文件路径。</param>
     /// <param name="background">背景源；为 <see langword="null"/> 时使用"只有背景色"。</param>
-    /// <param name="animation">工程级默认进入动画；为 <see langword="null"/> 时不动画。</param>
     /// <returns>新的项目实例。</returns>
     /// <exception cref="ArgumentException"><paramref name="name"/> 为空白时抛出。</exception>
     public static Project Create(
@@ -132,8 +122,7 @@ public sealed record Project
         LyricStyle? lyricStyle = null,
         string? lyricStylePresetId = null,
         string? audioPath = null,
-        BackgroundSource? background = null,
-        LineAnimation? animation = null)
+        BackgroundSource? background = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -149,7 +138,6 @@ public sealed record Project
             LyricStylePresetId = lyricStylePresetId,
             AudioPath = audioPath,
             Background = background ?? BackgroundSource.Color,
-            EnterAnimation = animation,
         };
     }
 }

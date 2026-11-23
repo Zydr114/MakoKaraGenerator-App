@@ -112,24 +112,6 @@ public sealed record SlotSequenceAnimationProfile
     /// <summary>旧行保留策略。</summary>
     public SlotRetentionPolicy RetentionPolicy { get; init; } = SlotRetentionPolicy.UntilLineEnd;
 
-    /// <summary>进入动画时长（微秒）。</summary>
-    public long EnterDurationUs { get; init; } = 300_000L;
-
-    /// <summary>退出动画时长（微秒）。</summary>
-    public long ExitDurationUs { get; init; } = 250_000L;
-
-    /// <summary>进入阶段的起始通道。</summary>
-    public SceneTransform EnterFrom { get; init; } = new() { Opacity = 0, OffsetYPx = 12 };
-    /// <summary>保持阶段的通道。</summary>
-    public SceneTransform Hold { get; init; } = SceneTransform.Neutral;
-    /// <summary>退出阶段的终止通道。</summary>
-    public SceneTransform ExitTo { get; init; } = new() { Opacity = 0, OffsetYPx = -12 };
-    /// <summary>退出阶段的独立缓动。</summary>
-    public AnimationEasing ExitEasing { get; init; } = AnimationEasing.EaseIn;
-
-    /// <summary>进入和退出缓动。</summary>
-    public AnimationEasing Easing { get; init; } = AnimationEasing.EaseOut;
-
     /// <summary>槽位序列，至少需要一个槽位。</summary>
     public ImmutableArray<SlotSequenceSlot> Slots
     {
@@ -143,12 +125,10 @@ public sealed record SlotSequenceAnimationProfile
         get
         {
             if (!Enum.IsDefined(RevealMode) || !Enum.IsDefined(ConflictPolicy)
-                || !Enum.IsDefined(RetentionPolicy) || !Enum.IsDefined(Easing) || !Enum.IsDefined(ExitEasing)
-                || EnterFrom is null || Hold is null || ExitTo is null
-                || !EnterFrom.IsValid || !Hold.IsValid || !ExitTo.IsValid
+                || !Enum.IsDefined(RetentionPolicy)
                 || !double.IsFinite(RevealProgress) || RevealProgress is < 0d or > 1d
                 || RevealDelayUs < 0L || RevealLeadUs < 0L
-                || MaxVisibleLines < 1 || EnterDurationUs < 0L || ExitDurationUs < 0L
+                || MaxVisibleLines < 1
                 || Slots.Length < 1)
             {
                 return false;
@@ -185,10 +165,6 @@ public sealed record SlotSequenceAnimationProfile
             && MaxVisibleLines == other.MaxVisibleLines
             && ConflictPolicy == other.ConflictPolicy
             && RetentionPolicy == other.RetentionPolicy
-            && EnterDurationUs == other.EnterDurationUs
-            && ExitDurationUs == other.ExitDurationUs
-            && Easing == other.Easing && ExitEasing == other.ExitEasing
-            && EnterFrom == other.EnterFrom && Hold == other.Hold && ExitTo == other.ExitTo
             && SequenceEquality.ContentEquals(Slots, other.Slots);
     }
 
@@ -203,10 +179,6 @@ public sealed record SlotSequenceAnimationProfile
         hash.Add(MaxVisibleLines);
         hash.Add(ConflictPolicy);
         hash.Add(RetentionPolicy);
-        hash.Add(EnterDurationUs);
-        hash.Add(ExitDurationUs);
-        hash.Add(Easing);
-        hash.Add(ExitEasing); hash.Add(EnterFrom); hash.Add(Hold); hash.Add(ExitTo);
         SequenceEquality.AddContentHash(ref hash, Slots);
         return hash.ToHashCode();
     }

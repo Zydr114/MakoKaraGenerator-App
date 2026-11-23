@@ -343,7 +343,7 @@ public sealed class V2WarpPackageTests
             Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 603_000_000), LyricsDocument.Create([line]),
             lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64,
                 SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances) });
     }
     private static EffectPackageContents Package(string suffix = "main")
     {

@@ -92,7 +92,7 @@ const LEAD_IN_COMMANDS = [
   'orchestration.applyLeadInGeneration',
 ] as const;
 const MARK_COMMANDS = ['orchestration.addMark', 'orchestration.setMarkText', 'orchestration.reorderMarks', 'orchestration.spaceMarks'] as const;
-const LINE_COMMANDS = ['orchestration.setLineLocalTransform', 'orchestration.setLineEnterAnimation', 'orchestration.setProjectEnterAnimation'] as const;
+const LINE_COMMANDS = ['orchestration.setLineLocalTransform'] as const;
 const TIMELINE_HELP = '点选句子（Shift／Ctrl 扩展成连续几句）· 行轨空白处拖动框选 · 点片段轨、前奏轨选片段、前奏';
 
 /**
@@ -499,7 +499,7 @@ export function OrchestrationPage(props: {
                 onSeek={(us) => audio?.seek(us)}
               />
             ) : view.lineFocus && range && range.count > 1 && view.model ? (
-              <LinesSummary model={view.model} branchName={branchName} range={range} actions={lineActions} clip={{ block: clipActions.block, busy: clipActions.busy, onNew: clipActions.onNew }} />
+              <LinesSummary branchName={branchName} range={range} actions={lineActions} clip={{ block: clipActions.block, busy: clipActions.busy, onNew: clipActions.onNew }} />
             ) : (
               <NodeInspector
                 view={view}

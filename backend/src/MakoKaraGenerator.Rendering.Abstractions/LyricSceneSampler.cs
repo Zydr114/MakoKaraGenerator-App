@@ -53,12 +53,6 @@ public sealed record SceneLineSample
     public ScenePlacement? Placement { get; init; }
     /// <summary>源行在当前槽位或容器中的微调。</summary>
     public LyricLocalTransform? LocalTransform { get; init; }
-    /// <summary>动画通道值。</summary>
-    public SceneTransform Transform { get; init; } = SceneTransform.Neutral;
-    /// <summary>进入阶段进度。</summary>
-    public double EnterProgress { get; init; } = 1;
-    /// <summary>退出阶段进度。</summary>
-    public double ExitProgress { get; init; }
     /// <summary>准备显示与正常演唱明确区分。</summary>
     public SceneDisplayPhase DisplayPhase { get; init; }
     /// <summary>本句装载关联的前奏身份，起唱后继续保留。</summary>
@@ -108,9 +102,6 @@ public static partial class LyricSceneSampler
                 if (line.PrimaryLineId is null || associated is null) continue;
                 SceneLineSample following = CreateSample(snapshot, branch, LyricSampler.SampleLine(line, timeUs, i)) with
                     { DisplayPhase = associated.DisplayPhase };
-                if (following.AnimationPolicy == LyricBranchAnimationPolicy.FollowPrimary)
-                    following = following with { Transform = associated.Transform,
-                        EnterProgress = associated.EnterProgress, ExitProgress = associated.ExitProgress };
                 result.Add(following);
             }
         }
@@ -138,16 +129,7 @@ public static partial class LyricSceneSampler
         { DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = segment.Clip?.Id,
             Placement = presentation.DefaultPlacement,
             BindingId = Binding(containerId, frame.Line!.Id) };
-        if (presentation.PolicyFor(branch) == LyricBranchAnimationPolicy.Karaoke) sample = ApplyLineAnimation(snapshot, sample, timeUs);
         return [sample];
-    }
-
-    private static SceneLineSample ApplyLineAnimation(ProjectSnapshot snapshot, SceneLineSample sample, long timeUs, long? revealTimeUs = null)
-    {
-        var values = LineAnimationEvaluator.Evaluate(LineAnimationEditor.Resolve(snapshot.EnterAnimation,
-            snapshot.LyricPresentation, sample.Frame.Line!), revealTimeUs ?? sample.Frame.Line!.Time?.StartUs ?? 0, timeUs);
-        return values is not { } animation ? sample : sample with { Transform = new()
-            { Opacity = animation.Opacity, Scale = animation.Scale, OffsetYPx = animation.VerticalOffsetPx } };
     }
 
     private static SceneLineSample CreateSample(ProjectSnapshot snapshot, LyricBranch branch, LyricFrameSample frame)
@@ -167,5 +149,4 @@ public static partial class LyricSceneSampler
         Placement = snapshot.LyricPresentation.Resolve(branch.Id).DefaultPlacement,
         };
     }
-    private static double Ratio(long elapsed, long duration) => duration <= 0 ? 1 : Math.Clamp((double)elapsed / duration, 0, 1);
 }

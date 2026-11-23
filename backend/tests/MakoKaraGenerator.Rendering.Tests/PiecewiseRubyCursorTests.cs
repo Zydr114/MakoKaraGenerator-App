@@ -32,7 +32,7 @@ public sealed class PiecewiseRubyCursorTests
         ProjectSnapshot snapshot = ProjectSnapshot.FromProject(Project.Create(
             "piecewise-cursor",
             Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 3_000_000),
-            LyricsDocument.Create([line])) with { EnterAnimation = null });
+            LyricsDocument.Create([line])));
 
         using SkiaRenderPipeline geometry = new();
         TimelineProjection timeline = TimelineProjection.Create(snapshot, Fx.ReplayReason.Initial);

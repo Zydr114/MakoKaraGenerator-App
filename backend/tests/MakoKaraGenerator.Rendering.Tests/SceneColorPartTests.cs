@@ -18,8 +18,7 @@ public sealed class SceneColorPartTests
             { RubyAnnotations = ruby ? [RubyAnnotation.Create("ruby", "token", "か")] : [] }]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 64, Opacity = .7f,
             UnsungColor = new(0, 0, 240, 180), SungColor = new(0, 0, 255, 200),
-            Stroke = StrokeSpec.Create(new(0, 240, 0, 180), 4), Shadow = ShadowSpec.Create(new(240, 0, 0, 160), angleDegrees: 36.86989765, distancePx: 10, blurRadiusPx: 2) }) with {
-        EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = 1, StartOffsetPx = 0, Easing = AnimationEasing.Linear } };
+            Stroke = StrokeSpec.Create(new(0, 240, 0, 180), 4), Shadow = ShadowSpec.Create(new(240, 0, 0, 160), angleDegrees: 36.86989765, distancePx: 10, blurRadiusPx: 2) });
     private static SceneCaptureTarget.Line Target(SceneFrame frame) => new(new(new("line"), new(frame.Lines[0].BindingId!)));
     private static RenderRequest Request(Project project, long time = 1_000_000, int width = 640, int height = 360)
         => RenderRequest.At(ProjectSnapshot.FromProject(project), time) with { TransparentBackground = true, Target = new() { PixelWidth = width, PixelHeight = height } };
@@ -60,10 +59,9 @@ public sealed class SceneColorPartTests
         try
         {
             foreach (var kind in order) parts.Add(Part(renderer, request, target, kind));
-            Assert.All(parts, part => { Assert.InRange(part.CommonOpacity, .59, .61); Assert.Equal(parts[0].OpacityByte, part.OpacityByte); Assert.True(Alpha(Bytes(part.Surface)) > 0); Assert.Equal(width / 640d, part.Surface.Descriptor.DensityX); Assert.True(part.Surface.Image.ColorSpace!.IsSrgb); });
+            Assert.All(parts, part => { Assert.Equal(1, part.CommonOpacity); Assert.Equal(parts[0].OpacityByte, part.OpacityByte); Assert.True(Alpha(Bytes(part.Surface)) > 0); Assert.Equal(width / 640d, part.Surface.Descriptor.DensityX); Assert.True(part.Surface.Image.ColorSpace!.IsSrgb); });
             using var complete = renderer.CaptureSceneTarget(request, target, new(true, true, true, false, SceneCaptureRegion.FillAndStroke), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);
             Close(Bytes(complete), Combine(parts));
-            Assert.False(Combine(parts).SequenceEqual(Combine(parts, false))); // 每部件分别应用 alpha 会改变重叠。
         }
         finally { foreach (var part in parts) part.Dispose(); }
     }
@@ -91,7 +89,7 @@ public sealed class SceneColorPartTests
         using var renderer = new SkiaRenderPipeline(); var target = Target(renderer.GetSceneFrame(request.Project, request.TimeUs));
         foreach (var kind in Enum.GetValues<SceneColorPart>().Where(kind => kind != SceneColorPart.BaseFill))
         {
-            using var part = Part(renderer, request, target, kind); Assert.Equal(0, Alpha(Bytes(part.Surface))); Assert.InRange(part.CommonOpacity, .59, .61);
+            using var part = Part(renderer, request, target, kind); Assert.Equal(0, Alpha(Bytes(part.Surface))); Assert.Equal(1, part.CommonOpacity);
         }
         using var fill = Part(renderer, request, target, SceneColorPart.BaseFill); Assert.True(Alpha(Bytes(fill.Surface)) > 10_000);
     }
@@ -102,7 +100,7 @@ public sealed class SceneColorPartTests
         var project = Project(); var original = project.Lyrics.AllLines.Single();
         var line = original with { Text = "歌詞歌", Tokens = [original.Tokens[0] with { Text = "歌", Time = new(0, 1_000_000) },
             LyricToken.Create("missing", "詞"), LyricToken.Create("later", "歌", new(2_000_000, 3_000_000), TimingStatus.Edited)] };
-        project = project with { Lyrics = LyricsDocument.Create([line]), EnterAnimation = null };
+        project = project with { Lyrics = LyricsDocument.Create([line]) };
         var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = "parts" }; using var renderer = new SkiaRenderPipeline(); var scene = renderer.GetSceneFrame(snapshot, 2_500_000);
         var token = scene.TokenGeometries.Single(item => item.WithRuby.TokenId.Value == "missing");
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene,
@@ -123,8 +121,7 @@ public sealed class SceneColorPartTests
         var project = LeadInFixture.Create(true); var tree = project.LyricPresentation; var program = tree.FindProgram("primary")!;
         var group = tree.FindNode(program.LeadIns[0].IndicatorContainerId)!; var sequence = (CountdownSequenceContent)group.Content!;
         tree = tree with { Nodes = tree.Nodes.Replace(group, group with { Placement = fixedParent ? ScenePlacement.Create(new(.5, .5)) : group.Placement, Attachment = new() { Mode = fixedParent ? SceneAttachmentMode.FixedParent : SceneAttachmentMode.CueTargetText },
-            Content = sequence with { Appearance = sequence.Appearance with { Opacity = .5f, Stroke = StrokeSpec.Create(new(0, 255, 0), 3), Shadow = ShadowSpec.Create(new(255, 0, 0), angleDegrees: 45, distancePx: 6, blurRadiusPx: 2) } } }),
-            LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = 0, StartScale = 1, StartOffsetPx = 0, Easing = AnimationEasing.Linear } }) };
+            Content = sequence with { Appearance = sequence.Appearance with { Opacity = .5f, Stroke = StrokeSpec.Create(new(0, 255, 0), 3), Shadow = ShadowSpec.Create(new(255, 0, 0), angleDegrees: 45, distancePx: 6, blurRadiusPx: 2) } } }) };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree }) with { EffectInputsFingerprint = "mark parts" };
         using var renderer = new SkiaRenderPipeline(); var scene = renderer.GetSceneFrame(snapshot, 10_000_000); var target = new SceneCaptureTarget.Mark(scene.MarkGeometries[0].Target);
         var prepared = new PreparedRenderFrame(snapshot, scene.TimeUs, Fx.OutputMode.Transparent, RenderTarget.FromComposition(snapshot.Composition), scene, [], [], [],
@@ -132,7 +129,7 @@ public sealed class SceneColorPartTests
         var request = RenderRequest.At(snapshot, scene.TimeUs) with { PreparedFrame = prepared, TransparentBackground = true };
         using var fill = Part(renderer, request, target, SceneColorPart.BaseFill); using var stroke = Part(renderer, request, target, SceneColorPart.BaseStroke); using var shadow = Part(renderer, request, target, SceneColorPart.BaseShadow);
         Assert.True(Alpha(Bytes(fill.Surface)) > 0); Assert.True(Alpha(Bytes(stroke.Surface)) > 0); Assert.True(Alpha(Bytes(shadow.Surface)) > 0);
-        Assert.Equal(fixedParent ? .25 : .125, fill.CommonOpacity, 6); Assert.Equal(fill.OpacityByte, stroke.OpacityByte);
+        Assert.Equal(.25, fill.CommonOpacity, 6); Assert.Equal(fill.OpacityByte, stroke.OpacityByte);
         using var full = renderer.CaptureSceneTarget(request, target, new(false, true, true, false, SceneCaptureRegion.FillAndStroke), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);
         // 阴影以整体轮廓为来源并在描边之下（D-P3-9）。
         Close(Bytes(full), Combine([shadow, stroke, fill]));
@@ -160,7 +157,7 @@ public sealed class SceneColorPartTests
     public void 真实渐变与alpha取色保持填充部件和生产裁切一致(SceneColorPart kind)
     {
         var project = Project(); var gradient = new GradientSpec { Stops = [new(0, new(20, 70, 230, 80)), new(1, new(220, 40, 50, 220))] };
-        project = project with { EnterAnimation = null, LyricStyle = project.LyricStyle with
+        project = project with { LyricStyle = project.LyricStyle with
             { UnsungFill = project.LyricStyle.UnsungFill with { Gradient = gradient }, SungFill = project.LyricStyle.SungFill with { Gradient = gradient } } };
         using var renderer = new SkiaRenderPipeline(); var request = Request(project); var target = Target(renderer.GetSceneFrame(request.Project, request.TimeUs));
         using var part = Part(renderer, request, target, kind); Assert.True(Alpha(Bytes(part.Surface)) > 0);
@@ -196,7 +193,7 @@ public sealed class SceneColorPartTests
         using var assembled = renderer.AssembleSceneColorParts(request, [shadow, stroke, fill], Canvas, GraphExecutionBudget.Default);
         Assert.Equal(target, assembled.Target); Assert.Equal(request.TimeUs, assembled.TimeUs); Assert.Equal(fill.CommonOpacity, assembled.CommonOpacity); Assert.Equal(fill.OpacityByte, assembled.OpacityByte);
         Assert.Equal(new[] { SceneColorPart.BaseShadow, SceneColorPart.BaseStroke, SceneColorPart.BaseFill }, assembled.Parts);
-        var expectedRequest = request with { Project = request.Project with { EnterAnimation = null } };
+        var expectedRequest = request with { Project = request.Project };
         using var expected = renderer.CaptureSceneTarget(expectedRequest, target, new(false, true, true, false, SceneCaptureRegion.FillAndStroke), GraphInputSource.TargetColor, Canvas, GraphExecutionBudget.Default);
         Close(Bytes(expected), Bytes(assembled.Surface)); expected.Dispose();
         byte[] bytes = Bytes(assembled.Surface); fill.Dispose(); stroke.Dispose(); shadow.Dispose();

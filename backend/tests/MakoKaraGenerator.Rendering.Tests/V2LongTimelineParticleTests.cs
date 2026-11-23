@@ -33,7 +33,7 @@ public sealed class V2LongTimelineParticleTests
         var project = Project.Create("long particles", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 181_000_000),
             LyricsDocument.Create(lines), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 40,
                 Stroke = null, Shadow = null, Glow = null });
-        var snapshot = ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        var snapshot = ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
         // 模板逐行应用：每行一个实例，60 个实例共享同一宿主准备预算。
         var effects = lines.Select((line, index) => compiled.CreateEffect("cursor-trail", new($"emitter-{index}"),
             new EffectBinding.Lines([new LineId(line.Id)]), (ulong)index)).ToImmutableArray();

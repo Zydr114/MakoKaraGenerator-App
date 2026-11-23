@@ -143,19 +143,21 @@ public sealed class WorkerSceneMeasurementTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task 真实Worker槽动画进入保持退出输出稳定槽节点并保留完整校验()
+    public async Task 真实Worker槽调度输出稳定槽节点和恒定不透明度并保留完整校验()
     {
         var sourceSnapshot = Snapshot();
         string branchId = sourceSnapshot.Lyrics.PrimaryBranchId;
         var profile = SlotSequenceAnimationProfile.Default with {
             RevealMode = SlotRevealMode.LeadBeforeNextStart, RevealLeadUs = 0, MaxVisibleLines = 2,
-            RetentionPolicy = SlotRetentionPolicy.UntilLineEnd, EnterDurationUs = 400_000, ExitDurationUs = 400_000,
-            Easing = AnimationEasing.Linear, ExitEasing = AnimationEasing.Linear,
-            EnterFrom = new() { Opacity = 0, Scale = .75, RotationDegrees = -12, OffsetXPx = 8, OffsetYPx = -8 },
-            Hold = SceneTransform.Neutral,
-            ExitTo = new() { Opacity = 0, Scale = .8, RotationDegrees = 16, OffsetXPx = -8, OffsetYPx = 8 } };
-        var snapshot = sourceSnapshot with { LyricPresentation = LyricPresentationDefinition.FromBranches([
-            new() { BranchId = branchId, SlotSequenceProfile = profile }]) };
+            RetentionPolicy = SlotRetentionPolicy.UntilLineEnd };
+        var snapshot = sourceSnapshot with
+        {
+            Lyrics = LyricsDocument.Create(lines: [LyricLine.Create("actual-line", "Measured text", new TimeRange(0, 2_000_000), TimingStatus.Confirmed,
+                [LyricToken.Create("actual-token", "Measured text", new TimeRange(0, 2_000_000), TimingStatus.Confirmed)])]),
+            LyricStyle = sourceSnapshot.LyricStyle with { UnsungColor = RgbaColor.White, SungColor = new(255, 0, 0) },
+            LyricPresentation = LyricPresentationDefinition.FromBranches([
+                new() { BranchId = branchId, SlotSequenceProfile = profile }]),
+        };
         var tree = snapshot.LyricPresentation;
         var node = tree.FindNode(tree.FindProgram(branchId)!.DefaultContainerId)!;
         string slotId = node.Layout!.SlotIds[0];
@@ -163,17 +165,17 @@ public sealed class WorkerSceneMeasurementTests(ITestOutputHelper output)
         Assert.NotEqual(slotId,role);
         byte[] source = StaticProjectSnapshotCodec.Encode(snapshot);
         var pngs = new List<byte[]>();
-        foreach (var sample in new[] { (Time: "100000", Opacity: .25), (Time: "1000000", Opacity: 1d), (Time: "1900000", Opacity: .25) })
+        foreach (var time in new[] { "100000", "1000000", "1900000" })
         {
             await using var worker = new WorkerProcessProxy(Options());
-            var result = await worker.MeasureSceneAsync(Input(source,new("0","time",sample.Time,320,180,"transparent")),source,CancellationToken.None);
+            var result = await worker.MeasureSceneAsync(Input(source,new("0","time",time,320,180,"transparent")),source,CancellationToken.None);
             var line = Assert.Single(result.Measurement.Elements, element => element.Kind == "line" && element.LineId == "actual-line");
             Assert.True(line.Visible); Assert.Equal(slotId,line.SlotId); Assert.Equal(slotId,line.ParentId);
-            Assert.InRange(line.Opacity,sample.Opacity - .0001,sample.Opacity + .0001);
+            Assert.Equal(1d, line.Opacity, 6);
             Assert.Equal(4,line.WorldCorners.Length); Assert.NotNull(line.WorldMatrix); Assert.NotNull(line.EditReference);
             Assert.Equal("measuredInk",line.GeometryStatus); pngs.Add(result.Measurement.Png);
             int pid = worker.ProcessId!.Value; await worker.DisposeAsync(); Assert.False(Alive(pid));
-            output.WriteLine($"Slot animation real Worker PID={pid}, time={sample.Time}, slot={slotId}, role={role}, opacity={line.Opacity}; exited.");
+            output.WriteLine($"Slot schedule real Worker PID={pid}, time={time}, slot={slotId}, role={role}, opacity={line.Opacity}; exited.");
         }
         Assert.False(pngs[0].AsSpan().SequenceEqual(pngs[1])); Assert.False(pngs[1].AsSpan().SequenceEqual(pngs[2]));
     }

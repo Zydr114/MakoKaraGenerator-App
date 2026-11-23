@@ -31,7 +31,7 @@ public sealed partial class WipeFeatherRenderingTests
             Wipe = new WipeSpec { FeatherRatio = feather },
         };
         return Core.Projects.Project.Create("wipe", Composition.Create(Width, Height, FrameRate.Fps30, outputDurationUs: 5_000_000,
-            backgroundColor: background), LyricsDocument.Create([line]), lyricStyle: style) with { EnterAnimation = null };
+            backgroundColor: background), LyricsDocument.Create([line]), lyricStyle: style);
     }
 
     private static RenderRequest Request(Project project, long time, bool transparent = true)

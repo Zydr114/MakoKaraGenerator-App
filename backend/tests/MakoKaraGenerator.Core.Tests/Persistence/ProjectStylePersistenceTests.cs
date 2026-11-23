@@ -514,10 +514,6 @@ public sealed class ProjectStylePersistenceTests : IDisposable
                             ["maxVisibleLines"] = 2,
                             ["conflictPolicy"] = "QueueUntilSlotFree",
                             ["retentionPolicy"] = "UntilLineEnd",
-                            ["enterDurationUs"] = 300_000,
-                            ["exitDurationUs"] = 250_000,
-                            ["easing"] = "EaseOut",
-                            ["exitEasing"] = "EaseIn",
                         },
                     },
                 },
@@ -533,22 +529,57 @@ public sealed class ProjectStylePersistenceTests : IDisposable
         SceneContainerDefinition node = Assert.Single(result.Project.LyricPresentation.Nodes);
         Assert.NotNull(node.Placement);
         Assert.Equal(ScenePlacement.Default, node.Placement);
-        SlotAnimationSpec animation = Assert.IsType<SlotAnimationSpec>(node.Layout!.SlotAnimation);
-        Assert.NotNull(animation.EnterFrom);
-        Assert.NotNull(animation.Hold);
-        Assert.NotNull(animation.ExitTo);
+        Assert.IsType<SlotAnimationSpec>(node.Layout!.SlotAnimation);
         Assert.Contains(result.Report.Issues, static issue =>
             issue.Code == DiagnosticCode.InvalidLinePlacement
             && issue.Location == "project.lyricPresentation.nodes[0].placement");
-        Assert.Contains(result.Report.Issues, static issue =>
-            issue.Code == DiagnosticCode.InvalidDisplayProgram
-            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.enterFrom");
-        Assert.Contains(result.Report.Issues, static issue =>
-            issue.Code == DiagnosticCode.InvalidDisplayProgram
-            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.hold");
-        Assert.Contains(result.Report.Issues, static issue =>
-            issue.Code == DiagnosticCode.InvalidDisplayProgram
-            && issue.Location == "project.lyricPresentation.nodes[0].layout.slotAnimation.exitTo");
+    }
+
+    [Fact]
+    public void 工程包含旧布局动画字段或旧Schema版本时直接拒绝加载()
+    {
+        Project original = Project.Create("拒绝旧动画");
+        ProjectStore.Save(original, _directory.Path);
+        string path = Path.Combine(_directory.Path, ProjectJson.ProjectFileName);
+
+        // 1. 旧 schemaVersion (33) 直接拒绝加载
+        JsonObject oldVersion = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        oldVersion["schemaVersion"] = 33;
+        File.WriteAllText(path, oldVersion.ToJsonString(ProjectJson.Options));
+        ProjectLoadResult oldResult = ProjectStore.Load(_directory.Path);
+        Assert.Null(oldResult.Project);
+        Assert.Contains(oldResult.Report.Issues, static issue => issue.Code == DiagnosticCode.UnsupportedSchemaVersion);
+
+        // 2. 当前 schemaVersion 携带废弃 enterAnimation 字段时直接拒绝加载
+        ProjectStore.Save(original, _directory.Path);
+        JsonObject withEnterAnim = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        withEnterAnim["enterAnimation"] = new JsonObject { ["durationUs"] = 400_000 };
+        File.WriteAllText(path, withEnterAnim.ToJsonString(ProjectJson.Options));
+        ProjectLoadResult enterAnimResult = ProjectStore.Load(_directory.Path);
+        Assert.Null(enterAnimResult.Project);
+        Assert.Contains(enterAnimResult.Report.Issues, static issue => issue.Code == DiagnosticCode.MalformedJson);
+
+        // 3. 当前 schemaVersion 携带废弃 slotAnimation 动画字段时直接拒绝加载
+        ProjectStore.Save(original, _directory.Path);
+        JsonObject withSlotAnim = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        withSlotAnim["lyricPresentation"]!["nodes"]!.AsArray()[0]!["layout"] = new JsonObject
+        {
+            ["kind"] = "SlotSequence",
+            ["slotIds"] = new JsonArray(),
+            ["slotAnimation"] = new JsonObject
+            {
+                ["revealMode"] = "Progress",
+                ["revealProgress"] = 0.5,
+                ["maxVisibleLines"] = 2,
+                ["conflictPolicy"] = "QueueUntilSlotFree",
+                ["retentionPolicy"] = "UntilLineEnd",
+                ["enterDurationUs"] = 300_000,
+            },
+        };
+        File.WriteAllText(path, withSlotAnim.ToJsonString(ProjectJson.Options));
+        ProjectLoadResult slotAnimResult = ProjectStore.Load(_directory.Path);
+        Assert.Null(slotAnimResult.Project);
+        Assert.Contains(slotAnimResult.Report.Issues, static issue => issue.Code == DiagnosticCode.MalformedJson);
     }
 
     private Project RoundTrip(Project project)

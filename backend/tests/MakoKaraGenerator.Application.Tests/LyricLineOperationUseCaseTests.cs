@@ -152,7 +152,8 @@ public sealed class LyricLineOperationUseCaseTests
     {
         Project source = ExclusiveDisplayFixture.Create();
         source = source with { LyricPresentation = source.LyricPresentation with
-            { Programs = source.LyricPresentation.Programs.SetItem(0, source.LyricPresentation.Programs[0] with { Clips = [] }) } };
+            { Programs = source.LyricPresentation.Programs.SetItem(0, source.LyricPresentation.Programs[0] with { Clips = [] }),
+              LineOverrides = [new() { BranchId = "primary", LineId = "line-2", LocalTransform = new() { OffsetYRatio = -.05 } }] } };
         ProjectWorkspace workspace = ProjectWorkspace.Adopt(source);
         var result = LyricContentEditUseCase.DuplicateLine(workspace, Baseline(workspace, "line-2"));
         Assert.True(result.Accepted);

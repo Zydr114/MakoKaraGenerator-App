@@ -22,9 +22,6 @@ public sealed class PureSourceIndexesTests
         var project = LeadInFixture.Create(slots, crossClip);
         if (slots)
         {
-            var primary = project.LyricPresentation.Resolve("primary");
-            project = PresentationEditor.SetBranch(project, primary with
-            { SlotSequenceProfile = primary.SlotSequenceProfile! with { EnterDurationUs = 1_000_000, ExitDurationUs = 700_000 } });
             project = PresentationEditor.SetBranch(project, project.LyricPresentation.Resolve("translation") with
             { AnimationPolicy = LyricBranchAnimationPolicy.FollowPrimary });
         }
@@ -38,7 +35,7 @@ public sealed class PureSourceIndexesTests
             Assert.Same(load, indexes.Presentations.Get(load.Binding.BindingId));
             Add(load.RevealTimeUs); if (load.HideTimeUs is { } hide) Add(hide);
             if (load.PreparationRange is { } preparation) { Add(preparation.StartUs); Add(preparation.EndUs); }
-            if (load.LayoutExitRange is { } exit) { Add(exit.StartUs); Add(exit.EndUs); }
+            Assert.Null(load.LayoutExitRange);
         }
         foreach (long time in queries.Order())
         {
@@ -49,14 +46,12 @@ public sealed class PureSourceIndexesTests
             foreach (var sample in actual)
             {
                 Assert.Equal(expected[sample.Load.Binding.BindingId].DisplayPhase, sample.DisplayPhase);
-                var source = frame.Lines.Single(line => line.BindingId == sample.Load.Binding.BindingId.Value);
-                Assert.Equal(source.ExitProgress, sample.LayoutExitProgress, precision: 12);
+                Assert.Equal(0d, sample.LayoutExitProgress, precision: 12);
                 Assert.True(sample.Load.Contains(time));
             }
         }
         Assert.Empty(geometry.Queries); // Fixed presentation queries do not sample geometry or replay author code.
         Assert.Equal(12, indexes.Timeline.Count(new(TimelineEventKind.TokenStarted)));
-        if (slots) Assert.Contains(loads, static load => load.LayoutExitRange is not null);
         void Add(long boundary)
         { queries.Add(boundary); if (boundary > 0) queries.Add(boundary - 1); if (boundary < long.MaxValue) queries.Add(boundary + 1); }
     }
@@ -111,7 +106,7 @@ public sealed class PureSourceIndexesTests
     {
         var original = Project.Create("clip", lyrics: LyricsDocument.Create([
             CursorTransitionProjectionTests.Row("from", 0, 500), CursorTransitionProjectionTests.Row("next", 300, 800)]));
-        var profile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0, MaxVisibleLines = 1,
+        var profile = SlotSequenceAnimationProfile.Default with { MaxVisibleLines = 1,
             RevealMode = SlotRevealMode.LeadBeforeNextStart, ConflictPolicy = SlotConflictPolicy.ReplacePrevious,
             Slots = [SlotSequenceSlot.Create("only", ScenePlacement.Default)] };
         var snapshot = ProjectSnapshot.FromProject(PresentationEditor.SetBranch(original, new() { BranchId = "primary", SlotSequenceProfile = profile }));

@@ -45,7 +45,6 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         if set(properties) != {p["name"] for p in metadata[name]["properties"]}:
             raise ValueError("Unreviewed editing DTO fields: " + name)
         expected = {
-            "ProjectLineEnterAnimationDto": {"durationUs": "String", "easing": "String", "startOpacity": "Single", "startScale": "Single", "startOffsetPx": "Single"},
             "LeadInGenerationSettingsDto": {"includeOpening": "Boolean", "includeLongGaps": "Boolean", "gapThresholdUs": "String", "durationUs": "String", "indicatorContainerId": "String", "excludedLineIds": "String[]"},
             "SceneTextAppearanceDto": {"typography": "StyleTypographyDto", "pending": "StyleAppearanceDto", "elapsed": "StyleSungAppearanceDto", "opacity": "Single"},
             "CountdownShapeSpecDto": {"kind": "String", "barMinHeightRatio": "Double", "svgXml": "String", "svgColorMode": "String"},
@@ -65,15 +64,6 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         schemas[component] = {**obj(copy.deepcopy(properties)), "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + name}
         return ref(component)
 
-    animation_properties = {
-        "durationUs": {"type": "string", "pattern": r"^[+]?(?:0*[0-9]{1,7}|0*10000000)$|^-0+$", "x-int64-string": True,
-                       "description": "0..10000000微秒；原解析允许前导符号及零，服务canonical化。"},
-        "easing": {"type": "string", "enum": ["Linear", "EaseIn", "EaseOut", "EaseInOut"]},
-        "startOpacity": {"type": "number", "minimum": 0, "maximum": 1},
-        "startScale": {"type": "number", "exclusiveMinimum": 0, "maximum": 4},
-        "startOffsetPx": {"type": "number", "minimum": -10000, "maximum": 10000}}
-    animation = dto("ProjectLineEnterAnimationDto", animation_properties)
-    dto("ProjectLineEnterAnimationDto", animation_properties, "response")
     settings_properties = {"includeOpening": {"type": "boolean"}, "includeLongGaps": {"type": "boolean"},
         "gapThresholdUs": time, "durationUs": positive_time, "indicatorContainerId": nullable(stable), "excludedLineIds": ids}
     settings = dto("LeadInGenerationSettingsDto", settings_properties)
@@ -139,8 +129,6 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
     commands = [
         ("setLayoutKind", "SetOrchestrationLayoutKindCommandDto", {"containerId": stable, "kind": {"type": "string", "enum": ["Auto", "SlotSequence"]},
             "slotIds": {**ids, "maxItems": 64}, "newSlotCount": {"type": "integer", "minimum": 0, "maximum": 64}}),
-        ("setLineEnterAnimation", "SetLineEnterAnimationCommandDto", {"branchId": stable, "lineId": stable, "animation": nullable(animation)}),
-        ("setProjectEnterAnimation", "SetProjectEnterAnimationCommandDto", {"animation": nullable(animation)}),
         ("setLeadInGeneration", "SetLeadInGenerationCommandDto", {"branchId": stable, "settings": nullable(settings)}),
         ("previewLeadInGeneration", "PreviewLeadInGenerationCommandDto", {"branchId": stable, "settings": settings}),
         ("applyLeadInGeneration", "ApplyLeadInGenerationCommandDto", {"branchId": stable, "settings": settings, "selectedLineIds": ids}),
@@ -172,7 +160,7 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
         if info.get("baseType") != "ProjectCommandDto" or {p["name"] for p in info["properties"]} != set(base_command["properties"]) | set(fields):
             raise ValueError("Unreviewed editing command fields/base: " + clr)
         field_types = {"newSlotCount": "Int32", "slotIds": "String[]", "orderedIds": "String[]", "selectedLineIds": "String[]",
-                       "animation": ("CountdownAnimationSpecDto" if clr == "SetCountdownPresentationCommandDto" else "ProjectLineEnterAnimationDto"),
+                       "animation": "CountdownAnimationSpecDto",
                        "shape": "CountdownShapeSpecDto", "settings": "LeadInGenerationSettingsDto",
                        "appearance": "SceneTextAppearanceDto", "changes": "StyleChangeDto[]"}
         if any(p["type"] != field_types.get(p["name"], "String") or not p["nullable"] or p["optional"]
@@ -183,7 +171,7 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
             "x-clr-type": "MakoKaraGenerator.Backend.Contracts." + clr,
             "x-capability": "project-sessions.commands.orchestration." + operation,
             "x-completion-limits": {
-                "maxIntentBytes": 131072 if operation == "setCountdownPresentation" else (16384 if operation in ("setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation") else 65536),
+                "maxIntentBytes": 131072 if operation == "setCountdownPresentation" else (16384 if operation == "setLayoutKind" else 65536),
                 "maxNodes": 2000, "maxDepth": 64, "maxInputItems": 20000, "maxInputCharacters": 1048576,
                 "maxReadBytes": 1048576, "maxReadItems": 20000, "maxAnalyzedLines": 1000,
                 "maxMarks": 64, "maxTextUtf16Units": 4096, "receipt": "完整回执提交前按实际配置验证，默认64KiB；无截断。"}}
@@ -200,10 +188,10 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
             schemas[component]["x-completion-limits"]["maxSvgUtf8Bytes"] = 65536
             schemas[component]["description"] = "设置倒计时提示组图形/SVG 与闪烁擦除动画；shape 与 animation 至少一项非 null，CustomSvg 的 svgXml 限 64KiB UTF-8 静态安全矢量。"
         variants.append(ref(component))
-    schemas["OrchestrationPropertiesCommandResultDto"]["properties"]["operation"]["enum"] += ["setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation", "setLeadInAttachment"]
+    schemas["OrchestrationPropertiesCommandResultDto"]["properties"]["operation"]["enum"] += ["setLayoutKind", "setLeadInAttachment"]
     schemas["OrchestrationLeadInCommandResultDto"]["properties"]["operation"]["enum"] += [op for op, _, _ in commands if op not in (
-        "setLayoutKind", "setLineEnterAnimation", "setProjectEnterAnimation", "setLeadInGeneration", "previewLeadInGeneration", "applyLeadInGeneration", "setLeadInAttachment")]
-    schemas["ProjectCommandResponse"]["properties"]["propertiesResult"]["description"] = "G21布局/属性及G24进入动画的真实反馈；canonical值用精确修订读模型读取。"
+        "setLayoutKind", "setLeadInGeneration", "previewLeadInGeneration", "applyLeadInGeneration", "setLeadInAttachment")]
+    schemas["ProjectCommandResponse"]["properties"]["propertiesResult"]["description"] = "G21布局/属性命令的真实反馈；canonical值用精确修订读模型读取。"
     schemas["ProjectCommandResponse"]["properties"]["leadInResult"]["description"] = "手工前奏、附着、mark与提示组外观操作的真实反馈。"
     result = schemas["LeadInGenerationCommandResultDto"]
     result["properties"]["operation"]["enum"] = ["setLeadInGeneration", "previewLeadInGeneration", "applyLeadInGeneration"]
@@ -212,14 +200,12 @@ def extend_editing_completion_schemas(schemas, metadata, schema_for, variants, b
     candidate["status"]["enum"] = ["New", "Update", "Remove", "Preserved", "Skipped"]
     candidate["reason"]["enum"] = ["None", "MissingLineTime", "UnknownPrecedingTime", "TooShort", "NotEligible", "ExistingManual", "Disabled", "Excluded", "TimingConflict"]
     schemas["LeadInGenerationAnchorDto"]["properties"]["timingStatus"]["enum"] = ["Missing", "Imported", "Estimated", "Edited", "Confirmed", "Invalid"]
-    for component, fields in (("ProjectOrchestrationResponse", {"projectEnterAnimation": "ProjectLineEnterAnimationDto"}),
-            ("ProjectOrchestrationProgramDto", {"leadInGeneration": "LeadInGenerationSettingsDto"}),
-            ("ProjectLinePresentationResponse", {"localTransform": "ProjectLineLocalTransformDto", "localEnterAnimation": "ProjectLineEnterAnimationDto", "effectiveEnterAnimation": "ProjectLineEnterAnimationDto"})):
+    for component, fields in (("ProjectOrchestrationProgramDto", {"leadInGeneration": "LeadInGenerationSettingsDto"}),
+            ("ProjectLinePresentationResponse", {"localTransform": "ProjectLineLocalTransformDto"})):
         for field, typ in fields.items():
             schemas[component]["properties"][field] = nullable(ref(typ))
             if field not in schemas[component]["required"]:
                 schemas[component]["required"].append(field)
-    schemas["ProjectLinePresentationResponse"]["properties"]["animationSource"]["enum"] = ["line", "project", "none"]
     schemas["ProjectLinePresentationQuery"] = obj({"expectedRevision": {"type": "string", "pattern": int64_pattern(), "x-int64-string": True}, "branchId": stable, "lineId": stable})
     # byte[] uses System.Text.Json's base64 wire, not an array of byte numbers.
     canonical_time = {"type": "string", "pattern": "^(?=0$|[1-9])" + int64_pattern()[1:], "x-int64-string": True,

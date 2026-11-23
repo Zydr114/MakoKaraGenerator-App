@@ -16,9 +16,7 @@ public sealed class SceneTargetGeometryTests
         var sequence = (CountdownSequenceContent)group.Content!;
         tree = tree with { Nodes = tree.Nodes.Replace(group, group with { Attachment = new()
             { Mode = fixedParent ? SceneAttachmentMode.FixedParent : SceneAttachmentMode.CueTargetText },
-            Content = sequence with { Appearance = sequence.Appearance with { Opacity = .5f } } }),
-            LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", EnterAnimation = new()
-                { DurationUs = 2_000_000, StartOpacity = 0, Easing = AnimationEasing.Linear } }) };
+            Content = sequence with { Appearance = sequence.Appearance with { Opacity = .5f } } }) };
         var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree });
         using SkiaRenderPipeline renderer = new(); var scene = renderer.GetSceneFrame(snapshot, 10_000_000);
         var content = ContentProjection.Create(snapshot); var catalog = SceneProjection.Create(snapshot, content);
@@ -32,7 +30,7 @@ public sealed class SceneTargetGeometryTests
         {
             Assert.Equal(line, mark.TargetLine); Assert.Equal("cue-first", mark.Target.CueId.Value);
             Assert.Equal(line.BindingId, mark.Target.BindingId); Assert.Equal(group.Id, mark.ParentId.Value);
-            Assert.Equal(fixedParent ? 1 : .5, mark.AnimationOpacity, 7);
+            Assert.Equal(1, mark.AnimationOpacity, 7);
             Assert.Equal(.5, StaticStyleProjection.CreateBaseline(snapshot).Get(mark.Target).Opacity);
             Assert.Equal(scene.MarkGeometries.Single(item => item.Target == mark.Target).Geometry.BaseWorldMatrix,
                 Matrix(scene.TextMarks.Single(item => item.NodeId == mark.Target.NodeId.Value).Geometry.WorldMatrix!.Value));

@@ -30,7 +30,7 @@ public sealed class FillRenderingTests
             Stroke = stroke,
         };
         return Core.Projects.Project.Create("fill", Composition.Create(Width, Height, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([line]), lyricStyle: style) with { EnterAnimation = null };
+            LyricsDocument.Create([line]), lyricStyle: style);
     }
 
     private static RenderRequest Request(Project project) => RenderRequest.At(ProjectSnapshot.FromProject(project), 500_000) with { TransparentBackground = true };

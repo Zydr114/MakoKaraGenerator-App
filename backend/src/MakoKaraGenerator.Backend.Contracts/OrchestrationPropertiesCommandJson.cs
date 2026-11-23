@@ -39,23 +39,13 @@ internal static class OrchestrationPropertiesCommandJson
 
     private static ProjectOrchestrationSlotAnimationDto Animation(JsonElement value)
     {
-        var fields = Object(value, ["revealMode", "revealProgress", "revealDelayUs", "revealLeadUs", "maxVisibleLines", "conflictPolicy", "retentionPolicy",
-            "enterDurationUs", "exitDurationUs", "enterFrom", "hold", "exitTo", "exitEasing", "easing"]);
+        var fields = Object(value, ["revealMode", "revealProgress", "revealDelayUs", "revealLeadUs", "maxVisibleLines", "conflictPolicy", "retentionPolicy"]);
         var count = Required(fields, "maxVisibleLines");
         if (count.ValueKind != JsonValueKind.Number || !count.TryGetInt32(out int max) || max < 1) throw new JsonException("maxVisibleLines 必须为正整数。");
         return new(Named(fields, "revealMode", ["Progress", "TimeAfterPreviousStart", "LeadBeforeNextStart"]), Number(fields, "revealProgress"),
             Time(fields, "revealDelayUs"), Time(fields, "revealLeadUs"), max,
             Named(fields, "conflictPolicy", ["QueueUntilSlotFree", "AllowOverflow", "ReplacePrevious", "Skip"]),
-            Named(fields, "retentionPolicy", ["UntilLineEnd", "UntilNextReveal", "Immediate"]),
-            Time(fields, "enterDurationUs"), Time(fields, "exitDurationUs"), Transform(Required(fields, "enterFrom")), Transform(Required(fields, "hold")),
-            Transform(Required(fields, "exitTo")), Easing(fields, "exitEasing"), Easing(fields, "easing"));
-    }
-
-    private static string Easing(Dictionary<string, JsonElement> fields, string name) => Named(fields, name, ["Linear", "EaseIn", "EaseOut", "EaseInOut"]);
-    private static ProjectOrchestrationSceneTransformDto Transform(JsonElement root)
-    {
-        var fields = Object(root, ["opacity", "scale", "offsetXPx", "offsetYPx", "rotationDegrees"]);
-        return new(Number(fields, "opacity"), Positive(fields, "scale"), Number(fields, "offsetXPx"), Number(fields, "offsetYPx"), Number(fields, "rotationDegrees"));
+            Named(fields, "retentionPolicy", ["UntilLineEnd", "UntilNextReveal", "Immediate"]));
     }
 
     internal static void Write(Utf8JsonWriter writer, ProjectCommandDto command, JsonSerializerOptions options)

@@ -21,7 +21,7 @@ public static class ProjectSnapshotSourceProject
         return new()
         {
             Name = snapshot.Name, SchemaVersion = snapshot.SchemaVersion, Composition = snapshot.Composition, Lyrics = snapshot.Lyrics,
-            LyricStyle = snapshot.LyricStyle, LyricStylePresetId = snapshot.LyricStylePresetId, EnterAnimation = snapshot.EnterAnimation,
+            LyricStyle = snapshot.LyricStyle, LyricStylePresetId = snapshot.LyricStylePresetId,
             LyricPresentation = snapshot.LyricPresentation, Background = snapshot.Background, AudioPath = snapshot.AudioPath,
             AudioMedia = snapshot.AudioMedia, AudioAnalysis = snapshot.AudioAnalysis,
             Effects = actual.Length == 0 ? snapshot.Effects : new(snapshot.Effects.Packages,

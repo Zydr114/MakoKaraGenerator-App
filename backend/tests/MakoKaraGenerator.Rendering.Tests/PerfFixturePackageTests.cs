@@ -237,7 +237,7 @@ public sealed partial class PerfFixturePackageTests
         return Project.Create("Perf fixture", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 603_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64,
                 SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null })
-            with { Effects = new([package], instances), EnterAnimation = null };
+            with { Effects = new([package], instances) };
     }
 
     private static async Task<CompiledProjectEffects> Compile(Project project)

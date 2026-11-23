@@ -255,7 +255,7 @@ public sealed class V2ParticlePackageTests
         var project = Project.Create("M08 real particle packages", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 603_000_000),
             LyricsDocument.Create(rows), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 40,
                 SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances) });
     }
     private static LyricLine Row(string id, long start, long end)
     {

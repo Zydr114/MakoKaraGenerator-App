@@ -25,7 +25,6 @@ internal static class BaseMaterialPixelOracle
         // This oracle intentionally rejects fixtures with additional unmodelled object/group/common-alpha operations.
         Assert.Single(frame.HierarchyScene.Lines);
         Assert.Empty(frame.MarkStyles); Assert.Empty(frame.GroupOpacities); Assert.Empty(frame.OverlayBatches);
-        Assert.Equal(1, Assert.Single(frame.HierarchyScene.Lines).Transform.Opacity);
         Assert.Null(frame.GetBaseAppearance(token.BaseOnly).Unsung.Shadow);
         Assert.Equal(1f, snapshot.LyricStyle.Opacity);
         var parent = BaseMaterialPackageFixture.Parent(frame).WithImageEffects([]);

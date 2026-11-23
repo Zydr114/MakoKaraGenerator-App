@@ -92,7 +92,7 @@ public sealed class V2ExitBoundaryOwnershipTests
         var lyrics = new LyricsDocument { PrimaryBranchId = "branch-000", Branches = [.. branches] };
         var project = Project.Create("exit boundary owner", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000), lyrics,
             lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 32, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = effects, EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = effects });
     }
     private static async Task<CompiledProjectEffects> Compile(ProjectSnapshot snapshot)
     {

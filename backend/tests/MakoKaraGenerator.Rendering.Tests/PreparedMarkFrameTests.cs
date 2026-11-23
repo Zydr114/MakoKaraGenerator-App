@@ -128,8 +128,7 @@ public sealed class PreparedMarkFrameTests
                 Placement = fixedParent ? ScenePlacement.Create(new(.3, .3)) : group.Placement,
                 Content = sequence with { Appearance = sequence.Appearance with { Opacity = .6f } } }),
             LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", LocalTransform = new()
-                { OffsetXRatio = .02, OffsetYRatio = -.015, RotationDegrees = 9, Scale = .85 }, EnterAnimation = new()
-                { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = .8f, Easing = AnimationEasing.Linear } }) };
+                { OffsetXRatio = .02, OffsetYRatio = -.015, RotationDegrees = 9, Scale = .85 } }) };
         tree = tree with { Nodes = [.. tree.Nodes.Select(node => sequence.MarkNodeIds.Contains(node.Id)
             ? node with { Placement = node.Placement with { RotationDegrees = 7, Scale = .9 } } : node)] };
         return project with { LyricPresentation = tree };

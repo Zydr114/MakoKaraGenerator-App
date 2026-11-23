@@ -221,7 +221,7 @@ public sealed class V2TargetComplexStyleTests
             project = project with { LyricPresentation = tree with { Nodes = tree.Nodes.Replace(root,
                 root with { Placement = root.Placement with { RotationDegrees = 6, Scale = .9 } }) } };
         }
-        var snapshot = ProjectSnapshot.FromProject(project with { Effects = new([.. packages], [.. instances]), EnterAnimation = null });
+        var snapshot = ProjectSnapshot.FromProject(project with { Effects = new([.. packages], [.. instances]) });
         var plan = ProjectMediaDependencyResolver.Resolve(snapshot.Effects, snapshot.LyricStyle, snapshot.Lyrics,
             snapshot.LyricPresentation, snapshot.PresetApplications);
         Assert.Single(plan.Dependencies);

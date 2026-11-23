@@ -38,20 +38,13 @@ def extend_orchestration_schemas(schemas, metadata, schema_for, variants, base_c
     definitions = {
         "ProjectOrchestrationReferenceRectDto": {"widthRatio": positive, "heightRatio": positive},
         "ProjectOrchestrationSafeAreaDto": {name: {"type": "number", "minimum": 0, "maximum": 1} for name in ("left", "top", "right", "bottom")},
-        "ProjectOrchestrationSceneTransformDto": {"opacity": {"type": "number", "minimum": 0, "maximum": 1},
-            "scale": positive, "offsetXPx": number, "offsetYPx": number, "rotationDegrees": number},
         "ProjectLineLocalTransformDto": {"offsetXRatio": number, "offsetYRatio": number, "rotationDegrees": number, "scale": positive},
         "ProjectOrchestrationSlotAnimationDto": {
             "revealMode": {"type": "string", "enum": ["Progress", "TimeAfterPreviousStart", "LeadBeforeNextStart"]},
             "revealProgress": {"type": "number", "minimum": 0, "maximum": 1},
             "revealDelayUs": time, "revealLeadUs": time, "maxVisibleLines": {"type": "integer", "minimum": 1, "maximum": 2147483647},
             "conflictPolicy": {"type": "string", "enum": ["QueueUntilSlotFree", "AllowOverflow", "ReplacePrevious", "Skip"]},
-            "retentionPolicy": {"type": "string", "enum": ["UntilLineEnd", "UntilNextReveal", "Immediate"]},
-            "enterDurationUs": time, "exitDurationUs": time,
-            "enterFrom": ref("ProjectOrchestrationSceneTransformDtoInput"), "hold": ref("ProjectOrchestrationSceneTransformDtoInput"),
-            "exitTo": ref("ProjectOrchestrationSceneTransformDtoInput"),
-            "exitEasing": {"type": "string", "enum": ["Linear", "EaseIn", "EaseOut", "EaseInOut"]},
-            "easing": {"type": "string", "enum": ["Linear", "EaseIn", "EaseOut", "EaseInOut"]}},
+            "retentionPolicy": {"type": "string", "enum": ["UntilLineEnd", "UntilNextReveal", "Immediate"]}},
     }
     def clr_type(value):
         if "anyOf" in value:
@@ -120,7 +113,7 @@ def extend_orchestration_schemas(schemas, metadata, schema_for, variants, base_c
             schemas[component]["properties"][field] = copy.deepcopy(value)
             if "$ref" in value:
                 schemas[component]["properties"][field] = ref(value["$ref"].split("/")[-1].removesuffix("Input"))
-    for component in ("ProjectOrchestrationSceneTransformDto", "ProjectLineLocalTransformDto"):
+    for component in ("ProjectLineLocalTransformDto",):
         for field, value in definitions[component].items():
             schemas[component]["properties"][field] = copy.deepcopy(value)
     for field, description in {

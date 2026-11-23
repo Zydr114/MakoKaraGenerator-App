@@ -142,11 +142,8 @@ public sealed partial class SkiaSceneGeometry
         double scale = style.Scale * basis.Scale, rotation = placement.RotationDegrees;
         if (ink.Right > ink.Left) scale = Math.Min(scale, width * maxWidthRatio / (ink.Right - ink.Left));
         scale *= local.Scale;
-        var animation = includeWorld ? scene?.Transform ?? SceneTransform.Neutral : SceneTransform.Neutral;
         var localMatrix = SceneMatrix.Translate(pivotX, pivotY)
             * SceneMatrix.RotateScale(rotation, placement.Scale)
-            * SceneMatrix.Translate(animation.OffsetXPx, animation.OffsetYPx)
-            * SceneMatrix.RotateScale(animation.RotationDegrees, animation.Scale)
             * SceneMatrix.RotateScale(0, scale / placement.Scale)
             * SceneMatrix.Translate(-pivotX, -pivotY);
         var parent = includeWorld && scene is not null ? scene.ParentMatrix : SceneMatrix.Identity;

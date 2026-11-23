@@ -41,7 +41,6 @@ internal static partial class ProjectDtoMapper
             LyricStylePresetId = project.LyricStylePresetId,
             AudioPath = project.AudioPath,
             Background = ToDto(project.Background),
-            EnterAnimation = ToDto(project.EnterAnimation),
             LyricPresentation = ToDto(project.LyricPresentation),
         };
     }
@@ -398,85 +397,6 @@ internal static partial class ProjectDtoMapper
 
         return BackgroundPlaybackMode.Loop;
     }
-
-    /// <summary>写出进入动画；没有动画时返回 <see langword="null"/>（不写空对象）。</summary>
-    internal static LineAnimationDto? ToDto(LineAnimation? animation) => animation is null
-        ? null
-        : new LineAnimationDto
-        {
-            DurationUs = animation.DurationUs,
-            Easing = ToText(animation.Easing),
-            StartOpacity = animation.StartOpacity,
-            StartScale = animation.StartScale,
-            StartOffsetPx = animation.StartOffsetPx,
-        };
-
-    /// <summary>读出进入动画；缺省字段按默认值，不认识的缓动回退并报告。</summary>
-    /// <param name="dto">持久化形态。</param>
-    /// <param name="location">诊断位置。</param>
-    /// <param name="issues">诊断收集器。</param>
-    /// <returns>动画；没有动画时为 <see langword="null"/>。</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="issues"/> 为 <see langword="null"/> 时抛出。</exception>
-    internal static LineAnimation? MapLineAnimation(LineAnimationDto? dto, string location, List<ProjectIssue> issues)
-    {
-        ArgumentNullException.ThrowIfNull(issues);
-
-        if (dto is null)
-        {
-            return null;
-        }
-
-        LineAnimation defaults = LineAnimation.Default;
-
-        return new LineAnimation
-        {
-            DurationUs = dto.DurationUs ?? defaults.DurationUs,
-            Easing = MapAnimationEasing(dto.Easing, location + ".easing", issues),
-            StartOpacity = dto.StartOpacity ?? defaults.StartOpacity,
-            StartScale = dto.StartScale ?? defaults.StartScale,
-            StartOffsetPx = dto.StartOffsetPx ?? defaults.StartOffsetPx,
-        };
-    }
-
-    private static AnimationEasing MapAnimationEasing(string? text, string location, List<ProjectIssue> issues)
-    {
-        if (text is null || text.Equals("easeOut", StringComparison.OrdinalIgnoreCase))
-        {
-            return AnimationEasing.EaseOut;
-        }
-
-        if (text.Equals("linear", StringComparison.OrdinalIgnoreCase))
-        {
-            return AnimationEasing.Linear;
-        }
-
-        if (text.Equals("easeIn", StringComparison.OrdinalIgnoreCase))
-        {
-            return AnimationEasing.EaseIn;
-        }
-
-        if (text.Equals("easeInOut", StringComparison.OrdinalIgnoreCase))
-        {
-            return AnimationEasing.EaseInOut;
-        }
-
-        Add(
-            issues,
-            DiagnosticCode.InvalidLineAnimation,
-            IssueSeverity.Warning,
-            $"不认识的缓动方式「{text}」，已按「缓出」处理。",
-            location);
-
-        return AnimationEasing.EaseOut;
-    }
-
-    private static string ToText(AnimationEasing easing) => easing switch
-    {
-        AnimationEasing.Linear => "linear",
-        AnimationEasing.EaseIn => "easeIn",
-        AnimationEasing.EaseInOut => "easeInOut",
-        _ => "easeOut",
-    };
 
     private static string ToText(BackgroundKind kind) => kind switch
     {

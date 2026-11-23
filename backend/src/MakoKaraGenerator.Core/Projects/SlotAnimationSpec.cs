@@ -1,6 +1,6 @@
 namespace MakoKaraGenerator.Core.Projects;
 
-/// <summary>独立于槽位节点的调度及动画参数。</summary>
+/// <summary>独立于槽位节点的调度参数。</summary>
 public sealed record SlotAnimationSpec
 {
     /// <summary>提前显示触发方式。</summary>
@@ -17,20 +17,6 @@ public sealed record SlotAnimationSpec
     public SlotConflictPolicy ConflictPolicy { get; init; } = SlotConflictPolicy.QueueUntilSlotFree;
     /// <summary>保留策略。</summary>
     public SlotRetentionPolicy RetentionPolicy { get; init; } = SlotRetentionPolicy.UntilLineEnd;
-    /// <summary>进入时长微秒。</summary>
-    public long EnterDurationUs { get; init; } = 300_000;
-    /// <summary>退出时长微秒。</summary>
-    public long ExitDurationUs { get; init; } = 250_000;
-    /// <summary>进入通道。</summary>
-    public SceneTransform EnterFrom { get; init; } = new() { Opacity = 0, OffsetYPx = 12 };
-    /// <summary>保持通道。</summary>
-    public SceneTransform Hold { get; init; } = SceneTransform.Neutral;
-    /// <summary>退出通道。</summary>
-    public SceneTransform ExitTo { get; init; } = new() { Opacity = 0, OffsetYPx = -12 };
-    /// <summary>退出缓动。</summary>
-    public AnimationEasing ExitEasing { get; init; } = AnimationEasing.EaseIn;
-    /// <summary>进入缓动。</summary>
-    public AnimationEasing Easing { get; init; } = AnimationEasing.EaseOut;
     /// <summary>从现有调度配置读取参数，不复制槽位位置。</summary>
     public static SlotAnimationSpec FromProfile(SlotSequenceAnimationProfile profile) => new()
     {
@@ -41,13 +27,6 @@ public sealed record SlotAnimationSpec
         MaxVisibleLines = profile.MaxVisibleLines,
         ConflictPolicy = profile.ConflictPolicy,
         RetentionPolicy = profile.RetentionPolicy,
-        EnterDurationUs = profile.EnterDurationUs,
-        ExitDurationUs = profile.ExitDurationUs,
-        EnterFrom = profile.EnterFrom,
-        Hold = profile.Hold,
-        ExitTo = profile.ExitTo,
-        ExitEasing = profile.ExitEasing,
-        Easing = profile.Easing,
     };
     /// <summary>为现有纯调度器建立临时配置；槽位的唯一位置来源是节点。</summary>
     public SlotSequenceAnimationProfile ToProfile(IEnumerable<SceneContainerDefinition> slots)
@@ -57,21 +36,14 @@ public sealed record SlotAnimationSpec
         bool uniqueRoles = roles.Distinct(StringComparer.Ordinal).Count() == roles.Length;
         return new()
         {
-        RevealMode = RevealMode,
-        RevealProgress = RevealProgress,
-        RevealDelayUs = RevealDelayUs,
-        RevealLeadUs = RevealLeadUs,
-        MaxVisibleLines = MaxVisibleLines,
-        ConflictPolicy = ConflictPolicy,
-        RetentionPolicy = RetentionPolicy,
-        EnterDurationUs = EnterDurationUs,
-        ExitDurationUs = ExitDurationUs,
-        EnterFrom = EnterFrom,
-        Hold = Hold,
-        ExitTo = ExitTo,
-        ExitEasing = ExitEasing,
-        Easing = Easing,
-        Slots = [.. nodes.Select((node, index) => new SlotSequenceSlot { Id = uniqueRoles ? roles[index] : node.Id, Placement = node.Placement })],
+            RevealMode = RevealMode,
+            RevealProgress = RevealProgress,
+            RevealDelayUs = RevealDelayUs,
+            RevealLeadUs = RevealLeadUs,
+            MaxVisibleLines = MaxVisibleLines,
+            ConflictPolicy = ConflictPolicy,
+            RetentionPolicy = RetentionPolicy,
+            Slots = [.. nodes.Select((node, index) => new SlotSequenceSlot { Id = uniqueRoles ? roles[index] : node.Id, Placement = node.Placement })],
         };
     }
 }

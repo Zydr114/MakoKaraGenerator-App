@@ -52,7 +52,6 @@ internal static class SnapshotJsonContract
         [typeof(RgbaColor)] = ["Red", "Green", "Blue", "Alpha"],
         [typeof(TimeRange)] = ["StartUs", "EndUs"],
         [typeof(BackgroundSource)] = ["Kind", "Path", "Media", "Fit", "Playback"],
-        [typeof(LineAnimation)] = ["DurationUs", "Easing", "StartOpacity", "StartScale", "StartOffsetPx"],
         [typeof(LyricPresentationDefinition)] = ["Nodes", "Programs", "LineOverrides"],
         [typeof(SceneContainerDefinition)] = ["Id", "Name", "ParentId", "Placement", "ReferenceRect", "Layout", "Content", "Attachment"],
         [typeof(ScenePlacement)] = ["Position", "Anchor", "RotationDegrees", "Scale"],
@@ -60,8 +59,7 @@ internal static class SnapshotJsonContract
         [typeof(SceneReferenceRect)] = ["WidthRatio", "HeightRatio"],
         [typeof(LyricContainerLayout)] = ["Kind", "DefaultPlacement", "SafeArea", "MaxWidthRatio", "SlotIds", "SlotAnimation"],
         [typeof(NormalizedSafeArea)] = ["Left", "Top", "Right", "Bottom"],
-        [typeof(SlotAnimationSpec)] = ["RevealMode", "RevealProgress", "RevealDelayUs", "RevealLeadUs", "MaxVisibleLines", "ConflictPolicy", "RetentionPolicy", "EnterDurationUs", "ExitDurationUs", "EnterFrom", "Hold", "ExitTo", "ExitEasing", "Easing"],
-        [typeof(SceneTransform)] = ["Opacity", "Scale", "OffsetXPx", "OffsetYPx", "RotationDegrees"],
+        [typeof(SlotAnimationSpec)] = ["RevealMode", "RevealProgress", "RevealDelayUs", "RevealLeadUs", "MaxVisibleLines", "ConflictPolicy", "RetentionPolicy"],
         [typeof(SceneContent)] = [],
         [typeof(CountdownSequenceContent)] = ["MarkNodeIds", "Appearance", "Shape", "Animation"],
         [typeof(CountdownShapeSpec)] = ["Kind", "SvgXml", "SvgColorMode", "BarMinHeightRatio"],
@@ -75,7 +73,7 @@ internal static class SnapshotJsonContract
         [typeof(LyricClipScheduleContext)] = ["LineIds", "IsDefaultSegment", "PreviousLineId", "NextLineId"],
         [typeof(LyricLeadIn)] = ["Id", "Name", "Enabled", "TargetLineId", "IndicatorContainerId", "DurationUs", "Origin"],
         [typeof(LeadInGenerationSettings)] = ["IncludeOpening", "IncludeLongGaps", "GapThresholdUs", "DurationUs", "IndicatorContainerId", "ExcludedLineIds"],
-        [typeof(LyricLinePresentation)] = ["BranchId", "LineId", "LocalTransform", "EnterAnimation"],
+        [typeof(LyricLinePresentation)] = ["BranchId", "LineId", "LocalTransform"],
         [typeof(LyricLocalTransform)] = ["OffsetXRatio", "OffsetYRatio", "RotationDegrees", "Scale"],
     };
 

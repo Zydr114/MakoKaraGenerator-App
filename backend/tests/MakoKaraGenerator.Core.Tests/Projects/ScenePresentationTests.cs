@@ -14,7 +14,7 @@ public sealed class ScenePresentationTests
     {
         using TemporaryDirectory directory = new();
         var source = Project.Create("场景", lyrics: LyricsDocument.Create([LyricLine.Create("line", "文字")]));
-        var project = source.WithLinePresentation("line", ScenePlacement.Create(new(.25, .6)), LineAnimation.Default);
+        var project = source.WithLinePresentation("line", ScenePlacement.Create(new(.25, .6)));
         var definition = project.LyricPresentation.Resolve("primary") with
         {
             Placement = ScenePlacement.Create(new(1.1, -.1), ScenePlacementAnchor.TopLeft, 30, .8),

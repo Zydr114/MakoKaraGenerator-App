@@ -31,12 +31,11 @@ internal static class ExclusiveDisplayFixture
             lyrics with { Branches = lyrics.Branches.Add(translation) },
             lyricStyle: LyricStyle.Default with { FontSizePx = 32, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White });
         var tree = LyricPresentationDefinition.FromBranches([
-            new() { BranchId = "primary", SlotSequenceProfile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0 } },
+            new() { BranchId = "primary", SlotSequenceProfile = SlotSequenceAnimationProfile.Default },
             new() { BranchId = "translation", DefaultPlacement = ScenePlacement.Create(new(.5, .86)), SafeArea = NormalizedSafeArea.Translation }]);
         var program = tree.FindProgram("primary")!;
         tree = tree with { Nodes = tree.Nodes.Add(new() { Id = CenterId, ParentId = program.RootContainerId, Layout = new() }),
-            Programs = tree.Programs.SetItem(0, program with { Clips = [new() { Id = ClipId, LineIds = ["line-2"], ContainerId = CenterId }] }),
-            LineOverrides = [new() { BranchId = "primary", LineId = "line-2", EnterAnimation = new() { DurationUs = 400_000, StartOffsetPx = 10 } }] };
+            Programs = tree.Programs.SetItem(0, program with { Clips = [new() { Id = ClipId, LineIds = ["line-2"], ContainerId = CenterId }] }) };
         return project with { LyricPresentation = tree };
     }
 }

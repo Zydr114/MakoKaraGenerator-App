@@ -23,7 +23,7 @@ public sealed class Phase0GeometryAndWipeTests
                 Stroke = null,
                 Shadow = null,
                 Glow = null,
-            }) with { EnterAnimation = null });
+            }));
 
     [Fact]
     public void A1_大字距与斜体下ProgressPath钳位至非空白墨迹且与逐字换色像素边界一致()

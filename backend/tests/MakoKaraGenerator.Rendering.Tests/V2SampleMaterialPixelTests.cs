@@ -78,7 +78,7 @@ public sealed class V2SampleMaterialPixelTests
         LyricsDocument.Create([LyricLine.Create("line", "MW", new(0, 2_000_000), TimingStatus.Edited,
             [LyricToken.Create("token", "MW", new(0, 600_000), TimingStatus.Edited)])]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 120, SungColor = RgbaColor.White,
-            UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null }) with { EnterAnimation = null };
+            UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
 
     private static async Task<byte[]> RenderAsync(EffectPackageContents package, string export, long time, bool transparent, bool gpu)
     {

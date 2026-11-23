@@ -125,28 +125,18 @@ public sealed partial class ProjectSession
     {
         result = null;
         if (!TryNamed<SlotRevealMode>(input.RevealMode, out var reveal) || !TryNamed<SlotConflictPolicy>(input.ConflictPolicy, out var conflict)
-            || !TryNamed<SlotRetentionPolicy>(input.RetentionPolicy, out var retention) || !TryNamed<AnimationEasing>(input.ExitEasing, out var exitEasing)
-            || !TryNamed<AnimationEasing>(input.Easing, out var easing) || !TryParseMicroseconds(input.RevealDelayUs, out long delay)
-            || !TryParseMicroseconds(input.RevealLeadUs, out long lead) || !TryParseMicroseconds(input.EnterDurationUs, out long enter)
-            || !TryParseMicroseconds(input.ExitDurationUs, out long exit) || input.EnterFrom is null || input.Hold is null || input.ExitTo is null) return false;
+            || !TryNamed<SlotRetentionPolicy>(input.RetentionPolicy, out var retention)
+            || !TryParseMicroseconds(input.RevealDelayUs, out long delay)
+            || !TryParseMicroseconds(input.RevealLeadUs, out long lead)) return false;
         var value = new SlotAnimationSpec { RevealMode = reveal, RevealProgress = input.RevealProgress, RevealDelayUs = delay,
-            RevealLeadUs = lead, MaxVisibleLines = input.MaxVisibleLines, ConflictPolicy = conflict, RetentionPolicy = retention,
-            EnterDurationUs = enter, ExitDurationUs = exit, EnterFrom = ReadTransform(input.EnterFrom), Hold = ReadTransform(input.Hold),
-            ExitTo = ReadTransform(input.ExitTo), ExitEasing = exitEasing, Easing = easing };
+            RevealLeadUs = lead, MaxVisibleLines = input.MaxVisibleLines, ConflictPolicy = conflict, RetentionPolicy = retention };
         if (!value.ToProfile([new() { Id = "validation-slot" }]).IsValid) return false;
         result = value; return true;
     }
 
-    private static SceneTransform ReadTransform(ProjectOrchestrationSceneTransformDto value) => new()
-    { Opacity = value.Opacity, Scale = value.Scale, OffsetXPx = value.OffsetXPx, OffsetYPx = value.OffsetYPx, RotationDegrees = value.RotationDegrees };
-
     private static ProjectOrchestrationSlotAnimationDto ProjectSlotAnimation(SlotAnimationSpec value) => new(value.RevealMode.ToString(), value.RevealProgress,
         value.RevealDelayUs.ToString(CultureInfo.InvariantCulture), value.RevealLeadUs.ToString(CultureInfo.InvariantCulture), value.MaxVisibleLines,
-        value.ConflictPolicy.ToString(), value.RetentionPolicy.ToString(), value.EnterDurationUs.ToString(CultureInfo.InvariantCulture),
-        value.ExitDurationUs.ToString(CultureInfo.InvariantCulture), ProjectTransform(value.EnterFrom), ProjectTransform(value.Hold), ProjectTransform(value.ExitTo),
-        value.ExitEasing.ToString(), value.Easing.ToString());
-    private static ProjectOrchestrationSceneTransformDto ProjectTransform(SceneTransform value) =>
-        new(value.Opacity, value.Scale, value.OffsetXPx, value.OffsetYPx, value.RotationDegrees);
+        value.ConflictPolicy.ToString(), value.RetentionPolicy.ToString());
 
     private static BackendErrorResponse PropertiesInvalid(string message) => new(BackendErrorCode.InvalidRequest, message, "command");
     private static BackendErrorResponse PropertiesStale(string message, string field) => new(BackendErrorCode.CommandRejected, message, field, FailureCode: "TargetStale");

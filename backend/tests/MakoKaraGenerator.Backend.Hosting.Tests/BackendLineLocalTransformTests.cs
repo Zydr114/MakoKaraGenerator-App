@@ -72,21 +72,12 @@ public sealed class BackendLineLocalTransformTests
     }
 
     [Fact]
-    public async Task 清除微调保留本句动画且展示校验失败完整拒绝()
+    public async Task 清除微调移除空行覆盖且展示校验失败完整拒绝()
     {
         await using Fixture f = await Fixture.Create();
-        Project source = f.Workspace.Project;
-        var animation = new LineAnimation { DurationUs = 800000, StartScale = .8f };
-        typeof(ProjectWorkspace).GetProperty("Project")!.SetValue(f.Workspace, source with
-        {
-            LyricPresentation = source.LyricPresentation with
-            {
-                LineOverrides = [new() { BranchId = "primary", LineId = f.LineId, EnterAnimation = animation }],
-            },
-        });
         Accept(await f.Command("0", new SetLineLocalTransformCommandDto("primary", f.LineId, Transform)));
         Accept(await f.Command("1", new SetLineLocalTransformCommandDto("primary", f.LineId, null)));
-        Assert.Same(animation, f.Workspace.Project.LyricPresentation.FindLine(f.LineId)!.EnterAnimation);
+        Assert.Null(f.Workspace.Project.LyricPresentation.FindLine(f.LineId));
         var valid = f.Workspace.Project;
         typeof(ProjectWorkspace).GetProperty("Project")!.SetValue(f.Workspace, valid with
         {

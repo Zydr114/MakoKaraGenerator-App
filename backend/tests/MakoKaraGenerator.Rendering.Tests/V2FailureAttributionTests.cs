@@ -127,7 +127,7 @@ public sealed class V2FailureAttributionTests
         var project = Project.Create("SDK v2 failure owner", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create([first, second]), lyricStyle: LyricStyle.Default with
             { FontFamilyName = "DejaVu Sans", FontSizePx = 56, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances) });
     }
 
     private static async Task<CompiledProjectEffects> Compile(ProjectSnapshot snapshot)

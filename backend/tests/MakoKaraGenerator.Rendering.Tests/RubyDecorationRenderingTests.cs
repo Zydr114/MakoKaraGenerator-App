@@ -44,7 +44,7 @@ public sealed class RubyDecorationRenderingTests
         var style = LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 120 };
         style = style with { Unsung = style.Unsung with { Strokes = strokes, Fill = new() { Color = new(250, 250, 250) } } };
         return Core.Projects.Project.Create("ruby", Composition.Create(Width, Height, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([line]), lyricStyle: style) with { EnterAnimation = null };
+            LyricsDocument.Create([line]), lyricStyle: style);
     }
 
     private static RenderRequest Request(Project project) => RenderRequest.At(ProjectSnapshot.FromProject(project), 500_000) with { TransparentBackground = true };

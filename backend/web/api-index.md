@@ -1,6 +1,6 @@
 # 冻结 API 清单
 
-合同 **1.60.0** · HTTP **1** · 产品 **0.117.0** · 基线 `b5d4d71464a142cbc0e49806870526a5adb77e77` · 2026-11-22。
+合同 **1.61.0** · HTTP **1** · 产品 **0.117.0** · 基线 `b5d4d71464a142cbc0e49806870526a5adb77e77` · 2026-11-23。
 
 执行入口：[行为合同](api-contract.md)；机器规范：[openapi.json](openapi.json)；指纹：[contract-manifest.json](contract-manifest.json)。本表由核对过的路由定义生成，不能手工单独扩表。
 
@@ -178,8 +178,6 @@
 | `orchestration.deleteLeadIn` | `branchId/leadInId` |
 | `orchestration.setLineLocalTransform` | `branchId/lineId/transform`，transform为完整对象或显式null |
 | `orchestration.setLayoutKind` | 显式containerId/kind/slotIds/newSlotCount；Auto空槽与0，SlotSequence总1..64 |
-| `orchestration.setLineEnterAnimation` | branchId/lineId/animation；完整五字段或null恢复继承 |
-| `orchestration.setProjectEnterAnimation` | animation；完整五字段或null关闭默认 |
 | `orchestration.setLeadInGeneration` | branchId/settings；六字段或null清设置 |
 | `orchestration.previewLeadInGeneration` | branchId/settings；完整分析，保持修订/history/redo |
 | `orchestration.applyLeadInGeneration` | branchId/settings/selectedLineIds；显式选择、完整重新分析后原子应用 |
@@ -211,7 +209,7 @@
 | `styles.patch` | 同种唯一`targets` 1..1000（project仅一个），非空29种canonical属性/value的`changes`；value始终必填 |
 | `styles.restore` | 同种唯一branch/line/token `targets`，非空闭合`properties`；移除选中局部覆盖 |
 
-106种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。
+104种命令均在顶层带expectedRevision和回执三字段。OpenAPI按type区分分支；旧五命令接受已知无关字段显式null，新增分型命令只接受各自声明字段。批量目标不得重复，一次请求原子提交一次历史；presetApplications在Writer外固定精确模板快照后再Prepare→Commit，库更新不自动修改已分配工程；schema不证明目标存在或领域边界合法。
 
 S1提供来源列表、完整歌词编辑窗口（原始时间状态、关联主行、注音）与标量设置读取；三者必须携带expectedRevision，分页窗口不得混合修订。分页默认offset=0、limit=100，limit范围1..100；nextOffset在终页省略。完整JSON最多1MiB、来源/行/元素/注音组/注音片段合计最多20000条，超限413 resourceTooLarge，不截断单行。S3a五种歌词操作可提供feedback与真实selection建议，六种设置命令省略feedback。S3b新增/删除来源真实变化时提供branchResult.selectedBranchId；配置/关联/失败/no-op省略。来源ID沿Core非空白原值，不新增128字符上限；language/primaryLineId的必填字段显式null与缺字段不同。元素结构五命令的输入ID为非空白且最多128字符；tokenResult提供真实changedLineCount、可选selection及共享切分计数，不提供巨型身份映射。来源重切累计改变行完整投影最多16MiB，单行仍受1MiB/20000条目限制，超限整批不变。再次导入/粘贴追加复用共享用例；文件报告完整保留27字段，offsetUs为有符号Int64字符串，Error诊断与合法行并存不等同失败。options省略取原默认，显式null拒绝；输入目的地严格区分两命令。完整最终新/替换行仍受1MiB/20000项及累计16MiB预算，准备工作逻辑64MiB，成功回执受实际配置64KiB限制。波形提供同次音频准备的元数据和有界min/max float32 little-endian窗口，最多8192桶；元数据不接受query，窗口四字段必须唯一提供且拒绝未知query。Range一律400，HEAD所有状态无body。整个Host已保留峰值payload预算64MiB，不含临时prepare/窗口/元数据；缓存不足不阻断create/open，不可用有明确reason。身份不绑定歌词修订，不保证与浏览器逐sample对齐。历史静态样式批次仅canonical静态继承读写；后续公共package与当前统一Runtime来源见对应章节。Application用例、内部Worker能力和未来草案不能当作HTTP实现；G21～G24整体编辑及真实Worker同帧测量见行为§13.18～21；schema不证明真实Runtime像素或完整编排作者验收。
 

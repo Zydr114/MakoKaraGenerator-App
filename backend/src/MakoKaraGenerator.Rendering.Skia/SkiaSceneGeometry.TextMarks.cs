@@ -16,10 +16,7 @@ public sealed partial class SkiaSceneGeometry
         {
             var group = tree.FindNode(cue.ContainerId)!;
             var sequence = (CountdownSequenceContent)group.Content!;
-            var target = frame.Lines.Single(line => line.ElementId == cue.TargetElementId && line.BindingId == cue.TargetBindingId);
-            double baseOpacity = group.Attachment?.Mode is SceneAttachmentMode.CueTargetText or SceneAttachmentMode.CueTargetAboveStart
-                ? target.Transform.Opacity : 1;
-            double opacity = baseOpacity * cue.BlinkOpacity;
+            double opacity = cue.BlinkOpacity;
             int count = sequence.MarkNodeIds.Length;
             for (int i = 0; i < count; i++)
             {

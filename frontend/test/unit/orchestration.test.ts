@@ -248,9 +248,6 @@ function presentation(lineId: string, rev: string, extra: Partial<ProjectLinePre
     branchId: 'primary',
     lineId,
     localTransform: null,
-    localEnterAnimation: null,
-    effectiveEnterAnimation: null,
-    animationSource: 'none',
     protocolVersion: '1',
     ...extra,
   };
@@ -1019,20 +1016,16 @@ describe('前奏与句子（G23、G24）', () => {
     store.dispose();
   });
 
-  it('句子命令：本句微调、本句进入动画、工程默认进入动画；标记命令', async () => {
+  it('句子命令：本句微调；标记命令', async () => {
     const { store, commands } = setup();
     await tick();
     const transform = { offsetXRatio: 0.1, offsetYRatio: 0, rotationDegrees: 0, scale: 1 };
     await store.setLineTransform('primary', 'l1', transform);
-    await store.setLineEnterAnimation('primary', 'l1', null);
-    await store.setProjectEnterAnimation({ durationUs: '400000', easing: 'EaseOut', startOpacity: 0, startScale: 1, startOffsetPx: 12 });
     await store.addMark('node/cd', '●');
     await store.setMarkText('node/m1', '3');
     await store.spaceMarks('node/cd');
     expect(commands).toEqual([
       { type: 'orchestration.setLineLocalTransform', branchId: 'primary', lineId: 'l1', transform },
-      { type: 'orchestration.setLineEnterAnimation', branchId: 'primary', lineId: 'l1', animation: null },
-      { type: 'orchestration.setProjectEnterAnimation', animation: { durationUs: '400000', easing: 'EaseOut', startOpacity: 0, startScale: 1, startOffsetPx: 12 } },
       { type: 'orchestration.addMark', containerId: 'node/cd', text: '●' },
       { type: 'orchestration.setMarkText', nodeId: 'node/m1', text: '3' },
       { type: 'orchestration.spaceMarks', containerId: 'node/cd' },

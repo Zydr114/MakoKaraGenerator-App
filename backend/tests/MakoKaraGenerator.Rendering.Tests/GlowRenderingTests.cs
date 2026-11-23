@@ -76,7 +76,7 @@ public sealed class GlowRenderingTests
     [InlineData(640, 360)] [InlineData(480, 180)]
     public void 八部件重组保持原生产颜色和一次共同alpha(int width, int height)
     {
-        var p = Project(true); p = p with { EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = 1, StartOffsetPx = 0, Easing = AnimationEasing.Linear },
+        var p = Project(true); p = p with {
             LyricStyle = p.LyricStyle with { UnsungColor = new(20, 40, 180, 100), SungColor = new(180, 20, 40, 140), Opacity = .7f,
                 Stroke = StrokeSpec.Create(new(0, 180, 20, 160), 3), Shadow = ShadowSpec.Create(new(180, 0, 20, 140), blurRadiusPx: 3) } };
         using var r = new SkiaRenderPipeline(); var q = Request(p) with { Target = new() { PixelWidth = width, PixelHeight = height } }; var target = Target(r, q);
@@ -87,10 +87,9 @@ public sealed class GlowRenderingTests
         {
             Assert.All(parts, part => Assert.True(Alpha(Pixels(part.Surface)) > 0));
             using var combined = r.AssembleSceneColorParts(q, parts, Canvas, GraphExecutionBudget.Default);
-            // Assemble deliberately leaves common opacity for its caller; compare without entrance alpha.
-            using var expected = Capture(r, q with { Project = q.Project with { EnterAnimation = null } });
+            using var expected = Capture(r, q with { Project = q.Project });
             Close(Pixels(expected), Pixels(combined.Surface));
-            Assert.All(parts, part => Assert.InRange(part.CommonOpacity, .59, .61));
+            Assert.All(parts, part => Assert.Equal(1d, part.CommonOpacity));
         }
         finally { foreach (var part in parts) part.Dispose(); }
     }

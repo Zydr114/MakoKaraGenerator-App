@@ -1,32 +1,22 @@
-// 句子的属性（G24，W4 设计 §14.7）：这一句的本句微调、进入动画与前奏；选了几句时只显示范围；工程默认进入动画。
+// 句子的属性（G24，W4 设计 §14.7）：这一句的本句微调与前奏；选了几句时只显示范围。
 
 import type { EditorSession } from '../session/editor-session';
 import { RubyStyleSection } from './RubyStyleSection';
-import type { LineEnterAnimation, LineLocalTransform, OrchestrationLeadIn, OrchestrationProgram } from '../../protocol';
+import type { LineLocalTransform, OrchestrationLeadIn, OrchestrationProgram } from '../../protocol';
 import { isTimed, type EditorLine } from '../model/lyrics';
 import { lineRangeText, type LineRange, type OrchestrationModel } from '../model/orchestration';
 import {
-  ANIMATION_SOURCE_TEXT,
-  DEFAULT_ENTER_ANIMATION,
-  ENTER_EASING_OPTIONS,
-  enterAnimationOf,
-  enterAnimationText,
-  enterDurationUs,
-  isNeutralAnimation,
   leadInOfLine,
   lineContainerText,
-  lineEnterCommand,
   lineNumberText,
   lineTransformCommand,
   NO_TRANSFORM,
-  projectEnterCommand,
   secondsText,
 } from '../model/orchestration-lead-ins';
-import { roundTo, toPercent, toSeconds, withCurrent } from '../model/orchestration-properties';
+import { roundTo, toPercent } from '../model/orchestration-properties';
 import { formatTime } from '../model/time';
 import { Button } from '../ui/Button';
-import { Switch } from '../ui/choices';
-import { NumberField, Select } from '../ui/fields';
+import { NumberField } from '../ui/fields';
 import { Group, InspectorHead, Note, Row } from '../workspace/panel';
 import type { LineCommand, LinePresentationState, OrchestrationResult } from './orchestration-store';
 
@@ -39,7 +29,7 @@ export interface LineActions {
 
 const ratio = (percent: number) => percent / 100;
 
-/** 这一句（§14.7）：头部、本句微调、进入动画、工程默认进入动画、前奏。 */
+/** 这一句（§14.7）：头部、本句微调、前奏。 */
 export function LineInspector(props: {
   model: OrchestrationModel;
   program: OrchestrationProgram | undefined;
@@ -93,19 +83,9 @@ export function LineInspector(props: {
             </Note>
           )}
           <TransformSection key={`transform-${line.id}`} branchId={props.branchId} lineId={line.id} transform={response.localTransform} actions={actions} />
-          <LineAnimationSection
-            key={`animation-${line.id}`}
-            branchId={props.branchId}
-            lineId={line.id}
-            local={response.localEnterAnimation}
-            effective={response.effectiveEnterAnimation}
-            source={response.animationSource}
-            actions={actions}
-          />
         </>
       )}
       <RubyStyleSection session={props.session} branchId={props.branchId} lineId={line.id} />
-      <ProjectAnimationSection animation={model.projectEnterAnimation} actions={actions} />
       {props.leadIns && (
         <Group title="前奏">
           {leadIn ? (
@@ -134,9 +114,8 @@ export function LineInspector(props: {
   );
 }
 
-/** 选了几句（§14.7 第 4 种情况）：只显示范围，可以为这几句新建片段；工程默认进入动画。 */
+/** 选了几句（§14.7 第 4 种情况）：只显示范围，可以为这几句新建片段。 */
 export function LinesSummary(props: {
-  model: OrchestrationModel;
   branchName: string;
   range: LineRange;
   actions: LineActions;
@@ -160,7 +139,6 @@ export function LinesSummary(props: {
         {clipBlock && <Note>{clipBlock}</Note>}
         {props.actions.block && <Note className="property-block">{props.actions.block}</Note>}
       </Group>
-      <ProjectAnimationSection animation={props.model.projectEnterAnimation} actions={props.actions} />
     </div>
   );
 }
@@ -192,126 +170,6 @@ function TransformSection(props: { branchId: string; lineId: string; transform: 
         <NumberField label="缩放" labelPlacement="inside" suffix="×" value={roundTo(t.scale, 3)} greaterThan={0} disabled={disabled} onCommit={(scale) => set({ scale })} />
       </div>
       <Note>偏移按所在容器参考框的宽高算，可以为负；也可以在画布上拖动这一句。</Note>
-    </Group>
-  );
-}
-
-/** 进入动画的五个字段（§14.7）：本句与工程默认共用。 */
-function AnimationFields(props: { animation: LineEnterAnimation; disabled: boolean; className: string; onCommit: (patch: Partial<LineEnterAnimation>) => void }) {
-  const a = props.animation;
-  return (
-    <div className={`g2 ${props.className}`}>
-      <NumberField
-        label="时长"
-        labelPlacement="inside"
-        suffix="秒"
-        value={toSeconds(a.durationUs)}
-        min={0}
-        max={10}
-        disabled={props.disabled}
-        onCommit={(v) => props.onCommit({ durationUs: enterDurationUs(v) })}
-      />
-      <Select<string>
-        label="缓动"
-        labelPlacement="inside"
-        value={a.easing}
-        options={withCurrent(ENTER_EASING_OPTIONS, a.easing)}
-        disabled={props.disabled}
-        onChange={(easing) => props.onCommit({ easing: easing as LineEnterAnimation['easing'] })}
-      />
-      <NumberField
-        label="起始不透明度"
-        labelPlacement="inside"
-        suffix="%"
-        value={toPercent(a.startOpacity)}
-        min={0}
-        max={100}
-        disabled={props.disabled}
-        className="span2"
-        onCommit={(v) => props.onCommit({ startOpacity: ratio(v) })}
-      />
-      <NumberField
-        label="起始缩放"
-        labelPlacement="inside"
-        suffix="×"
-        value={roundTo(a.startScale, 3)}
-        greaterThan={0}
-        max={4}
-        disabled={props.disabled}
-        className="span2"
-        onCommit={(startScale) => props.onCommit({ startScale })}
-      />
-      <NumberField
-        label="起始纵向偏移"
-        labelPlacement="inside"
-        suffix="px"
-        value={roundTo(a.startOffsetPx, 2)}
-        min={-10000}
-        max={10000}
-        disabled={props.disabled}
-        className="span2"
-        helper="正值从下方进入。"
-        onCommit={(startOffsetPx) => props.onCommit({ startOffsetPx })}
-      />
-    </div>
-  );
-}
-
-const NEUTRAL_HINT = '起始不透明度 100%、缩放 1、偏移 0：这样设置看不出效果。';
-
-/** 本句进入动画：写明实际生效的动画和来源；“本句单独设置”打开时用实际生效的作初值，关掉时清除。 */
-function LineAnimationSection(props: {
-  branchId: string;
-  lineId: string;
-  local: LineEnterAnimation | null;
-  effective: LineEnterAnimation | null;
-  source: string;
-  actions: LineActions;
-}) {
-  const { branchId, lineId, local, actions } = props;
-  const disabled = !!actions.block || actions.busy;
-  const run = (animation: LineEnterAnimation | null, done: string) => void actions.run(lineEnterCommand(branchId, lineId, animation), done);
-  return (
-    <Group title="进入动画">
-      <p className="line-animation-effective">
-        {enterAnimationText(props.effective)} · {ANIMATION_SOURCE_TEXT[props.source] ?? props.source}
-      </p>
-      <Switch
-        label="本句单独设置"
-        checked={!!local}
-        disabled={disabled}
-        onChange={(on) => (on ? run(props.effective ?? DEFAULT_ENTER_ANIMATION, '已为这一句单独设置进入动画') : run(null, '已清除本句进入动画，改用工程默认'))}
-      />
-      {local && (
-        <>
-          <AnimationFields animation={local} disabled={disabled} className="line-animation" onCommit={(patch) => run(enterAnimationOf(local, patch), '已调整本句进入动画')} />
-          {isNeutralAnimation(local) && <Note>{NEUTRAL_HINT}</Note>}
-        </>
-      )}
-    </Group>
-  );
-}
-
-/** 工程默认进入动画（§14.7）：开关和五个字段；关掉时发 null。 */
-function ProjectAnimationSection(props: { animation: LineEnterAnimation | null; actions: LineActions }) {
-  const { animation, actions } = props;
-  const disabled = !!actions.block || actions.busy;
-  const run = (next: LineEnterAnimation | null, done: string) => void actions.run(projectEnterCommand(next), done);
-  return (
-    <Group title="工程默认进入动画" className="project-animation-group">
-      <Switch
-        label="开启工程默认进入动画"
-        checked={!!animation}
-        disabled={disabled}
-        onChange={(on) => (on ? run(DEFAULT_ENTER_ANIMATION, '已开启工程默认进入动画') : run(null, '已关闭工程默认进入动画'))}
-      />
-      {animation && (
-        <>
-          <AnimationFields animation={animation} disabled={disabled} className="project-animation" onCommit={(patch) => run(enterAnimationOf(animation, patch), '已调整工程默认进入动画')} />
-          {isNeutralAnimation(animation) && <Note>{NEUTRAL_HINT}</Note>}
-        </>
-      )}
-      <Note>所有句子默认用它，本句可以单独覆盖。</Note>
     </Group>
   );
 }

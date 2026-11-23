@@ -143,6 +143,62 @@ public sealed class BasicLayoutTests
     }
 
     [Fact]
+    public async Task 整来源快捷布局迁移旧容器的节点效果和预设绑定到新容器()
+    {
+        var source = AutoClipSource();
+        var oldContainerId = source.LyricPresentation.FindProgram("primary")!.DefaultContainerId;
+        var package = await EffectPackageTransfer.ReadDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "WordEmphasis"), EffectPackageProfiles.V2);
+        var nodeBinding = new ProjectEffectBinding(ProjectEffectBindingKind.Node, id: oldContainerId, includeDescendants: true);
+        source = source with
+        {
+            Effects = new([package], [new()
+            {
+                Id = "node-fx",
+                Name = "容器效果",
+                PackageId = package.PackageId,
+                Revision = package.Revision,
+                ExportId = "word-emphasis",
+                Binding = nodeBinding,
+                Enabled = true,
+                Seed = 77UL,
+            }]),
+        };
+        var preset = StyleTemplate.Create("node-preset", "容器预设", StyleTemplateKind.Composite,
+            source.LyricStyle with { FontSizePx = 44 }, [LyricStyleProperty.FontSizePx],
+            [new("recipe", "节点效果", TemplateEffectTarget.Application, package.PackageId, package.Revision, "word-emphasis", fixedSeed: 55)], [package]);
+        Assert.True(PresetApplicationsEditor.TryApply(source, preset, [nodeBinding], null, out source, out var error), error);
+        var originalApp = Assert.Single(source.PresetApplications.Items);
+
+        Assert.True(TryPreview(source, "primary", BasicLayoutPreset.KaraokeDouble, null, out var preview, out error), error);
+        var newContainerId = preview.Result.LyricPresentation.FindProgram("primary")!.DefaultContainerId;
+        Assert.NotEqual(oldContainerId, newContainerId);
+
+        var migratedInstance = Assert.Single(preview.Result.Effects.Instances);
+        Assert.Equal("node-fx", migratedInstance.Id);
+        Assert.Equal(77UL, migratedInstance.Seed);
+        Assert.Equal(ProjectEffectBindingKind.Node, migratedInstance.Binding.Kind);
+        Assert.Equal(newContainerId, migratedInstance.Binding.Id);
+        Assert.True(migratedInstance.Binding.IncludeDescendants);
+
+        var migratedApp = Assert.Single(preview.Result.PresetApplications.Items);
+        Assert.Equal(originalApp.Id, migratedApp.Id);
+        Assert.Equal(ProjectEffectBindingKind.Node, migratedApp.Target.Kind);
+        Assert.Equal(newContainerId, migratedApp.Target.Id);
+        Assert.True(migratedApp.Target.IncludeDescendants);
+        var migratedIdentity = Assert.Single(migratedApp.Identities);
+        Assert.Equal(originalApp.Identities[0].InstanceId, migratedIdentity.InstanceId);
+        Assert.Equal(newContainerId, migratedIdentity.Binding.Id);
+        Assert.True(migratedIdentity.Binding.IncludeDescendants);
+
+        // Switching back to SingleCentered migrates again without losing the binding.
+        Assert.True(TryPreview(preview.Result, "primary", BasicLayoutPreset.SingleCentered, null, out var back, out error), error);
+        var finalContainerId = back.Result.LyricPresentation.FindProgram("primary")!.DefaultContainerId;
+        Assert.NotEqual(newContainerId, finalContainerId);
+        Assert.Equal(finalContainerId, Assert.Single(back.Result.Effects.Instances).Binding.Id);
+        Assert.Equal(finalContainerId, Assert.Single(back.Result.PresetApplications.Items).Target.Id);
+    }
+
+    [Fact]
     public void 默认连续成员只为所选行建立片段并保留前奏()
     {
         var source = LeadInFixture.Create();
@@ -184,7 +240,6 @@ public sealed class BasicLayoutTests
                 var current = newFrame.Lines.Single(item => item.Frame.Line!.Id == sample.Frame.Line!.Id);
                 Assert.Equal(sample.ParentNodeId, current.ParentNodeId);
                 Assert.Equal(sample.Placement, current.Placement);
-                Assert.Equal(sample.Transform, current.Transform);
                 Assert.Equal(sample.Geometry!.Corners(), current.Geometry!.Corners());
             }
         }

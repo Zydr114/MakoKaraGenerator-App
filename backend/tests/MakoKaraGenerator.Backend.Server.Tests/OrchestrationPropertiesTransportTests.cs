@@ -60,9 +60,8 @@ public sealed partial class PreviewTransportTests
         await Send(new BasicLayoutCommandDto("primary", "KaraokeDouble", null, "HTTP two", ["left", "right"], "selected", "retained", false));
         var layoutModel = await Model(); string container = layoutModel.Programs.Single(p => p.BranchId == "primary").DefaultContainerId;
         var original = layoutModel.Nodes.Single(n => n.Id == container).Layout!;
-        var channel = new ProjectOrchestrationSceneTransformDto(.5, 1.2, 12, -6, 18);
         var animation = new ProjectOrchestrationSlotAnimationDto("TimeAfterPreviousStart", .4, "10000", "20000", 2,
-            "ReplacePrevious", "Immediate", "150000", "220000", channel, channel with { Opacity = 1 }, channel with { Opacity = 0 }, "EaseInOut", "Linear");
+            "ReplacePrevious", "Immediate");
         var changed = await Send(new SetOrchestrationSlotAnimationCommandDto(container, animation));
         Assert.True(changed.Changed);
         Assert.Equal(animation, (await Model()).Nodes.Single(n => n.Id == container).Layout!.SlotAnimation);

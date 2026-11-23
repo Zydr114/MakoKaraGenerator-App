@@ -73,6 +73,6 @@ public sealed class V2ProjectDurationTests
         var project = Project.Create("v2 duration", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: durationUs),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        return ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
     }
 }

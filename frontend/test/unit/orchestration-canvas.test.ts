@@ -10,12 +10,12 @@ import {
   autoLayoutCommand,
   defaultContainerBlock,
   defaultPlacementCommand,
-  EASING_OPTIONS,
   effectivePolicy,
   fromSeconds,
   geometryCommand,
   karaokeOnlyReason,
   layoutSettingsCommand,
+  REVEAL_MODE_OPTIONS,
   reusableSlotChildren,
   safeAreaBlock,
   SLOT_DEFAULT_NEEDS_KARAOKE,
@@ -317,8 +317,7 @@ describe('属性的换算与命令', () => {
     expect(autoLayoutCommand('c')).toEqual({ type: 'orchestration.setLayoutKind', containerId: 'c', kind: 'Auto', slotIds: [], newSlotCount: 0 });
   });
 
-  it('槽位动画：带完整十四个字段，只换改动的项，姿态按项合并', () => {
-    const pose = { opacity: 1, scale: 1, offsetXPx: 0, offsetYPx: 0, rotationDegrees: 0 };
+  it('槽位调度：带完整七个字段，只换改动的项', () => {
     const animation: SlotAnimation = {
       revealMode: 'Progress',
       revealProgress: 0.5,
@@ -327,21 +326,14 @@ describe('属性的换算与命令', () => {
       maxVisibleLines: 2,
       conflictPolicy: 'QueueUntilSlotFree',
       retentionPolicy: 'UntilLineEnd',
-      enterDurationUs: '300000',
-      exitDurationUs: '250000',
-      enterFrom: { ...pose, opacity: 0, offsetYPx: 12 },
-      hold: pose,
-      exitTo: { ...pose, opacity: 0, offsetYPx: -12 },
-      exitEasing: 'EaseIn',
-      easing: 'EaseOut',
     };
-    const command = slotAnimationCommand('k', animation, { maxVisibleLines: 1, enterFrom: { scale: 0.8 } });
-    expect(command).toEqual({ type: 'orchestration.setSlotAnimation', containerId: 'k', slotAnimation: { ...animation, maxVisibleLines: 1, enterFrom: { ...animation.enterFrom, scale: 0.8 } } });
+    const command = slotAnimationCommand('k', animation, { maxVisibleLines: 1, revealProgress: 0.75 });
+    expect(command).toEqual({ type: 'orchestration.setSlotAnimation', containerId: 'k', slotAnimation: { ...animation, maxVisibleLines: 1, revealProgress: 0.75 } });
   });
 
   it('选项：不认识的当前值列在最后、不能选；锚点六个', () => {
-    expect(withCurrent(EASING_OPTIONS, 'Bounce').at(-1)).toEqual({ value: 'Bounce', label: 'Bounce', disabled: true });
-    expect(withCurrent(EASING_OPTIONS, 'Linear')).toHaveLength(4);
+    expect(withCurrent(REVEAL_MODE_OPTIONS, 'CustomMode').at(-1)).toEqual({ value: 'CustomMode', label: 'CustomMode', disabled: true });
+    expect(withCurrent(REVEAL_MODE_OPTIONS, 'Progress')).toHaveLength(3);
     expect(anchorOptions('Center').map((o) => o.label)).toEqual(['中心', '左上角', '顶部中点', '右下角', '左侧中点', '右侧中点']);
     expect(anchorOptions('Weird').at(-1)).toMatchObject({ value: 'Weird', disabled: true });
   });

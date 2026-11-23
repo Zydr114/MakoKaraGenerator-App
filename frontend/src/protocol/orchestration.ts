@@ -45,22 +45,12 @@ export interface OrchestrationSafeArea {
   bottom: number;
 }
 
-/** 槽位动画里的一个姿态：透明度 0～1，缩放大于 0，像素偏移与旋转不限范围。 */
-export interface SceneTransform {
-  opacity: number;
-  scale: number;
-  offsetXPx: number;
-  offsetYPx: number;
-  rotationDegrees: number;
-}
-
 export type SlotRevealMode = 'Progress' | 'TimeAfterPreviousStart' | 'LeadBeforeNextStart';
 export type SlotConflictPolicy = 'QueueUntilSlotFree' | 'AllowOverflow' | 'ReplacePrevious' | 'Skip';
 export type SlotRetentionPolicy = 'UntilLineEnd' | 'UntilNextReveal' | 'Immediate';
-export type SlotEasing = 'Linear' | 'EaseIn' | 'EaseOut' | 'EaseInOut';
 
 /**
- * 轮换容器的调度与进入／退出动画（G21-B，1.22.0）：写入时十四个字段都要给。四个时间是非负 Int64 微秒字符串；
+ * 轮换容器的槽位调度（G21-B，1.22.0；动画已统一改由效果组件实现）：写入时七个字段都要给。两个时间是非负 Int64 微秒字符串；
  * revealProgress 在 0～1；maxVisibleLines 是正整数。
  */
 export interface SlotAnimation {
@@ -71,13 +61,6 @@ export interface SlotAnimation {
   maxVisibleLines: number;
   conflictPolicy: SlotConflictPolicy;
   retentionPolicy: SlotRetentionPolicy;
-  enterDurationUs: string;
-  exitDurationUs: string;
-  enterFrom: SceneTransform;
-  hold: SceneTransform;
-  exitTo: SceneTransform;
-  exitEasing: SlotEasing;
-  easing: SlotEasing;
 }
 
 /** 歌词容器的内部布局（自由布局、槽位轮换等），kind 由后端定义。 */
@@ -238,23 +221,7 @@ export interface ProjectOrchestrationResponse {
   projectRevision: Revision;
   nodes: OrchestrationNode[];
   programs: OrchestrationProgram[];
-  /** 工程默认的进入动画（1.24.0 起总是出现，null 是关闭）。 */
-  projectEnterAnimation?: LineEnterAnimation | null;
   protocolVersion: '1';
-}
-
-export type LineEnterEasing = 'Linear' | 'EaseIn' | 'EaseOut' | 'EaseInOut';
-
-/**
- * 句子的进入动画（1.24.0）：完整五个字段。时长 0～10000000 微秒（Int64 字符串），起始不透明度 0～1，
- * 起始缩放 (0, 4]，起始偏移 ±10000 画布像素。
- */
-export interface LineEnterAnimation {
-  durationUs: string;
-  easing: LineEnterEasing;
-  startOpacity: number;
-  startScale: number;
-  startOffsetPx: number;
 }
 
 /** 内部布局的类型（setLayoutKind 用后端枚举名，与 createNode 的小写 kind 不同）。 */
@@ -362,10 +329,6 @@ export type OrchestrationPropertiesCommand =
    * SlotSequence 的 slotIds 是现有的直属普通子节点，加上 newSlotCount 个由后端新建的槽位，合计 1～64。
    */
   | { type: 'orchestration.setLayoutKind'; containerId: string; kind: LayoutKind; slotIds: string[]; newSlotCount: number }
-  /** 1.24.0：单句进入动画，null 清除本句覆盖、继承工程默认。 */
-  | { type: 'orchestration.setLineEnterAnimation'; branchId: string; lineId: string; animation: LineEnterAnimation | null }
-  /** 1.24.0：工程默认进入动画，null 关闭。 */
-  | { type: 'orchestration.setProjectEnterAnimation'; animation: LineEnterAnimation | null }
   /** 1.24.0：前奏提示组的附着方式；containerId 必须是这个前奏的提示组。改成跟随文字时后端用真实 Worker 测量；同方式是 no-op。 */
   | { type: 'orchestration.setLeadInAttachment'; branchId: string; leadInId: string; containerId: string; mode: LeadInAttachmentMode };
 
@@ -625,8 +588,7 @@ export interface ProjectLineLocalTransformResponse {
 }
 
 /**
- * 单句展示的静态继承（1.24.0，规范 §13.18）：本句的局部变换与进入动画覆盖，以及实际生效的进入动画和它的来源。
- * 三个可空字段总是出现。同帧实际几何用 measureScene。
+ * 单句展示（1.24.0，规范 §13.18）：本句的局部变换覆盖。同帧实际几何用 measureScene。
  */
 export interface ProjectLinePresentationResponse {
   projectSessionId: string;
@@ -634,9 +596,6 @@ export interface ProjectLinePresentationResponse {
   branchId: string;
   lineId: string;
   localTransform: LineLocalTransform | null;
-  localEnterAnimation: LineEnterAnimation | null;
-  effectiveEnterAnimation: LineEnterAnimation | null;
-  animationSource: 'line' | 'project' | 'none';
   protocolVersion: '1';
 }
 

@@ -199,7 +199,6 @@ public sealed class WorkerStaticSessionIntegrationTests
         {
             Composition = project.Composition with { BackgroundColor = new(20, 35, 55, 160) },
             AudioPath = "/worker-must-not-read-missing-audio.wav",
-            EnterAnimation = new() { DurationUs = 150_000, StartOpacity = .5f, StartOffsetPx = 7 },
             LyricStyle = project.LyricStyle with
             {
                 UnsungFill = new() { Material = new MaterialSpec.Gradient(gradient) },

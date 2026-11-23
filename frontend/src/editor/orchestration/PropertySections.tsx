@@ -4,7 +4,6 @@ import type {
   OrchestrationPlacement,
   OrchestrationProgram,
   OrchestrationPropertiesCommand,
-  SceneTransform,
   SlotAnimation,
 } from '../../protocol';
 import { animationPolicyText, layoutText, nodeName, type OrchestrationModel } from '../model/orchestration';
@@ -16,13 +15,11 @@ import {
   autoLayoutCommand,
   CONFLICT_POLICY_OPTIONS,
   defaultPlacementCommand,
-  EASING_OPTIONS,
   fromSeconds,
   karaokeOnlyReason,
   geometryCommand,
   layoutSettingsCommand,
   MAX_SLOTS,
-  POSE_TEXT,
   RETENTION_POLICY_OPTIONS,
   REVEAL_MODE_OPTIONS,
   reusableSlotChildren,
@@ -34,7 +31,6 @@ import {
   toSeconds,
   withCurrent,
   type PolicyChoice,
-  type PoseKey,
 } from '../model/orchestration-properties';
 import { Button } from '../ui/Button';
 import { Segmented } from '../ui/choices';
@@ -264,14 +260,13 @@ function SlotSequenceDialog(props: { open: boolean; model: OrchestrationModel; n
   );
 }
 
-/** 槽位动画（§13.4）：分“调度”“动画”两组，每改一项提交一条 setSlotAnimation，带完整的十四个字段。时间用秒。 */
+/** 槽位调度（§13.4）：每改一项提交一条 setSlotAnimation，带完整的七个调度字段。时间用秒。 */
 export function SlotAnimationSection(props: { node: OrchestrationNode; animation: SlotAnimation; actions: PropertyActions }) {
   const { node, animation: a, actions } = props;
   const commit = commitWith(actions);
   const disabled = !!actions.block || actions.busy;
-  const set = (patch: Parameters<typeof slotAnimationCommand>[2]) => commit(slotAnimationCommand(node.id, a, patch), '已调整槽位动画');
-  const setPose = (key: PoseKey) => (patch: Partial<SceneTransform>) => set({ [key]: patch });
-  const pick = <K extends 'revealMode' | 'conflictPolicy' | 'retentionPolicy' | 'easing' | 'exitEasing'>(key: K, label: string, options: readonly { value: string; label: string }[], span?: boolean) => (
+  const set = (patch: Parameters<typeof slotAnimationCommand>[2]) => commit(slotAnimationCommand(node.id, a, patch), '已调整槽位调度');
+  const pick = <K extends 'revealMode' | 'conflictPolicy' | 'retentionPolicy'>(key: K, label: string, options: readonly { value: string; label: string }[], span?: boolean) => (
     <Select<string>
       label={label}
       labelPlacement="inside"
@@ -283,72 +278,33 @@ export function SlotAnimationSection(props: { node: OrchestrationNode; animation
     />
   );
   return (
-    <>
-      <Group title="调度">
-        <div className="g2 slot-schedule">
-          {pick('revealMode', '出现', REVEAL_MODE_OPTIONS, a.revealMode !== 'Progress' && a.revealMode !== 'TimeAfterPreviousStart' && a.revealMode !== 'LeadBeforeNextStart')}
-          {a.revealMode === 'Progress' && (
-            <NumberField label="进度" labelPlacement="inside" suffix="%" value={toPercent(a.revealProgress)} min={0} max={100} disabled={disabled} onCommit={(v) => set({ revealProgress: ratio(v) })} />
-          )}
-          {a.revealMode === 'TimeAfterPreviousStart' && (
-            <NumberField label="延迟" labelPlacement="inside" suffix="秒" value={toSeconds(a.revealDelayUs)} min={0} disabled={disabled} onCommit={(v) => set({ revealDelayUs: fromSeconds(v) })} />
-          )}
-          {a.revealMode === 'LeadBeforeNextStart' && (
-            <NumberField label="提前" labelPlacement="inside" suffix="秒" value={toSeconds(a.revealLeadUs)} min={0} disabled={disabled} onCommit={(v) => set({ revealLeadUs: fromSeconds(v) })} />
-          )}
-          <NumberField
-            label="同时最多显示"
-            labelPlacement="inside"
-            suffix="句"
-            value={a.maxVisibleLines}
-            min={1}
-            integer
-            disabled={disabled}
-            className="span2"
-            onCommit={(maxVisibleLines) => set({ maxVisibleLines })}
-          />
-          {pick('conflictPolicy', '已满时', CONFLICT_POLICY_OPTIONS)}
-          {pick('retentionPolicy', '保留到', RETENTION_POLICY_OPTIONS)}
-        </div>
-      </Group>
-      <Group title="动画">
-        <div className="g2 slot-animation">
-          <NumberField label="进入" labelPlacement="inside" suffix="秒" value={toSeconds(a.enterDurationUs)} min={0} disabled={disabled} onCommit={(v) => set({ enterDurationUs: fromSeconds(v) })} />
-          <NumberField label="退出" labelPlacement="inside" suffix="秒" value={toSeconds(a.exitDurationUs)} min={0} disabled={disabled} onCommit={(v) => set({ exitDurationUs: fromSeconds(v) })} />
-          {pick('easing', '进入缓动', EASING_OPTIONS, true)}
-          {pick('exitEasing', '退出缓动', EASING_OPTIONS, true)}
-        </div>
-        <details className="slot-poses">
-          <summary>姿态：进入起点、停留、退出终点</summary>
-          {(['enterFrom', 'hold', 'exitTo'] as const).map((key) => (
-            <PoseFields key={key} title={POSE_TEXT[key]} pose={a[key]} disabled={disabled} className={`pose-${key}`} onCommit={setPose(key)} />
-          ))}
-        </details>
-      </Group>
-    </>
-  );
-}
-
-function PoseFields(props: { title: string; pose: SceneTransform; disabled: boolean; className: string; onCommit: (patch: Partial<SceneTransform>) => void }) {
-  const p = props.pose;
-  return (
-    <section className={`pose ${props.className}`} aria-label={props.title}>
-      <div className="sub">{props.title}</div>
-      <div className="g2">
-        <NumberField label="透明度" labelPlacement="inside" suffix="%" value={toPercent(p.opacity)} min={0} max={100} disabled={props.disabled} onCommit={(v) => props.onCommit({ opacity: ratio(v) })} />
-        <NumberField label="缩放" labelPlacement="inside" suffix="×" value={roundTo(p.scale, 3)} greaterThan={0} disabled={props.disabled} onCommit={(scale) => props.onCommit({ scale })} />
-        <NumberField label="X 偏移" labelPlacement="inside" suffix="px" value={roundTo(p.offsetXPx, 2)} disabled={props.disabled} onCommit={(offsetXPx) => props.onCommit({ offsetXPx })} />
-        <NumberField label="Y 偏移" labelPlacement="inside" suffix="px" value={roundTo(p.offsetYPx, 2)} disabled={props.disabled} onCommit={(offsetYPx) => props.onCommit({ offsetYPx })} />
+    <Group title="调度">
+      <div className="g2 slot-schedule">
+        {pick('revealMode', '出现', REVEAL_MODE_OPTIONS, a.revealMode !== 'Progress' && a.revealMode !== 'TimeAfterPreviousStart' && a.revealMode !== 'LeadBeforeNextStart')}
+        {a.revealMode === 'Progress' && (
+          <NumberField label="进度" labelPlacement="inside" suffix="%" value={toPercent(a.revealProgress)} min={0} max={100} disabled={disabled} onCommit={(v) => set({ revealProgress: ratio(v) })} />
+        )}
+        {a.revealMode === 'TimeAfterPreviousStart' && (
+          <NumberField label="延迟" labelPlacement="inside" suffix="秒" value={toSeconds(a.revealDelayUs)} min={0} disabled={disabled} onCommit={(v) => set({ revealDelayUs: fromSeconds(v) })} />
+        )}
+        {a.revealMode === 'LeadBeforeNextStart' && (
+          <NumberField label="提前" labelPlacement="inside" suffix="秒" value={toSeconds(a.revealLeadUs)} min={0} disabled={disabled} onCommit={(v) => set({ revealLeadUs: fromSeconds(v) })} />
+        )}
         <NumberField
-          label="旋转"
+          label="同时最多显示"
           labelPlacement="inside"
-          suffix="°"
-          value={roundTo(p.rotationDegrees, 2)}
-          disabled={props.disabled}
-          onCommit={(rotationDegrees) => props.onCommit({ rotationDegrees })}
+          suffix="句"
+          value={a.maxVisibleLines}
+          min={1}
+          integer
+          disabled={disabled}
+          className="span2"
+          onCommit={(maxVisibleLines) => set({ maxVisibleLines })}
         />
+        {pick('conflictPolicy', '已满时', CONFLICT_POLICY_OPTIONS)}
+        {pick('retentionPolicy', '保留到', RETENTION_POLICY_OPTIONS)}
       </div>
-    </section>
+    </Group>
   );
 }
 

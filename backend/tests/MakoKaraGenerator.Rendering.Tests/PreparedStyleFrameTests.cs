@@ -289,7 +289,7 @@ public sealed class PreparedStyleFrameTests
         var root = tree.FindNode(tree.FindProgram("primary")!.RootContainerId)!;
         tree = tree with { Nodes = tree.Nodes.Replace(root, root with { Placement = ScenePlacement.Create(new(.54, .43), rotationDegrees: 17, scale: .9) }),
             LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", LocalTransform = new() { OffsetXRatio = .02, OffsetYRatio = -.03, RotationDegrees = 9, Scale = .85 } }) };
-        var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree, LyricStyle = project.LyricStyle with { SungColor = new(80, 130, 220) }, EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = .8f } }) with { EffectInputsFingerprint = Fingerprint };
+        var snapshot = ProjectSnapshot.FromProject(project with { LyricPresentation = tree, LyricStyle = project.LyricStyle with { SungColor = new(80, 130, 220) } }) with { EffectInputsFingerprint = Fingerprint };
         await using var source = await (await Factory(["red"], new Fx.EffectBinding.Tokens([new("first-a")]))).CreateAsync(snapshot);
         foreach (long time in new[] { 9_500_000L, 12_500_000L })
         {

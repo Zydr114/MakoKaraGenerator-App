@@ -190,7 +190,6 @@ public static class ProjectStore
                 AudioMedia = audioMedia,
                 AudioAnalysis = analysis,
                 Background = MapBackground(projectDto.Background, directoryPath, issues) with { Media = backgroundMedia },
-                EnterAnimation = ProjectDtoMapper.MapLineAnimation(projectDto.EnterAnimation, "enterAnimation", issues),
                 LyricPresentation = ProjectDtoMapper.MapPresentation(projectDto.LyricPresentation, issues),
             };
 

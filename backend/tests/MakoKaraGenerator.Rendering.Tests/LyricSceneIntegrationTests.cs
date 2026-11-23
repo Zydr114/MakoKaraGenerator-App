@@ -20,8 +20,8 @@ public sealed class LyricSceneIntegrationTests
         Assert.Equal(0, primary[1].Frame.LineProgress); Assert.Equal(0, primary[1].Frame.Tokens[0].Progress);
         _ = LyricSceneSampler.Sample(snapshot, 7_000_000);
         var seeked = LyricSceneSampler.Sample(snapshot, 1_500_000);
-        Assert.Equal(after.Select(entry => (entry.Branch.Id, entry.Frame.Line!.Id, entry.SlotId, entry.Transform)),
-            seeked.Select(entry => (entry.Branch.Id, entry.Frame.Line!.Id, entry.SlotId, entry.Transform)));
+        Assert.Equal(after.Select(entry => (entry.Branch.Id, entry.Frame.Line!.Id, entry.SlotId)),
+            seeked.Select(entry => (entry.Branch.Id, entry.Frame.Line!.Id, entry.SlotId)));
         Assert.Empty(LyricSceneSampler.Sample(snapshot, 7_000_000));
     }
 
@@ -32,7 +32,7 @@ public sealed class LyricSceneIntegrationTests
         var frames = LyricSceneSampler.Sample(snapshot, 1_500_000);
         var translation = Assert.Single(frames.Where(entry => entry.Branch.Role == LyricBranchRole.Translation));
         Assert.Equal("translation-two", translation.Frame.Line!.Id);
-        Assert.Null(translation.SlotId); Assert.Equal(SceneTransform.Neutral, translation.Transform);
+        Assert.Null(translation.SlotId);
         Assert.Equal(0, translation.Frame.LineProgress); Assert.All(translation.Frame.Tokens, token => Assert.Equal(0, token.Progress));
         var primary = snapshot.Lyrics.PrimaryBranch!;
         snapshot = snapshot with { Lyrics = snapshot.Lyrics.ReplaceBranch(primary with { Lines = [primary.Lines[2], primary.Lines[0]] }) };
@@ -40,12 +40,12 @@ public sealed class LyricSceneIntegrationTests
     }
 
     [Fact]
-    public void 无关联翻译使用自身半开行时间不触发进入动画()
+    public void 无关联翻译使用自身半开行时间()
     {
         var snapshot = Example();
         var branch = snapshot.Lyrics.Branches[1] with { Lines = [LyricLine.Create("independent", "译文", new TimeRange(0, 1_000_000), TimingStatus.Edited)] };
-        snapshot = snapshot with { Lyrics = snapshot.Lyrics.ReplaceBranch(branch), EnterAnimation = LineAnimation.Default };
-        Assert.Contains(LyricSceneSampler.Sample(snapshot, 0), entry => entry.Frame.Line!.Id == "independent" && entry.Transform == SceneTransform.Neutral);
+        snapshot = snapshot with { Lyrics = snapshot.Lyrics.ReplaceBranch(branch) };
+        Assert.Contains(LyricSceneSampler.Sample(snapshot, 0), entry => entry.Frame.Line!.Id == "independent");
         Assert.DoesNotContain(LyricSceneSampler.Sample(snapshot, 1_000_000), entry => entry.Frame.Line!.Id == "independent");
     }
 
@@ -79,9 +79,8 @@ public sealed class LyricSceneIntegrationTests
         var snapshot = Example() with { Lyrics = new LyricsDocument { Branches = [branch] } };
         var first = LyricSceneSampler.Sample(snapshot, 1);
         Assert.Equal("upper-left", first[0].SlotId);
-        Assert.All(first, entry => Assert.True(entry.Transform.IsValid));
         Assert.DoesNotContain(first, entry => entry.Frame.Line!.Id == "missing");
-        Assert.Contains(LyricSceneSampler.Sample(snapshot, 5), entry => entry.Frame.Line!.Id == "short" && entry.Transform.Opacity > .9);
+        Assert.Contains(LyricSceneSampler.Sample(snapshot, 5), entry => entry.Frame.Line!.Id == "short");
     }
 
     [Fact]
@@ -99,15 +98,15 @@ public sealed class LyricSceneIntegrationTests
     }
 
     [Fact]
-    public void 进入保持退出通道确实改变像素而缩小预览保持相对几何()
+    public void 卡拉OK逐字进度改变像素而缩小预览保持相对几何()
     {
         using SkiaRenderPipeline pipeline = new();
         var snapshot = Example();
-        using var entering = pipeline.Render(RenderRequest.At(snapshot, 100_000) with { TransparentBackground = true });
-        using var holding = pipeline.Render(RenderRequest.At(snapshot, 500_000) with { TransparentBackground = true });
-        using var exiting = pipeline.Render(RenderRequest.At(snapshot, 1_900_000) with { TransparentBackground = true });
-        Assert.True(Difference(entering, holding, 0, 150) > 100);
-        Assert.True(Difference(exiting, holding, 0, 150) > 100);
+        using var early = pipeline.Render(RenderRequest.At(snapshot, 100_000) with { TransparentBackground = true });
+        using var middle = pipeline.Render(RenderRequest.At(snapshot, 500_000) with { TransparentBackground = true });
+        using var late = pipeline.Render(RenderRequest.At(snapshot, 1_900_000) with { TransparentBackground = true });
+        Assert.True(Difference(early, middle, 0, 150) > 100);
+        Assert.True(Difference(late, middle, 0, 150) > 100);
         using var small = pipeline.Render(RenderRequest.At(snapshot, 500_000) with { TransparentBackground = true,
             Target = new() { PixelWidth = 320, PixelHeight = 180 } });
         Assert.True(HasAlpha(small, 20, 85));
@@ -165,7 +164,7 @@ public sealed class LyricSceneIntegrationTests
     }
 
     [Fact]
-    public void 本行进入覆盖优先于分支进入且整体跟随分支不继承逐字换色()
+    public void 整体跟随分支跟随主句可见但不继承逐字换色()
     {
         var snapshot = Example();
         var primary = snapshot.Lyrics.PrimaryBranch!;
@@ -175,14 +174,10 @@ public sealed class LyricSceneIntegrationTests
             Lines = [LyricLine.Create("translation-one", "Follow") with { PrimaryLineId = "a" }],
         };
         snapshot = snapshot with { Lyrics = snapshot.Lyrics with { Branches = [primary with { Lines = primary.Lines.SetItem(0, line) }, translated] } };
-        snapshot = Configure(snapshot, primary.Id, definition => definition with { Lines = [new() { LineId = line.Id,
-            EnterAnimation = new() { DurationUs = 200_000, StartOpacity = .6f, StartOffsetPx = 30 } }] });
         snapshot = Configure(snapshot, translated.Id, definition => definition with { AnimationPolicy = LyricBranchAnimationPolicy.FollowPrimary });
         var scene = LyricSceneSampler.Sample(snapshot, 0);
-        var baseSample = scene.First(entry => entry.Branch.Role == LyricBranchRole.Primary);
         var following = scene.First(entry => entry.Branch.Role == LyricBranchRole.Translation);
-        Assert.Equal(.6, baseSample.Transform.Opacity, 5); Assert.Equal(30, baseSample.Transform.OffsetYPx);
-        Assert.Equal(baseSample.Transform, following.Transform);
+        Assert.Equal("translation-one", following.Frame.Line!.Id);
         Assert.Equal(0, following.Frame.LineProgress); Assert.Empty(following.Frame.Tokens);
     }
 

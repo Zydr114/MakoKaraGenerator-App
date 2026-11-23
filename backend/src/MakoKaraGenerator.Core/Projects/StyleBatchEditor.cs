@@ -25,13 +25,10 @@ public static class StyleBatchEditor
     /// <param name="targets">目标位置，重复项只处理一次。</param>
     /// <param name="style">设计稿的静态样式。</param>
     /// <param name="properties">参与此次应用的属性。</param>
-    /// <param name="includeAnimation">是否同时应用动画。</param>
-    /// <param name="animation">设计稿动画；行级空值表示继承。</param>
     /// <param name="restoreInheritance">是否移除目标层的选定覆盖。</param>
     /// <returns>完整结果；无变化时返回原工程。</returns>
     public static Project Apply(Project project, StyleTargetLevel level, IEnumerable<StyleTarget> targets,
-        LyricStyle style, IEnumerable<LyricStyleProperty> properties, bool includeAnimation = false,
-        LineAnimation? animation = null, bool restoreInheritance = false)
+        LyricStyle style, IEnumerable<LyricStyleProperty> properties, bool restoreInheritance = false)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(targets);
@@ -46,8 +43,6 @@ public static class StyleBatchEditor
             if (level == StyleTargetLevel.Token && !TokenStyleSupport.IsSupported(property))
                 throw new ArgumentException("元素不支持选定的样式属性。", nameof(properties));
         }
-        if (level == StyleTargetLevel.Token && includeAnimation)
-            throw new ArgumentException("元素不支持进入动画。", nameof(includeAnimation));
         if (level == StyleTargetLevel.Project && restoreInheritance)
             throw new ArgumentException("工程默认不能恢复上层继承。", nameof(restoreInheritance));
         if (level != StyleTargetLevel.Project)
@@ -61,8 +56,7 @@ public static class StyleBatchEditor
                     throw new ArgumentOutOfRangeException(nameof(targets), "应用目标已失效。");
             }
         }
-        if (includeAnimation && !restoreInheritance) ValidateAnimation(animation);
-        if (selected.Length == 0 && !includeAnimation) return project;
+        if (selected.Length == 0) return project;
 
         LyricStyleOverride patch = CopyProperties(LyricStyleOverride.Empty, style, selected, restoreInheritance);
         Project result = project;
@@ -71,7 +65,7 @@ public static class StyleBatchEditor
             LyricStyle baseline = LyricStyleResolver.Resolve(project.LyricStyle, lineOverride: patch).Style;
             ValidateFinite(baseline);
             if (baseline != project.LyricStyle) result = LyricStyleEditor.SetBaseline(result, baseline);
-            return includeAnimation ? LineAnimationEditor.SetProjectAnimation(result, animation) : result;
+            return result;
         }
         foreach (StyleTarget target in positions)
         {
@@ -86,8 +80,6 @@ public static class StyleBatchEditor
             result = level == StyleTargetLevel.Line
                 ? LyricStyleEditor.SetLineOverride(result, target.LineIndex, updated)
                 : LyricStyleEditor.SetTokenOverride(result, target.LineIndex, target.TokenIndex, updated);
-            if (includeAnimation)
-                result = LineAnimationEditor.SetLineAnimation(result, target.LineIndex, restoreInheritance ? null : animation);
         }
         return result;
     }
@@ -289,16 +281,5 @@ public static class StyleBatchEditor
             || !float.IsFinite(style.Opacity) || !float.IsFinite(style.Scale)
             || (style.Ruby is not { IsValid: true } || !style.Ruby.IsValidForFont(style.FontSizePx)) || style.Unsung is not { IsValid: true } || style.Sung is not { IsValid: true } || style.Wipe is not { IsValid: true })
             throw new ArgumentOutOfRangeException(nameof(style), "样式数值必须是有限数。");
-    }
-
-    /// <summary>校验完整动画参数；空动画合法。</summary>
-    public static void ValidateAnimation(LineAnimation? animation)
-    {
-        if (animation is null) return;
-        if (animation.DurationUs is < 0 or > 10_000_000 || !Enum.IsDefined(animation.Easing)
-            || !float.IsFinite(animation.StartOpacity) || animation.StartOpacity is < 0 or > 1
-            || !float.IsFinite(animation.StartScale) || animation.StartScale is <= 0 or > 4
-            || !float.IsFinite(animation.StartOffsetPx) || Math.Abs(animation.StartOffsetPx) > 10_000)
-            throw new ArgumentOutOfRangeException(nameof(animation), "进入动画参数超出范围。");
     }
 }

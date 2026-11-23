@@ -41,7 +41,7 @@ public static class LayoutReferenceScene
                 additions[branch.Id].Add(new() { Id = id, Text = Text, Time = new TimeRange(0, 1_000_000), TimingStatus = TimingStatus.Estimated });
             }
         }
-        return source with { LyricPresentation = tree, EnterAnimation = null,
+        return source with { LyricPresentation = tree,
             Lyrics = source.Lyrics with { Branches = [.. source.Lyrics.Branches.Select(branch => branch with { Lines = branch.Lines.AddRange(additions[branch.Id]) })] } };
     }
 

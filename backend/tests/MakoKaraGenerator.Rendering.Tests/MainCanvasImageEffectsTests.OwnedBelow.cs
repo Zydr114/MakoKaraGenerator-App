@@ -15,7 +15,7 @@ public sealed partial class MainCanvasImageEffectsTests
     private static readonly Fx.ResourceCatalog OwnedCatalog = new("owned-below-test", "sha256:" + new string('c', 64), [], ["a", "b", "c"], []);
     private static RenderRequest OwnedRequest(bool transparent = true)
     {
-        var snapshot = Snapshot(false) with { EnterAnimation = null, LyricStyle = Snapshot(false).LyricStyle with { Opacity = 1 } };
+        var snapshot = Snapshot(false) with { LyricStyle = Snapshot(false).LyricStyle with { Opacity = 1 } };
         return Request(snapshot, transparent, time: 3_000_000);
     }
     private static PreparedImageEffectBinding OwnedBind(string owner, Fx.ImageEffectTarget target, string graph)
@@ -174,7 +174,7 @@ public sealed partial class MainCanvasImageEffectsTests
     [Fact]
     public void B5_背景媒体只读取一次且Below重绘失败取消后归零并恢复()
     {
-        var snapshot = Snapshot(false) with { Background = BackgroundSource.ForVideo("/tmp/owned-below-fixture.media"), EnterAnimation = null,
+        var snapshot = Snapshot(false) with { Background = BackgroundSource.ForVideo("/tmp/owned-below-fixture.media"),
             LyricStyle = Snapshot(false).LyricStyle with { Opacity = 1 } };
         var request = Request(snapshot, false, time: 3_000_000); var binding = OwnedBind("read", Line(request), "a");
         var spot = OwnedLineSpot(request);

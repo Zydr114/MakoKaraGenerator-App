@@ -64,7 +64,7 @@ public sealed partial class SkiaSceneGeometry
             elements.Add(new() { Id = definition.Id, ParentId = definition.LocalLayout == SceneLocalLayout.Ruby ? sample.ElementId : sample.ParentId,
                 SourceBinding = definition.SourceBinding, Kind = definition.Kind, BindingId = sample.BindingId,
                 WorldMatrix = geometry.WorldMatrix!.Value, Pivot = geometry.Pivot,
-                IsVisible = true, Opacity = sample.Transform.Opacity, WorldCorners = [.. corners] });
+                IsVisible = true, Opacity = 1, WorldCorners = [.. corners] });
         }
         return frame with { Elements = [.. elements], GroupGeometries = [.. elements.Where(static node => node.Kind == SceneElementKind.Group).Select(node =>
         {

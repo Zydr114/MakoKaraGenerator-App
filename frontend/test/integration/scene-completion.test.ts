@@ -10,7 +10,6 @@ import {
   micros,
   type LeadInGenerationCandidate,
   type LeadInGenerationSettings,
-  type LineEnterAnimation,
   type ProjectCommand,
   type ProjectSessionSummary,
   type Revision,
@@ -92,10 +91,10 @@ let indicator = '';
 let generated = '';
 
 describe('编排补齐（真实 Server，1.24.0）', () => {
-  it('能力列表有 14 种新命令、单句展示读取与同帧测量', async () => {
+  it('能力列表有 12 种新命令、单句展示读取与同帧测量', async () => {
     const { features } = await client.capabilities();
     const commands = [
-      'setLayoutKind', 'setLineEnterAnimation', 'setProjectEnterAnimation', 'setLeadInGeneration', 'previewLeadInGeneration',
+      'setLayoutKind', 'setLeadInGeneration', 'previewLeadInGeneration',
       'applyLeadInGeneration', 'deleteLeadInAndExclude', 'setLeadInAttachment', 'addMark', 'setMarkText', 'reorderMarks',
       'spaceMarks', 'setCountdownAppearance', 'setMarkAppearance',
     ];
@@ -104,9 +103,8 @@ describe('编排补齐（真实 Server，1.24.0）', () => {
     expect(features).toContain('orchestration.measurements.scene-measurement-v1');
   });
 
-  it('读模型：工程进入动画与来源的前奏生成设置总是出现，起初都是 null', async () => {
+  it('读模型：来源的前奏生成设置总是出现，起初是 null', async () => {
     const raw = await client.projects.orchestration(id(), current());
-    expect(raw.projectEnterAnimation).toBeNull();
     expect(raw.programs.map((p) => p.leadInGeneration)).toEqual([null]);
   });
 
@@ -140,34 +138,9 @@ describe('编排补齐（真实 Server，1.24.0）', () => {
     expect(current()).toBe(before);
   });
 
-  it('进入动画：工程默认与本句覆盖；单句展示读到实际生效的动画与来源；时长 canonical 化；null 清除；帧跟着变', async () => {
+  it('单句展示：起初无局部变换', async () => {
     const line = lineIds[0]!;
-    expect(await presentation(line)).toMatchObject({ branchId: primary, lineId: line, localTransform: null, localEnterAnimation: null, effectiveEnterAnimation: null, animationSource: 'none' });
-    const frame = await still(4_100_000);
-    const anim: LineEnterAnimation = { durationUs: '400000', easing: 'EaseOut', startOpacity: 0, startScale: 0.8, startOffsetPx: 40 };
-    expect((await changes({ type: 'orchestration.setProjectEnterAnimation', animation: anim })).propertiesResult).toEqual({ operation: 'setProjectEnterAnimation', changed: true });
-    await noop({ type: 'orchestration.setProjectEnterAnimation', animation: anim });
-    expect((await client.projects.orchestration(id(), current())).projectEnterAnimation).toEqual(anim);
-    expect(await presentation(line)).toMatchObject({ localEnterAnimation: null, effectiveEnterAnimation: anim, animationSource: 'project' });
-    expect(await still(4_100_000)).not.toBe(frame);
-
-    const local = await changes({ type: 'orchestration.setLineEnterAnimation', branchId: primary, lineId: line, animation: { ...anim, durationUs: '0200000', easing: 'Linear' } });
-    expect(local.propertiesResult).toMatchObject({ operation: 'setLineEnterAnimation', branchId: primary, changed: true });
-    const own = { ...anim, durationUs: '200000', easing: 'Linear' };
-    expect(await presentation(line)).toMatchObject({ localEnterAnimation: own, effectiveEnterAnimation: own, animationSource: 'line' });
-    expect(await presentation(lineIds[1]!)).toMatchObject({ localEnterAnimation: null, animationSource: 'project' });
-
-    const before = current();
-    expect(await rejected({ type: 'orchestration.setLineEnterAnimation', branchId: primary, lineId: line, animation: { ...anim, startScale: 0 } })).toMatchObject({ status: 400 });
-    expect(await rejected({ type: 'orchestration.setLineEnterAnimation', branchId: primary, lineId: 'line-不存在', animation: anim })).toMatchObject({ status: 422, failureCode: 'TargetStale' });
-    expect(current()).toBe(before);
-
-    await changes({ type: 'orchestration.setLineEnterAnimation', branchId: primary, lineId: line, animation: null });
-    expect(await presentation(line)).toMatchObject({ localEnterAnimation: null, animationSource: 'project' });
-    await noop({ type: 'orchestration.setLineEnterAnimation', branchId: primary, lineId: line, animation: null });
-    await changes({ type: 'orchestration.setProjectEnterAnimation', animation: null });
-    expect(await presentation(line)).toMatchObject({ effectiveEnterAnimation: null, animationSource: 'none' });
-    expect(await still(4_100_000)).toBe(frame);
+    expect(await presentation(line)).toMatchObject({ branchId: primary, lineId: line, localTransform: null });
   });
 
   it('前奏生成：保存设置不生成；预演只读；只应用选中的句子；空选择 no-op；删除并排除写进排除列表，撤销回来', async () => {

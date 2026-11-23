@@ -36,7 +36,6 @@ internal static class StaticSnapshotFixture
             Composition = project.Composition with { FrameRate = FrameRate.NtscVideo, BackgroundColor = new(20, 35, 55, 160) },
             Lyrics = project.Lyrics.ReplaceBranch(primary with { Lines = primary.Lines.SetItem(0, first) }),
             LyricStylePresetId = "fixed-origin-only",
-            EnterAnimation = new() { DurationUs = 150_000, StartOpacity = .5f, StartOffsetPx = 7 },
             LyricStyle = project.LyricStyle with
             {
                 Typography = project.LyricStyle.Typography with { FontFamilyName = Family, FallbackFamilyNames = [Family] },

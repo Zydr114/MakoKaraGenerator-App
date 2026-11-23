@@ -37,7 +37,7 @@ public sealed class V2GraphControllerPackageTests
         var project = mark ? LeadInFixture.Create() : Project.Create("M09 real graph controller", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 603_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64,
                 SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = new([package], instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new([package], instances) });
     }
     private static async Task<CompiledProjectEffects> Compile(ProjectSnapshot snapshot)
     {

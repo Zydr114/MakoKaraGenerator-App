@@ -8,24 +8,20 @@ public sealed class LeadInSamplingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void 准备起点行起点与归零边界保持身份且动画仅入场一次(bool slots)
+    public void 准备起点行起点与归零边界保持身份(bool slots)
     {
         var project = LeadInFixture.Create(slots);
-        var tree = project.LyricPresentation;
-        project = project with { LyricPresentation=tree with { LineOverrides=tree.LineOverrides.Add(new()
-            { BranchId="primary",LineId="first",EnterAnimation=new() { DurationUs=4_000_000,Easing=AnimationEasing.Linear,StartOpacity=0,StartOffsetPx=0 } }) } };
         var snapshot = ProjectSnapshot.FromProject(project);
         Assert.DoesNotContain(LyricSceneSampler.SampleFrame(snapshot,8_999_999).Lines,l => l.Branch.Id=="primary");
         var start = LyricSceneSampler.SampleFrame(snapshot,9_000_000);
         var ready = start.Lines.Single(l => l.Branch.Id=="primary");
-        Assert.Equal(SceneDisplayPhase.Preparation,ready.DisplayPhase); Assert.Equal(0,ready.Transform.Opacity);
+        Assert.Equal(SceneDisplayPhase.Preparation,ready.DisplayPhase);
         Assert.Single(start.LeadIns); Assert.Equal(0,start.LeadIns[0].ElapsedMarks);
         var before = LyricSceneSampler.SampleFrame(snapshot,11_999_999);
         var singing = LyricSceneSampler.SampleFrame(snapshot,12_000_000);
         var after = singing.Lines.Single(l => l.Branch.Id=="primary");
         Assert.Equal(ready.BindingId,after.BindingId); Assert.Equal(ready.ParentId,after.ParentId);
         Assert.Equal(SceneDisplayPhase.Performance,after.DisplayPhase); Assert.Empty(singing.LeadIns);
-        Assert.Equal(.75,after.Transform.Opacity,6);
         Assert.All(before.Lines.Single(l => l.Branch.Id=="primary").Frame.Tokens,t => Assert.Equal(0,t.Progress));
         Assert.Equal(0,before.Lines.Single(l => l.Branch.Id=="primary").Frame.LineProgress);
         Assert.Equal(2,before.LeadIns[0].ElapsedMarks);
@@ -92,8 +88,7 @@ public sealed class LeadInSamplingTests
             Assert.Equal(a.Branch.Id, b.Branch.Id);
             Assert.Equal(a.Frame.Line!.Id, b.Frame.Line!.Id);
             Assert.Equal(a.BindingId, b.BindingId); Assert.Equal(a.ParentId, b.ParentId);
-            Assert.Equal(a.ContainerId, b.ContainerId); Assert.Equal(a.Transform, b.Transform);
-            Assert.Equal(a.EnterProgress, b.EnterProgress); Assert.Equal(a.ExitProgress, b.ExitProgress);
+            Assert.Equal(a.ContainerId, b.ContainerId);
             Assert.Equal(a.DisplayPhase, b.DisplayPhase); Assert.Equal(a.CueId, b.CueId);
             Assert.Equal(a.Frame.LineProgress, b.Frame.LineProgress);
             Assert.Equal(a.Frame.LineProgressSource, b.Frame.LineProgressSource);

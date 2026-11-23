@@ -199,7 +199,8 @@ public sealed class AnalysisStaticProjectSnapshotCodecTests
         }
         ProjectSnapshot Styled(int count)
         {
-            LyricToken[] tokens = [.. Enumerable.Range(0, count).Select(index => LyricToken.Create("s" + index, "A", styleOverride: LyricStyleOverride.Empty))];
+            LyricStyleOverride styleOverride = new() { Typography = new() };
+            LyricToken[] tokens = [.. Enumerable.Range(0, count).Select(index => LyricToken.Create("s" + index, "A", styleOverride: styleOverride))];
             return analyzed with { Lyrics = LyricsDocument.Create([LyricLine.Create("line", new string('A', count), tokens: tokens)]) };
         }
         int baseline = CountWire(Encode(Styled(0)));

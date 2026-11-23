@@ -59,7 +59,7 @@ public sealed class SceneMeasurementRenderingTests
         foreach (var node in tree.Nodes.Where(node => node.Layout is not null))
             foreach (string parent in node.Layout!.Kind == LyricContainerLayoutKind.SlotSequence ? node.Layout.SlotIds : [node.Id])
                 Assert.Contains(first.Scene.Lines, line => line.ParentId == parent && line.Geometry is not null);
-        Assert.All(first.Scene.Lines, line => { Assert.Equal(SceneTransform.Neutral, line.Transform); Assert.Equal(LayoutReferenceScene.Text, line.Frame.Line!.Text); });
+        Assert.All(first.Scene.Lines, line => Assert.Equal(LayoutReferenceScene.Text, line.Frame.Line!.Text));
         Assert.Equal(tree.Nodes.Count(node => node.Content is TextMarkContent), first.Scene.TextMarks.Length);
         Assert.Same(snapshot.Lyrics, project.Lyrics);
         int count = 0;

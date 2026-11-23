@@ -11,10 +11,8 @@ import {
   type OrchestrationSafeArea,
   type PlacementAnchor,
   type ProgramAnimationPolicy,
-  type SceneTransform,
   type SlotAnimation,
   type SlotConflictPolicy,
-  type SlotEasing,
   type SlotRetentionPolicy,
   type SlotRevealMode,
 } from '../../protocol';
@@ -46,7 +44,6 @@ export function anchorOptions(current: string): Option<string>[] {
 const placementOf = (p: OrchestrationPlacement): OrchestrationPlacement => ({ x: p.x, y: p.y, anchor: p.anchor, rotationDegrees: p.rotationDegrees, scale: p.scale });
 const rectOf = (r: OrchestrationReferenceRect): OrchestrationReferenceRect => ({ widthRatio: r.widthRatio, heightRatio: r.heightRatio });
 const safeAreaOf = (a: OrchestrationSafeArea): OrchestrationSafeArea => ({ left: a.left, top: a.top, right: a.right, bottom: a.bottom });
-const transformOf = (t: SceneTransform): SceneTransform => ({ opacity: t.opacity, scale: t.scale, offsetXPx: t.offsetXPx, offsetYPx: t.offsetYPx, rotationDegrees: t.rotationDegrees });
 
 /** 外层位置与参考框（§13.2）：带完整的两者，只换改动的项。 */
 export function geometryCommand(
@@ -131,28 +128,18 @@ export const RETENTION_POLICY_OPTIONS: readonly Option<SlotRetentionPolicy>[] = 
   { value: 'UntilNextReveal', label: '下一句出现' },
   { value: 'Immediate', label: '立即消失' },
 ];
-export const EASING_OPTIONS: readonly Option<SlotEasing>[] = [
-  { value: 'Linear', label: '线性' },
-  { value: 'EaseIn', label: '渐入' },
-  { value: 'EaseOut', label: '渐出' },
-  { value: 'EaseInOut', label: '渐入渐出' },
-];
 
 /** 选项里加上不认识的当前值（不能选），免得下拉框显示空白。 */
 export function withCurrent<T extends string>(options: readonly Option<T>[], current: string): Option<string>[] {
   return options.some((o) => o.value === current) ? [...options] : [...options, { value: current, label: current, disabled: true }];
 }
 
-export type PoseKey = 'enterFrom' | 'hold' | 'exitTo';
-export const POSE_TEXT: Record<PoseKey, string> = { enterFrom: '进入起点', hold: '停留', exitTo: '退出终点' };
-
-/** 槽位动画（完整十四个字段）；patch 改其中几项，姿态按项合并。 */
+/** 槽位调度（完整七个字段）；patch 改其中几项。 */
 export function slotAnimationCommand(
   containerId: string,
   animation: SlotAnimation,
-  patch: Partial<Omit<SlotAnimation, PoseKey>> & { [K in PoseKey]?: Partial<SceneTransform> },
+  patch: Partial<SlotAnimation>,
 ): OrchestrationPropertiesCommand {
-  const { enterFrom, hold, exitTo, ...rest } = patch;
   return {
     type: 'orchestration.setSlotAnimation',
     containerId,
@@ -164,14 +151,7 @@ export function slotAnimationCommand(
       maxVisibleLines: animation.maxVisibleLines,
       conflictPolicy: animation.conflictPolicy,
       retentionPolicy: animation.retentionPolicy,
-      enterDurationUs: animation.enterDurationUs,
-      exitDurationUs: animation.exitDurationUs,
-      enterFrom: { ...transformOf(animation.enterFrom), ...enterFrom },
-      hold: { ...transformOf(animation.hold), ...hold },
-      exitTo: { ...transformOf(animation.exitTo), ...exitTo },
-      exitEasing: animation.exitEasing,
-      easing: animation.easing,
-      ...rest,
+      ...patch,
     },
   };
 }

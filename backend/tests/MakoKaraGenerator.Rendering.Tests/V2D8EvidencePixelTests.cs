@@ -108,7 +108,7 @@ public sealed class V2D8EvidencePixelTests
         LyricsDocument.Create([LyricLine.Create("line", "AB", new(0, 3_000_000), TimingStatus.Edited,
             [LyricToken.Create("token", "AB", new(500_000, 2_000_000), TimingStatus.Edited)])]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 64, SungColor = RgbaColor.White,
-            UnsungColor = new(120, 200, 255), Stroke = null, Shadow = null, Glow = null }) with { EnterAnimation = null };
+            UnsungColor = new(120, 200, 255), Stroke = null, Shadow = null, Glow = null });
 
     // 前奏标记带自身旋转与缩放，局部平移才能区分局部与父空间。
     private static Project MarkProject()

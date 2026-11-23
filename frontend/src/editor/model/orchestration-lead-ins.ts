@@ -8,8 +8,6 @@ import type {
   LeadInFields,
   LeadInGenerationCandidate,
   LeadInGenerationSettings,
-  LineEnterAnimation,
-  LineEnterEasing,
   LineLocalTransform,
   LyricBranchTimingMode,
   OrchestrationLeadIn,
@@ -26,7 +24,7 @@ import type {
   CountdownSvgColorMode,
 } from '../../protocol';
 import { clipByLine, nodeName, quickLayoutBlock, subtreeIds, type OrchestrationModel } from './orchestration';
-import { EASING_OPTIONS, fromSeconds, roundTo, toSeconds, type Option } from './orchestration-properties';
+import { fromSeconds, roundTo, toSeconds, type Option } from './orchestration-properties';
 import { ratioDelta } from './scene-geometry';
 
 interface LineLike {
@@ -396,47 +394,6 @@ export function lineDragTransform(current: LineLocalTransform | null, reference:
   const base = current ?? NO_TRANSFORM;
   return { ...base, offsetXRatio: roundTo(base.offsetXRatio + delta.dx, 4), offsetYRatio: roundTo(base.offsetYRatio + delta.dy, 4) };
 }
-
-/** 后端 Core 的默认进入动画：0.4 秒、渐出，从透明、下方 12 像素进入。 */
-export const DEFAULT_ENTER_ANIMATION: LineEnterAnimation = { durationUs: '400000', easing: 'EaseOut', startOpacity: 0, startScale: 1, startOffsetPx: 12 };
-
-export const ENTER_EASING_OPTIONS = EASING_OPTIONS as readonly Option<LineEnterEasing>[];
-
-/** 进入动画的完整五个字段（只带合同里的字段），patch 换掉其中几项。 */
-export function enterAnimationOf(animation: LineEnterAnimation, patch: Partial<LineEnterAnimation> = {}): LineEnterAnimation {
-  return {
-    durationUs: patch.durationUs ?? animation.durationUs,
-    easing: patch.easing ?? animation.easing,
-    startOpacity: patch.startOpacity ?? animation.startOpacity,
-    startScale: patch.startScale ?? animation.startScale,
-    startOffsetPx: patch.startOffsetPx ?? animation.startOffsetPx,
-  };
-}
-
-/** 起始不透明度 1、缩放 1、偏移 0：看不出效果。 */
-export function isNeutralAnimation(animation: LineEnterAnimation): boolean {
-  return animation.startOpacity >= 1 && animation.startScale === 1 && animation.startOffsetPx === 0;
-}
-
-/** 一句话描述进入动画：“0.4 秒 · 渐出”。 */
-export function enterAnimationText(animation: LineEnterAnimation | null): string {
-  if (!animation) return '没有进入动画';
-  const easing = EASING_OPTIONS.find((o) => o.value === animation.easing)?.label ?? animation.easing;
-  return `${toSeconds(animation.durationUs)} 秒 · ${easing}`;
-}
-
-export const ANIMATION_SOURCE_TEXT: Record<string, string> = { line: '本句单独设置', project: '用工程默认', none: '没有进入动画' };
-
-export function lineEnterCommand(branchId: string, lineId: string, animation: LineEnterAnimation | null): OrchestrationCommandOf<'orchestration.setLineEnterAnimation'> {
-  return { type: 'orchestration.setLineEnterAnimation', branchId, lineId, animation: animation && enterAnimationOf(animation) };
-}
-
-export function projectEnterCommand(animation: LineEnterAnimation | null): OrchestrationCommandOf<'orchestration.setProjectEnterAnimation'> {
-  return { type: 'orchestration.setProjectEnterAnimation', animation: animation && enterAnimationOf(animation) };
-}
-
-/** 秒数（界面）换成进入动画的时长；范围 0～10 秒由输入框检查。 */
-export const enterDurationUs = (seconds: number): string => fromSeconds(seconds);
 
 /** 句子显示在哪里：所在片段的目标容器，否则来源的默认容器。 */
 export function lineContainerText(model: OrchestrationModel, program: OrchestrationProgram, lineId: string): string {

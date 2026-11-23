@@ -80,15 +80,6 @@ public sealed record ProjectSnapshot
     /// <summary>基线样式来自哪个预设。仅作来源信息，<b>不参与渲染</b>。</summary>
     public string? LyricStylePresetId { get; init; }
 
-    /// <summary>
-    /// 工程级默认的<b>行进入动画</b>；<see langword="null"/> 表示默认不动画。
-    /// </summary>
-    /// <remarks>
-    /// 行级覆盖在 <c>LyricLine.EnterAnimation</c> 上（快照直接持有歌词文档，
-    /// 因此行级数据自动跟着快照走）。渲染时的合并规则见 <c>LineAnimationEditor.Resolve</c>。
-    /// </remarks>
-    public LineAnimation? EnterAnimation { get; init; }
-
     /// <summary>歌词行数量。</summary>
     public int LineCount => Lyrics.AllLines.Count();
 
@@ -116,7 +107,6 @@ public sealed record ProjectSnapshot
             Background = project.Background,
             LyricStyle = project.LyricStyle,
             LyricStylePresetId = project.LyricStylePresetId,
-            EnterAnimation = project.EnterAnimation,
         };
     }
 

@@ -150,7 +150,7 @@ public sealed partial class V2ParticleBoundaryTests
         return Project.Create("M08 boundary fixtures",
             Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create([timed, fallback]), lyricStyle: LyricStyle.Default with
-            { FontFamilyName = "DejaVu Sans", FontSizePx = 40, Stroke = null, Shadow = null, Glow = null }) with { EnterAnimation = null };
+            { FontFamilyName = "DejaVu Sans", FontSizePx = 40, Stroke = null, Shadow = null, Glow = null });
     }
 
     private static EffectPackageContents OffsetPackage(string parent)

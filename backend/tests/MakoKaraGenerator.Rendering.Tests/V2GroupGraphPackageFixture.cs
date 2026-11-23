@@ -50,7 +50,7 @@ internal static class V2GroupGraphPackageFixture
         var project = Project.Create("G4 actual source groups", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create(lines), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
                 UnsungColor = RgbaColor.White, SungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { Effects = new([package], instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new([package], instances) });
     }
     private static LyricLine Line(string id, string token, string text, long start, long end)
         => LyricLine.Create(id, text, new(start, end), TimingStatus.Edited, [LyricToken.Create(token, text, new(start, end), TimingStatus.Edited)])

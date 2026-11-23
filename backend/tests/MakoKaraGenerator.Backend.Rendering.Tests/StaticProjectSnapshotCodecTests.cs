@@ -23,7 +23,6 @@ public sealed class StaticProjectSnapshotCodecTests
         Assert.Equal(source.Lyrics, copy.Lyrics);
         Assert.Equal(source.LyricPresentation, copy.LyricPresentation);
         Assert.Equal(source.LyricStyle, copy.LyricStyle);
-        Assert.Equal(source.EnterAnimation, copy.EnterAnimation);
         Assert.Equal(source.LyricStylePresetId, copy.LyricStylePresetId);
         Assert.Equal(source.Background, copy.Background);
         Assert.Equal(input, StaticProjectSnapshotCodec.Encode(copy));
@@ -43,16 +42,16 @@ public sealed class StaticProjectSnapshotCodecTests
     }
 
     [Fact]
-    public void 全部十五源字段都有位置且计算属性和兼容访问外观不参与合同()
+    public void 全部十四源字段都有位置且计算属性和兼容访问外观不参与合同()
     {
         JsonObject root = Root();
         JsonObject source = root["snapshot"]!.AsObject();
-        Assert.Equal(15, source.Count);
+        Assert.Equal(14, source.Count);
         Assert.Equal(typeof(ProjectSnapshot).GetProperties().Where(property => property.SetMethod is not null && property.Name != nameof(ProjectSnapshot.MediaFeatureInput))
             .Select(property => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(property.Name)).Order(StringComparer.Ordinal),
             source.Select(pair => pair.Key).Order(StringComparer.Ordinal));
         Assert.Equal(["audioAnalysis", "audioMedia", "audioPath", "background", "composition", "effectInputsFingerprint",
-            "effects", "enterAnimation", "lyricPresentation", "lyricStyle", "lyricStylePresetId", "lyrics", "name",
+            "effects", "lyricPresentation", "lyricStyle", "lyricStylePresetId", "lyrics", "name",
             "presetApplications", "schemaVersion"], source.Select(pair => pair.Key).Order(StringComparer.Ordinal));
         Assert.Equal(["branches", "primaryBranchId", "schemaVersion"], source["lyrics"]!.AsObject().Select(pair => pair.Key).Order(StringComparer.Ordinal));
         JsonObject style = source["lyricStyle"]!.AsObject();

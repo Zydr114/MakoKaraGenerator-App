@@ -58,7 +58,7 @@ internal static class BaseMaterialPackageFixture
             style = style with { UnsungFill = new() { Material = material }, SungFill = new() { Material = material } };
         }
         return ProjectSnapshot.FromProject(Project.Create("Base material", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 603_000_000),
-            LyricsDocument.Create([line]), lyricStyle: style) with { Effects = new([package], instances ?? [Instance(package)]), EnterAnimation = null });
+            LyricsDocument.Create([line]), lyricStyle: style) with { Effects = new([package], instances ?? [Instance(package)]) });
     }
     internal static Task<CompiledProjectEffects> Compile(ProjectSnapshot snapshot) => CompiledProjectEffects.CompileAsync(snapshot,
         new ScriptCompiler(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0")), new PackageImageValidator(),

@@ -176,8 +176,6 @@ describe('手写协议类型与 OpenAPI 一致', () => {
       'orchestration.removeNode',
       'orchestration.reorderSlots',
       'orchestration.setLayoutKind',
-      'orchestration.setLineEnterAnimation',
-      'orchestration.setProjectEnterAnimation',
       'orchestration.setLeadInGeneration',
       'orchestration.previewLeadInGeneration',
       'orchestration.applyLeadInGeneration',

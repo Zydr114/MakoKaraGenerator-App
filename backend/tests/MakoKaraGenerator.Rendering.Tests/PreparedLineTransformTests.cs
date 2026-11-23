@@ -88,8 +88,7 @@ public sealed class PreparedLineTransformTests
             .Replace(group, group with { Attachment = new() { Mode = fixedParent ? SceneAttachmentMode.FixedParent : SceneAttachmentMode.CueTargetText },
                 Placement = fixedParent ? ScenePlacement.Create(new(.3, .2)) : group.Placement }),
             LineOverrides = tree.LineOverrides.Add(new() { BranchId = "primary", LineId = "first", LocalTransform = new()
-                { OffsetXRatio = .035, OffsetYRatio = -.02, RotationDegrees = 9, Scale = .9 }, EnterAnimation = new()
-                { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = .8f, Easing = AnimationEasing.Linear } }) };
+                { OffsetXRatio = .035, OffsetYRatio = -.02, RotationDegrees = 9, Scale = .9 } }) };
         return ProjectSnapshot.FromProject(project with { LyricPresentation = tree, LyricStyle = project.LyricStyle with
             { Opacity = .7f, UnsungColor = new(240, 245, 255, 180), Stroke = StrokeSpec.Create(new(30, 100, 200, 150), 3),
                 Shadow = ShadowSpec.Create(new(120, 60, 30, 100), .7f, 70, 8, 3) } }) with { EffectInputsFingerprint = Fingerprint };

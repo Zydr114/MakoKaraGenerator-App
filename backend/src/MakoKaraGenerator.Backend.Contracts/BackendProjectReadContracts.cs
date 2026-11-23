@@ -133,8 +133,7 @@ public sealed record ProjectPresetApplicationsResponse(string ProjectSessionId, 
 
 /// <summary>精确工程修订下的歌词编排结构树与分支默认配置。</summary>
 public sealed record ProjectOrchestrationResponse(string ProjectSessionId, string ProjectRevision,
-    ProjectOrchestrationNodeDto[] Nodes, ProjectOrchestrationProgramDto[] Programs, string ProtocolVersion = BackendProtocol.Version,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] ProjectLineEnterAnimationDto? ProjectEnterAnimation = null);
+    ProjectOrchestrationNodeDto[] Nodes, ProjectOrchestrationProgramDto[] Programs, string ProtocolVersion = BackendProtocol.Version);
 public sealed record ProjectOrchestrationNodeDto(string Id, string? Name, string? ParentId,
     ProjectOrchestrationPlacementDto Placement, ProjectOrchestrationReferenceRectDto ReferenceRect,
     ProjectOrchestrationLayoutDto? Layout, string? ContentKind, ProjectOrchestrationContentDto? Content = null);

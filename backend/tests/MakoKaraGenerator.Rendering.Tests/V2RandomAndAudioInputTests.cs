@@ -119,7 +119,7 @@ public sealed class V2RandomAndAudioInputTests
         LyricsDocument.Create([LyricLine.Create("line", "AB", new(0, 1_400_000), TimingStatus.Edited,
             [LyricToken.Create("token", "AB", new(0, 1_400_000), TimingStatus.Edited)])]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 50, SungColor = RgbaColor.White,
-            UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null }) with { EnterAnimation = null };
+            UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
 
     private static ProjectSnapshot Snapshot(Project project, string mode, string id, ulong seed)
     {

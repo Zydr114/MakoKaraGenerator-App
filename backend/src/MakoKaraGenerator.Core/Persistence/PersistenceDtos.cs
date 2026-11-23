@@ -55,29 +55,7 @@ internal sealed class ProjectFileDto
     /// <summary>背景源（schema v6 起）。旧文件没有它就是"只有背景色"。</summary>
     public BackgroundDto? Background { get; set; }
 
-    /// <summary>工程级默认的行进入动画（schema v9 起）；缺失表示不做动画。</summary>
-    public LineAnimationDto? EnterAnimation { get; set; }
     public LyricPresentationDto? LyricPresentation { get; set; }
-}
-
-/// <summary>
-/// 行进入动画的持久化形态（schema v9 / lyrics v5 起）。
-/// </summary>
-/// <remarks>
-/// 字段都可缺省：缺省时按 <see cref="Projects.LineAnimation" /> 的默认值解释，
-/// 读到不认识的缓动写法会回退成默认缓动并报告，而不是让工程打不开。
-/// </remarks>
-internal sealed class LineAnimationDto
-{
-    public long? DurationUs { get; set; }
-
-    public string? Easing { get; set; }
-
-    public float? StartOpacity { get; set; }
-
-    public float? StartScale { get; set; }
-
-    public float? StartOffsetPx { get; set; }
 }
 
 /// <summary>
@@ -477,22 +455,6 @@ internal sealed class SlotAnimationDto
     public int MaxVisibleLines { get; set; } = 2;
     public string? ConflictPolicy { get; set; }
     public string? RetentionPolicy { get; set; }
-    public long EnterDurationUs { get; set; } = 300_000;
-    public long ExitDurationUs { get; set; } = 250_000;
-    public string? Easing { get; set; }
-    public string? ExitEasing { get; set; }
-    public SceneTransformDto? EnterFrom { get; set; }
-    public SceneTransformDto? Hold { get; set; }
-    public SceneTransformDto? ExitTo { get; set; }
-}
-
-internal sealed class SceneTransformDto
-{
-    public double Opacity { get; set; } = 1;
-    public double Scale { get; set; } = 1;
-    public double OffsetXPx { get; set; }
-    public double OffsetYPx { get; set; }
-    public double RotationDegrees { get; set; }
 }
 
 internal sealed class LyricPresentationDto
@@ -553,7 +515,6 @@ internal sealed class LinePresentationDto
     public string? BranchId { get; set; }
     public string? LineId { get; set; }
     public LyricLocalTransformDto? LocalTransform { get; set; }
-    public LineAnimationDto? EnterAnimation { get; set; }
 }
 internal sealed class LyricLocalTransformDto
 {

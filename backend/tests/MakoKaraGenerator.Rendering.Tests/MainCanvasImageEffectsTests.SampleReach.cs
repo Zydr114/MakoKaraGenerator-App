@@ -74,7 +74,7 @@ public sealed partial class MainCanvasImageEffectsTests
         var project = Project.Create("sample-reach", Composition.Create(640, 360, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
             LyricsDocument.Create([LyricLine.Create("line", "AB", new(0, 5_000_000), TimingStatus.Confirmed,
                 [LyricToken.Create("token", "AB", new(0, 4_000_000), TimingStatus.Confirmed)])]), lyricStyle: style)
-            with { Effects = new([contents], []), EnterAnimation = null };
+            with { Effects = new([contents], []) };
         var snapshot = ProjectSnapshot.FromProject(project);
         var target = new RenderTarget { PixelWidth = 640, PixelHeight = 360 };
         using var measure = new SkiaRenderPipeline();

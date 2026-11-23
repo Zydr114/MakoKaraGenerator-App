@@ -20,16 +20,9 @@ public sealed record SetOrchestrationSlotAnimationCommandDto(string? ContainerId
 public sealed record SetOrchestrationProgramAnimationPolicyCommandDto(string? BranchId,
     string? AnimationPolicy) : ProjectCommandDto("orchestration.setProgramAnimationPolicy");
 
-/// <summary>动画通道；偏移单位为画布像素，旋转为度，缩放为正倍数。</summary>
-public sealed record ProjectOrchestrationSceneTransformDto(double Opacity, double Scale,
-    double OffsetXPx, double OffsetYPx, double RotationDegrees);
-
-/// <summary>完整槽位调度和动画参数；微秒使用非负十进制字符串，不保存槽位位置。</summary>
+/// <summary>完整槽位调度参数；微秒使用非负十进制字符串，不保存槽位位置。</summary>
 public sealed record ProjectOrchestrationSlotAnimationDto(string RevealMode, double RevealProgress,
-    string RevealDelayUs, string RevealLeadUs, int MaxVisibleLines, string ConflictPolicy, string RetentionPolicy,
-    string EnterDurationUs, string ExitDurationUs, ProjectOrchestrationSceneTransformDto EnterFrom,
-    ProjectOrchestrationSceneTransformDto Hold, ProjectOrchestrationSceneTransformDto ExitTo,
-    string ExitEasing, string Easing);
+    string RevealDelayUs, string RevealLeadUs, int MaxVisibleLines, string ConflictPolicy, string RetentionPolicy);
 
 /// <summary>基础编排属性写入结果；canonical 值通过精确修订编排读模型读取。</summary>
 public sealed record OrchestrationPropertiesCommandResultDto(string Operation,

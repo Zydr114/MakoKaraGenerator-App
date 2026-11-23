@@ -20,7 +20,7 @@ public sealed partial class MainCanvasImageEffectsTests
         var style = LyricStyle.Default with { FontFamilyName="DejaVu Sans",FontSizePx=4,Stroke=null,Shadow=null,Glow=null,Opacity=1 };
         var snapshot = ProjectSnapshot.FromProject(Project.Create("layer-gate",Composition.Create(640,360,Core.Time.FrameRate.Fps30,outputDurationUs:5_000_000),
             LyricsDocument.Create([LyricLine.Create("line",new string('A',129),new(0,5_000_000),TimingStatus.Confirmed,tokens)]),lyricStyle:style)
-            with { Effects=new([contents],[]),EnterAnimation=null });
+            with { Effects=new([contents],[]) });
         var request = Request(snapshot,width:64,height:36,time:2_000_000); var original = request.PreparedFrame!;
         var owner = new PreparedMaterialOwner.Script(new("actual-base-writer"),"actual-base-artifact");
         var geometries = original.FinalGeometry.ToArray(); Assert.Equal(129,geometries.Length);

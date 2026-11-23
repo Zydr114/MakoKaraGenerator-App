@@ -129,7 +129,6 @@ public static partial class LyricSceneSampler
                 sample = CreateSample(snapshot, branch, LyricSampler.SampleLine(occurrence.Line, timeUs, occurrence.SourceIndex)) with
                 { DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = occurrence.Segment.Clip?.Id,
                     Placement = presentation.DefaultPlacement, BindingId = BindingId(program, occurrence.Segment, containerId, occurrence.Line.Id) };
-                sample = ApplyLineAnimation(snapshot, sample, timeUs, occurrence.RevealTimeUs);
             }
             sample = sample with { CueId = occurrence.LeadIn?.Id };
             if (occurrence.Preparation is not { } range || !range.Contains(timeUs)) return sample;
@@ -150,22 +149,6 @@ public static partial class LyricSceneSampler
     {
         var line = segment.Lines[entry.LineIndex];
         int sourceIndex = LyricDisplaySegmentResolver.IndexOf(branch, line.Id);
-        var lineAnimation = presentation.FindLine(line.Id)?.EnterAnimation;
-        long enterDuration = lineAnimation?.DurationUs ?? profile.EnterDurationUs;
-        long exitDuration = profile.ExitDurationUs;
-        long span = entry.HideTimeUs - entry.RevealTimeUs;
-        if ((double)enterDuration + exitDuration > span)
-        {
-            enterDuration = (long)Math.Floor(span * ((double)enterDuration / ((double)enterDuration + exitDuration)));
-            exitDuration = span - enterDuration;
-        }
-        double enter = Ratio(timeUs - entry.RevealTimeUs, enterDuration);
-        long exitStart = entry.HideTimeUs - exitDuration;
-        double exit = exitDuration == 0 || timeUs < exitStart ? 0 : Ratio(timeUs - exitStart, exitDuration);
-        SceneTransform enterFrom = lineAnimation is { } animation ? new()
-        { Opacity = animation.StartOpacity, Scale = animation.StartScale, OffsetYPx = animation.StartOffsetPx } : profile.EnterFrom;
-        SceneTransform transform = SceneTransform.Interpolate(enterFrom, profile.Hold, AnimationEasingFunctions.Evaluate(lineAnimation?.Easing ?? profile.Easing, enter));
-        if (exit > 0) transform = SceneTransform.Interpolate(transform, profile.ExitTo, AnimationEasingFunctions.Evaluate(profile.ExitEasing, exit));
         string containerId = segment.ContainerId(snapshot.LyricPresentation.FindProgram(branch.Id)!);
         string slotNodeId = snapshot.LyricPresentation.FindNode(containerId)!.Layout!.SlotIds[entry.SlotIndex];
         return CreateSample(snapshot, branch, LyricSampler.SampleLine(line, timeUs, sourceIndex)) with
@@ -173,7 +156,6 @@ public static partial class LyricSceneSampler
             SlotId = profile.Slots[entry.SlotIndex].Id, Placement = SceneDefinitionBuilder.SlotTextPlacement(profile.Slots[entry.SlotIndex].Placement),
             ParentNodeId = slotNodeId, DisplayContainerId = containerId, Presentation = presentation, DisplayClipId = segment.Clip?.Id,
             BindingId = BindingId(snapshot.LyricPresentation.FindProgram(branch.Id)!, segment, slotNodeId, line.Id),
-            EnterProgress = enter, ExitProgress = exit, Transform = transform,
         };
     }
 }

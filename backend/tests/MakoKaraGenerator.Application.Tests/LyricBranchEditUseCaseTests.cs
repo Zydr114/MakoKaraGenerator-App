@@ -89,7 +89,7 @@ public sealed class LyricBranchEditUseCaseTests
     {
         Project source = Sample();
         var presentation = source.LyricPresentation.Resolve("translation") with
-            { Lines = [new() { LineId = "translated", EnterAnimation = new() { DurationUs = 17 } }] };
+            { Lines = [new() { LineId = "translated", LocalTransform = new() { OffsetXRatio = .1 } }] };
         source = source with { LyricPresentation = source.LyricPresentation.SetBranch(presentation) };
         var package = EffectPackageFixture.Contents();
         var effect = new ProjectEffectInstance { Id = "direct", Name = "直接效果", PackageId = package.PackageId, Revision = package.Revision,

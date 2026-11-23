@@ -41,7 +41,7 @@ public sealed class ImageSurfaceBudgetTests
     private const long PixelBytes = 128 * 96 * 4;
     private static readonly GraphRect Bounds = new(0, 0, 128, 96);
     private static readonly SceneCaptureRecipe Recipe = new(true, false, false, true, SceneCaptureRegion.FillAndStroke);
-    private static ProjectSnapshot Snapshot(bool stroke = false, bool entrance = false)
+    private static ProjectSnapshot Snapshot(bool stroke = false)
     {
         var line = LyricLine.Create("row", "歌語", new(0, 5_000_000), TimingStatus.Edited,
             [LyricToken.Create("a", "歌", new(0, 2_000_000), TimingStatus.Edited), LyricToken.Create("b", "語", new(2_000_000, 5_000_000), TimingStatus.Edited)])
@@ -49,9 +49,6 @@ public sealed class ImageSurfaceBudgetTests
         var project = Project.Create("surface budget", Composition.Create(128, 96, Core.Time.FrameRate.Fps30, outputDurationUs: 5_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 32,
                 Opacity = 1, Stroke = stroke ? StrokeSpec.Create(RgbaColor.White, 2) : null, Shadow = null });
-        if (entrance) project = project with { LyricPresentation = project.LyricPresentation.WithDefaultPrograms(project.Lyrics) with
-            { LineOverrides = [new() { BranchId = project.Lyrics.Branches[0].Id, LineId = "row", EnterAnimation = new()
-                { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = 1, StartOffsetPx = 0, Easing = AnimationEasing.Linear } }] } };
         return ProjectSnapshot.FromProject(project);
     }
     private static RenderRequest Request(ProjectSnapshot snapshot, RenderTarget? target = null) => RenderRequest.At(snapshot, 1_000_000)
@@ -192,16 +189,15 @@ public sealed class ImageSurfaceBudgetTests
         result.Dispose(); Empty(budget); Assert.True(capture.Image.Handle != nint.Zero); Assert.Equal(PixelBytes, sourceBudget.Usage.EstimatedBytes);
     }
 
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void 真实捕获描边和入场临时图层都计峰值且失败不漏账(bool entrance)
+    [Fact]
+    public void 真实捕获描边临时图层计峰值且失败不漏账()
     {
-        using ImageSurfaceBudgetSession budget = new(new() { MaximumSurfaces = entrance ? 2 : 1 }); using var frame = budget.BeginFrame();
-        using SkiaRenderPipeline renderer = new(surfaceBudget: budget); var request = Request(Snapshot(stroke: true, entrance: entrance));
+        using ImageSurfaceBudgetSession budget = new(new() { MaximumSurfaces = 1 }); using var frame = budget.BeginFrame();
+        using SkiaRenderPipeline renderer = new(surfaceBudget: budget); var request = Request(Snapshot(stroke: true));
         var error = Assert.Throws<ImageSurfaceBudgetException>(() => Capture(renderer, request, frame, Recipe with { IncludeStroke = true }));
-        Assert.Equal("CaptureStrokeLayer", error.Operation); Assert.Equal(entrance ? 2 : 1, error.CurrentSurfaces); Empty(budget);
+        Assert.Equal("CaptureStrokeLayer", error.Operation); Assert.Equal(1, error.CurrentSurfaces); Empty(budget);
         using var allowed = Capture(renderer, request, frame); Assert.Contains(Bytes(allowed), pixel => pixel != 0);
-        Assert.Equal(entrance ? 2 : 1, frame.Usage.PeakSurfaces); allowed.Dispose(); Empty(budget);
+        Assert.Equal(1, frame.Usage.PeakSurfaces); allowed.Dispose(); Empty(budget);
     }
 
     [Fact]

@@ -20,8 +20,7 @@ public sealed partial class MainCanvasImageEffectsTests
             secondToken ? [LyricToken.Create("token", "歌", new(0, 2_000_000), TimingStatus.Edited), LyricToken.Create("token-2", "詞", new(2_000_000, 4_000_000), TimingStatus.Edited)]
                 : [LyricToken.Create("token", "歌", new(0, 4_000_000), TimingStatus.Edited)]) with { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "か")] }]),
         lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 64, UnsungColor = new(0, 0, 240, 180), SungColor = new(0, 0, 255, 200), Opacity = .7f,
-            Stroke = decorated ? StrokeSpec.Create(new(0, 240, 0, 180), 4) : null, Shadow = decorated ? ShadowSpec.Create(new(240, 0, 0, 160), angleDegrees: 36.86989765, distancePx: 10, blurRadiusPx: 2) : null })
-        with { EnterAnimation = new() { DurationUs = 2_000_000, StartOpacity = .2f, StartScale = 1, StartOffsetPx = 0, Easing = AnimationEasing.Linear } });
+            Stroke = decorated ? StrokeSpec.Create(new(0, 240, 0, 180), 4) : null, Shadow = decorated ? ShadowSpec.Create(new(240, 0, 0, 160), angleDegrees: 36.86989765, distancePx: 10, blurRadiusPx: 2) : null }));
     private static RenderRequest Request(ProjectSnapshot snapshot, bool transparent = true, int width = 640, int height = 360, long time = 1_000_000)
     {
         using var measure = new SkiaRenderPipeline(); var scene = measure.GetSceneFrame(snapshot, time);
@@ -211,7 +210,7 @@ public sealed partial class MainCanvasImageEffectsTests
         using var expected = renderer.Render(request);
         using var actual = renderer.Render(Bindings(request,
             Bind("group", new Fx.ImageEffectTarget.Group(new(new(root))))));
-        Close(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray(), 2);
+        Close(expected.PixelMemory.ToArray(), actual.PixelMemory.ToArray(), 3);
         var diagnostic = Assert.Single(actual.SceneDiagnostics.Where(item => item.Diagnostic.Code == "GroupImageEffectNoSelectedChildren"));
         Assert.Equal(new Fx.EffectInstanceId("group"), diagnostic.InstanceId);
         Assert.Equal(Fx.DiagnosticSeverity.Info, diagnostic.Diagnostic.Severity);

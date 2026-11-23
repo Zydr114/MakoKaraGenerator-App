@@ -31,7 +31,7 @@ public static class PresentationEditor
     public static LyricBranchPresentation SetLine(LyricBranchPresentation branch, string lineId, LyricLinePresentation line)
     {
         int index = Array.FindIndex(branch.Lines.ToArray(), item => item.LineId == lineId);
-        bool empty = line.LocalTransform is null && line.EnterAnimation is null;
+        bool empty = line.LocalTransform is null;
         if (index < 0 && empty || index >= 0 && branch.Lines[index] == line) return branch;
         return branch with { Lines = empty ? branch.Lines.RemoveAt(index)
             : index < 0 ? branch.Lines.Add(line) : branch.Lines.SetItem(index, line) };

@@ -254,13 +254,13 @@ public static class StaticProjectSnapshotCodec
     private sealed record Source(
         string Name, int SchemaVersion, Composition Composition, LyricsDocument Lyrics,
         LyricPresentationDefinition LyricPresentation, LyricStyle LyricStyle, string? LyricStylePresetId,
-        LineAnimation? EnterAnimation, BackgroundSource Background, string? AudioPath,
+        BackgroundSource Background, string? AudioPath,
         MediaFileRevision? AudioMedia, JsonElement? AudioAnalysis, JsonElement? Effects,
         JsonElement? PresetApplications, string? EffectInputsFingerprint)
     {
         internal static Source FromSnapshot(ProjectSnapshot snapshot, bool packages, bool includeEffects = true, bool presets = false, bool externalPackages = false) => new(
             snapshot.Name, snapshot.SchemaVersion, snapshot.Composition, snapshot.Lyrics,
-            snapshot.LyricPresentation, snapshot.LyricStyle, snapshot.LyricStylePresetId, snapshot.EnterAnimation,
+            snapshot.LyricPresentation, snapshot.LyricStyle, snapshot.LyricStylePresetId,
             snapshot.Background, snapshot.AudioPath, snapshot.AudioMedia, SnapshotAudioAnalysisSourceCodec.Encode(snapshot.AudioAnalysis),
             packages && includeEffects ? externalPackages ? SnapshotEffectSourceCodec.EncodeExternal(snapshot.Effects, PackageOptions)
                 : SnapshotEffectSourceCodec.Encode(snapshot.Effects, PackageOptions) : null,
@@ -281,7 +281,7 @@ public static class StaticProjectSnapshotCodec
             {
                 Name = Name, SchemaVersion = SchemaVersion, Composition = Composition, Lyrics = Lyrics,
                 LyricPresentation = LyricPresentation, LyricStyle = LyricStyle, LyricStylePresetId = LyricStylePresetId,
-                EnterAnimation = EnterAnimation, Background = Background, AudioPath = AudioPath,
+                Background = Background, AudioPath = AudioPath,
                 AudioMedia = AudioMedia, AudioAnalysis = SnapshotAudioAnalysisSourceCodec.Decode(AudioAnalysis, AudioMedia?.Hash), Effects = effects,
                 PresetApplications = presets || profile == PresetsProfile ? SnapshotPresetApplicationsSourceCodec.Decode(PresetApplications,
                     packages ? PackagePresetOptions : PresetOptions, packages ? effects : null)

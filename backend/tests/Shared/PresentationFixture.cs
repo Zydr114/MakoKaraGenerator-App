@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.TestSupport;
 internal static class PresentationFixture
 {
     public static Project WithLinePresentation(this Project project, string lineId,
-        ScenePlacement? placement = null, LineAnimation? animation = null)
+        ScenePlacement? placement = null)
     {
         string branchId = project.Lyrics.Branches.First(branch => branch.Lines.Any(line => line.Id == lineId)).Id;
         var branch = project.LyricPresentation.Resolve(branchId);
@@ -20,6 +20,6 @@ internal static class PresentationFixture
             Scale = placement.Scale / basis.Scale };
         var current = branch.FindLine(lineId) ?? new() { LineId = lineId };
         return project with { LyricPresentation = project.LyricPresentation.SetBranch(
-            PresentationEditor.SetLine(branch, lineId, current with { LocalTransform = local, EnterAnimation = animation })) };
+            PresentationEditor.SetLine(branch, lineId, current with { LocalTransform = local })) };
     }
 }

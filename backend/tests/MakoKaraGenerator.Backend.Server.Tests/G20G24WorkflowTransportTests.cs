@@ -28,17 +28,7 @@ public sealed partial class PreviewTransportTests
         var originalLyrics = await WorkflowLyrics(f, http);
         var program = (await http.Read()).Programs.Single(p => p.BranchId == "primary");
         SceneMeasurementDataDto plain = await WorkflowMeasure(f, http, "time", "2100000");
-        ProjectLineEnterAnimationDto projectAnimation = new("400000", "Linear", .2f, .8f, 12);
-        await http.Send(new SetProjectEnterAnimationCommandDto(projectAnimation));
-        SceneMeasurementDataDto inherited = await WorkflowMeasure(f, http, "time", "2100000");
-        Assert.InRange(WorkflowLine(inherited, first).Opacity, .3999, .4001);
-        AssertWorkflowPixelsDiffer(plain.Png, inherited.Png);
-        await http.Send(new SetLineEnterAnimationCommandDto("primary", first, new("0", "Linear", 1, 1, 0)));
-        SceneMeasurementDataDto neutral = await WorkflowMeasure(f, http, "time", "2100000");
-        Assert.InRange(WorkflowLine(neutral, first).Opacity, .9999, 1.0001);
-        AssertWorkflowPixelsDiffer(inherited.Png, neutral.Png);
-        await http.Send(new SetLineEnterAnimationCommandDto("primary", first, null));
-        AssertWorkflowPixelsEqual(inherited.Png, (await WorkflowMeasure(f, http, "time", "2100000")).Png);
+        Assert.InRange(WorkflowLine(plain, first).Opacity, .9999, 1.0001);
 
         var group = NodeResult(await http.Send(new CreateOrchestrationNodeCommandDto("group", program.RootContainerId, "工作流组", null)), "createNode", 1);
         var sequence = NodeResult(await http.Send(new CreateOrchestrationNodeCommandDto("slotSequence", group.NodeId, "工作流槽位", 2)), "createNode", 3);
@@ -54,19 +44,16 @@ public sealed partial class PreviewTransportTests
         var slotAnimation = (await http.Read()).Nodes.Single(n => n.Id == sequence.NodeId).Layout!.SlotAnimation! with
         {
             RevealMode = "LeadBeforeNextStart", RevealLeadUs = "0", MaxVisibleLines = 2,
-            RetentionPolicy = "UntilLineEnd", EnterDurationUs = "400000", ExitDurationUs = "400000",
-            Easing = "Linear", ExitEasing = "Linear", EnterFrom = new(0, .75, -12, 8, -8),
-            Hold = new(1, 1, 0, 0, 0), ExitTo = new(0, .8, 16, -8, 8),
+            RetentionPolicy = "UntilLineEnd",
         };
         await http.Send(new SetOrchestrationSlotAnimationCommandDto(sequence.NodeId, slotAnimation));
         SceneMeasurementDataDto enter = await WorkflowMeasure(f, http, "time", "2100000");
         SceneMeasurementDataDto hold = await WorkflowMeasure(f, http, "time", "3000000");
         SceneMeasurementDataDto exit = await WorkflowMeasure(f, http, "time", "3900000");
         Assert.Equal(slots[0], WorkflowLine(enter, first).SlotId);
-        Assert.InRange(WorkflowLine(enter, first).Opacity, .2499, .2501);
+        Assert.InRange(WorkflowLine(enter, first).Opacity, .9999, 1.0001);
         Assert.InRange(WorkflowLine(hold, first).Opacity, .9999, 1.0001);
-        Assert.InRange(WorkflowLine(exit, first).Opacity, .2499, .2501);
-        AssertWorkflowPixelsDiffer(enter.Png, hold.Png); AssertWorkflowPixelsDiffer(hold.Png, exit.Png);
+        Assert.InRange(WorkflowLine(exit, first).Opacity, .9999, 1.0001);
         Assert.DoesNotContain((await WorkflowMeasure(f, http, "time", "4100000")).Elements,
             item => item.Kind == "line" && item.LineId == first && item.Visible);
 
@@ -156,7 +143,6 @@ public sealed partial class PreviewTransportTests
         var restored = await reopened.Read();
         Assert.Equal(JsonSerializer.Serialize(finalModel.Nodes, Json), JsonSerializer.Serialize(restored.Nodes, Json));
         Assert.Equal(JsonSerializer.Serialize(finalModel.Programs, Json), JsonSerializer.Serialize(restored.Programs, Json));
-        Assert.Equal(finalModel.ProjectEnterAnimation, restored.ProjectEnterAnimation);
         SceneMeasurementDataDto restoredTime = await WorkflowMeasure(f, reopened, "time", "1500000");
         Assert.Equal(final.SourceSha256, restoredTime.SourceSha256);
         Assert.Equal(final.SampleInputFingerprint, restoredTime.SampleInputFingerprint);
@@ -182,7 +168,6 @@ public sealed partial class PreviewTransportTests
         await http.Send(new SetOutputDurationCommandDto("2000000"));
         string line = await WorkflowAddLine(f, http, "GO", "1000000", "2000000");
         var program = (await http.Read()).Programs.Single(p => p.BranchId == "primary");
-        await http.Send(new SetProjectEnterAnimationCommandDto(new("200000", "Linear", .2f, .7f, 10)));
         await http.Send(new SetLineLocalTransformCommandDto("primary", line, new(.05, .05, 8, 1.1)));
         var countdown = await http.Send(new CreateOrchestrationCountdownCommandDto(program.RootContainerId, "导出三点", 3));
         string indicator = countdown.LeadInResult!.IndicatorContainerId!;

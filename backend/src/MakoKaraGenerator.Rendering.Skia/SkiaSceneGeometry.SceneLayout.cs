@@ -167,10 +167,8 @@ public sealed partial class SkiaSceneGeometry
         }
         if (!localParentMatrix.TryInverse(out var localParentInv)) return null;
 
-        var steadyTransform = scene.Presentation.SlotSequenceProfile?.Hold ?? SceneTransform.Neutral;
         var steadyScene = scene with
         {
-            Transform = steadyTransform,
             ContainerMatrix = SceneMatrix.Identity,
             ParentMatrix = localParentMatrix,
         };

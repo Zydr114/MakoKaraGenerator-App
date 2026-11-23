@@ -35,22 +35,21 @@ public sealed class UnifiedSceneTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void 动画在内部坐标解释并随外层旋转缩放(bool dual)
+    public void 行局部偏移在内部坐标解释并随外层旋转缩放(bool dual)
     {
         using SkiaRenderPipeline pipeline = new();
-        var snapshot = Example();
-        var definition = snapshot.LyricPresentation.Resolve("primary") with
+        var baseline = Example();
+        var baseDefinition = baseline.LyricPresentation.Resolve("primary") with
         { Placement = ScenePlacement.Create(new(.5, .5), rotationDegrees: 90, scale: .8), SlotSequenceProfile = dual ? SlotSequenceAnimationProfile.Default : null };
-        definition = definition with { Lines = [new() { LineId = "a", EnterAnimation = new()
-            { DurationUs = 500_000, StartOpacity = 1, StartScale = 1, StartOffsetPx = 20 } }] };
-        snapshot = snapshot with { LyricPresentation = snapshot.LyricPresentation.SetBranch(definition) };
-        var animated = pipeline.GetSceneFrame(snapshot, 0).Lines.Single(line => line.Frame.Line!.Id == "a");
-        var atRest = pipeline.GetSceneFrame(snapshot, 0, "a").Lines.Single(line => line.Frame.Line!.Id == "a");
-        var animatedCorner = animated.Geometry!.Corners()[0]; var stillCorner = atRest.Geometry!.Corners()[0];
-        Assert.Equal(-16, animatedCorner.X - stillCorner.X, 6);
-        Assert.Equal(0, animatedCorner.Y - stillCorner.Y, 6);
-        Assert.Equal(atRest.Geometry.Pivot, animated.Geometry.Pivot);
-        Assert.Equal(definition.Placement, snapshot.LyricPresentation.Resolve("primary").Placement);
+        baseline = baseline with { LyricPresentation = baseline.LyricPresentation.SetBranch(baseDefinition) };
+        var shiftedDefinition = baseDefinition with { Lines = [new() { LineId = "a", LocalTransform = new() { OffsetYRatio = 20d / 360d } }] };
+        var shifted = baseline with { LyricPresentation = baseline.LyricPresentation.SetBranch(shiftedDefinition) };
+        var moved = pipeline.GetSceneFrame(shifted, 0).Lines.Single(line => line.Frame.Line!.Id == "a");
+        var atRest = pipeline.GetSceneFrame(baseline, 0).Lines.Single(line => line.Frame.Line!.Id == "a");
+        var movedCorner = moved.Geometry!.Corners()[0]; var stillCorner = atRest.Geometry!.Corners()[0];
+        Assert.Equal(-16, movedCorner.X - stillCorner.X, 6);
+        Assert.Equal(0, movedCorner.Y - stillCorner.Y, 6);
+        Assert.Equal(baseDefinition.Placement, shifted.LyricPresentation.Resolve("primary").Placement);
     }
 
     [Fact]
@@ -153,7 +152,7 @@ public sealed class UnifiedSceneTests
         return ProjectSnapshot.FromProject(Project.Create("树", composition: new() { CanvasWidth = 640, CanvasHeight = 360 },
             lyrics: lyrics, lyricStyle: LyricStyle.Default with { FontSizePx = 28, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White }) with
         { LyricPresentation = LyricPresentationDefinition.FromBranches([new() { BranchId = "primary", Placement = ScenePlacement.Create(new(.58, .45), rotationDegrees: 8, scale: .8),
-            SlotSequenceProfile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0 } }]) });
+            SlotSequenceProfile = SlotSequenceAnimationProfile.Default }]) });
     }
     private static LyricLine Timed(string id, long start, long end) => LyricLine.Create(id, id == "c" ? "很长的歌词内容" : "字",
         new TimeRange(start, end), TimingStatus.Edited,

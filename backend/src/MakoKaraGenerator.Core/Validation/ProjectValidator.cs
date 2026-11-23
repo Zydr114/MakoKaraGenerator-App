@@ -43,7 +43,6 @@ public static partial class ProjectValidator
             issues);
         ValidateComposition(project.Composition, context, issues);
         ValidateStyle(project.LyricStyle, "lyricStyle", issues);
-        ValidateLineAnimation(project.EnterAnimation, "enterAnimation", issues);
         ValidateLyrics(project.Lyrics, project.LyricPresentation, project.LyricStyle.FontSizePx, context, issues);
         ValidatePresentation(project, issues);
         ValidateEffects(project, issues);
@@ -251,71 +250,6 @@ public static partial class ProjectValidator
     }
 
     /// <summary>校验一份样式（基线与行级覆盖都要求字号与纵向位置有效）。</summary>
-    /// <summary>校验一条进入动画。</summary>
-    /// <remarks>
-    /// 时长与起始值都只是数字，但越界会让画面出现"永远半透明"或"整行飞出画布"这类怪状态，
-    /// 且用户在界面上不容易看出是自己填错了，所以在打开/导入时就报出来。
-    /// </remarks>
-    private static void ValidateLineAnimation(LineAnimation? animation, string location, List<ProjectIssue> issues)
-    {
-        if (animation is null)
-        {
-            return;
-        }
-
-        if (!Enum.IsDefined(animation.Easing))
-            Add(issues, DiagnosticCode.InvalidLineAnimation, IssueSeverity.Error, "进入动画缓动无效。", location + ".easing");
-
-        if (animation.DurationUs < 0L || animation.DurationUs > MaxAnimationDurationUs)
-        {
-            Add(
-                issues,
-                DiagnosticCode.InvalidLineAnimation,
-                IssueSeverity.Error,
-                "进入动画时长必须在 0 到 10 秒之间。",
-                location + ".durationUs");
-        }
-
-        if (!float.IsFinite(animation.StartOpacity) || animation.StartOpacity is < 0f or > 1f)
-        {
-            Add(
-                issues,
-                DiagnosticCode.InvalidLineAnimation,
-                IssueSeverity.Error,
-                "进入动画的起始不透明度必须在 0 到 1 之间。",
-                location + ".startOpacity");
-        }
-
-        if (!float.IsFinite(animation.StartScale) || animation.StartScale <= 0f || animation.StartScale > MaxAnimationScale)
-        {
-            Add(
-                issues,
-                DiagnosticCode.InvalidLineAnimation,
-                IssueSeverity.Error,
-                "进入动画的起始缩放必须大于 0 且不超过 4。",
-                location + ".startScale");
-        }
-
-        if (!float.IsFinite(animation.StartOffsetPx) || Math.Abs(animation.StartOffsetPx) > MaxAnimationOffsetPx)
-        {
-            Add(
-                issues,
-                DiagnosticCode.InvalidLineAnimation,
-                IssueSeverity.Error,
-                "进入动画的起始纵向偏移不得超过 10000 像素。",
-                location + ".startOffsetPx");
-        }
-    }
-
-    /// <summary>进入动画时长上限：10 秒。</summary>
-    private const long MaxAnimationDurationUs = 10_000_000L;
-
-    /// <summary>起始缩放上限。</summary>
-    private const float MaxAnimationScale = 4f;
-
-    /// <summary>起始纵向偏移的绝对值上限（像素）。</summary>
-    private const float MaxAnimationOffsetPx = 10_000f;
-
     private static void ValidateStyle(LyricStyle style, string location, List<ProjectIssue> issues)
     {
         if (style.Typography is not { IsValid: true })

@@ -29,7 +29,6 @@ public sealed class StyleBatchEditorTests
         var project = CreateProject();
         Assert.Throws<ArgumentOutOfRangeException>(() => StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0), new(80)], LyricStyle.Default, [LyricStyleProperty.Scale]));
         Assert.Throws<ArgumentException>(() => StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], LyricStyle.Default, [LyricStyleProperty.FontSizePx]));
-        Assert.Throws<ArgumentException>(() => StyleBatchEditor.Apply(project, StyleTargetLevel.Token, [new(0, 0)], LyricStyle.Default, [], includeAnimation: true));
         Assert.Null(project.Lyrics.Lines[0].StyleOverride);
     }
 
@@ -92,14 +91,12 @@ public sealed class StyleBatchEditorTests
     }
 
     [Fact]
-    public void 动画与样式一起应用且拒绝非有限数()
+    public void 样式批量应用拒绝非有限数()
     {
         var project = CreateProject();
-        var animation = LineAnimation.Default with { StartOffsetPx = 75 };
-        var changed = StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0), new(1)], project.LyricStyle with { FontSizePx = 80 }, [LyricStyleProperty.FontSizePx], true, animation);
-        Assert.All(changed.Lyrics.Lines, line => Assert.Equal(animation, changed.LyricPresentation.FindLine(line.Id)!.EnterAnimation));
+        var changed = StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0), new(1)], project.LyricStyle with { FontSizePx = 80 }, [LyricStyleProperty.FontSizePx]);
+        Assert.All(changed.Lyrics.Lines, line => Assert.Equal(80f, line.StyleOverride!.FontSizePx));
         Assert.Throws<ArgumentOutOfRangeException>(() => StyleBatchEditor.Apply(project, StyleTargetLevel.Project, [], project.LyricStyle with { Scale = float.NaN }, [LyricStyleProperty.Scale]));
-        Assert.Throws<ArgumentOutOfRangeException>(() => StyleBatchEditor.Apply(project, StyleTargetLevel.Line, [new(0)], project.LyricStyle, [], true, animation with { StartOpacity = float.PositiveInfinity }));
     }
 
     [Fact]

@@ -39,7 +39,7 @@ public sealed partial class MainCanvasImageEffectsTests
         var project = Project.Create("G4 interleaving", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 4_000_000),
             LyricsDocument.Create([Make("a", 0), Make("b", 1_000_000), Make("c", 2_000_000)]), lyricStyle: LyricStyle.Default with
             { FontFamilyName = "DejaVu Sans", FontSizePx = 64, SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        var slots = SlotSequenceAnimationProfile.Default with { MaxVisibleLines = 3, EnterDurationUs = 0, ExitDurationUs = 0,
+        var slots = SlotSequenceAnimationProfile.Default with { MaxVisibleLines = 3,
             Slots = [SlotSequenceSlot.Create("s1", ScenePlacement.Create(new(.5, .5))), SlotSequenceSlot.Create("s2", ScenePlacement.Create(new(.5, .5))),
                 SlotSequenceSlot.Create("s3", ScenePlacement.Create(new(.5, .5)))] };
         project = PresentationEditor.SetBranch(project, new() { BranchId = "primary", SlotSequenceProfile = slots });

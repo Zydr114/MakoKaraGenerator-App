@@ -157,6 +157,6 @@ public sealed class V2MixedOverlayBudgetTests
             [LyricToken.Create("word", "星光", new(0, 1_000_000), TimingStatus.Edited)]);
         var project = Project.Create("Mixed overlay frame budget", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 1_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 32 });
-        return ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        return ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
     }
 }

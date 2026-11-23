@@ -205,6 +205,6 @@ public sealed class V2ParticleRuntimeTests
         var project = Project.Create("M08 runtime", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 1_000_000),
             LyricsDocument.Create(lines), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null });
-        return ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        return ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
     }
 }

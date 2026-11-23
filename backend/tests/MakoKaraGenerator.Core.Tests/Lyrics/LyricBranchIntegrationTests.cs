@@ -173,7 +173,7 @@ public sealed class LyricBranchIntegrationTests
         var primary = document.PrimaryBranch!;
         var primaryPresentation = new LyricBranchPresentation { BranchId = primary.Id,
             SlotSequenceProfile = SlotSequenceAnimationProfile.Default with
-            { EnterFrom = new() { Opacity = .2, OffsetXPx = 25, RotationDegrees = -10 }, Hold = new() { Scale = .9 }, ExitTo = new() { Opacity = 0 } } };
+            { RevealProgress = .6, MaxVisibleLines = 2 } };
         var translation = LyricBranch.Create("translation", "翻译", LyricBranchRole.Translation,
             [LyricLine.Create("translated-line", "Translated") with { PrimaryLineId = line.Id }], "en", LyricBranchTimingMode.FollowPrimary) with
         { StyleOverride = new() { FontSizePx = 28 } };

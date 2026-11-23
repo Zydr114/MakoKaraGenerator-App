@@ -91,20 +91,27 @@ public sealed class SceneStaticCacheTests
     [Fact]
     public void 行与逐字几何按行对象记忆_原点或世界矩阵变化即重测_与新管线逐项相同()
     {
-        // 入场缩放只改变世界矩阵（原点不变）；换合成尺寸改变行原点与基线。两者都共用同一批行对象。
+        // 局部缩放改变世界矩阵（原点不变）；换合成尺寸改变行原点与基线。三者都共用同一批行对象。
         var project = Project.Create("measure", Composition.Create(1920, 1080, FrameRate.Fps30),
-            LyricsDocument.Create([Line("line-0", 0), Line("line-1", 2_000_000)]))
-            with { EnterAnimation = LineAnimation.Default with { StartScale = 0.5f, StartOffsetPx = 0 } };
+            LyricsDocument.Create([Line("line-0", 0), Line("line-1", 2_000_000)]));
         var large = ProjectSnapshot.FromProject(project);
+        var scaled = large with
+        {
+            LyricPresentation = large.LyricPresentation.WithDefaultPrograms(large.Lyrics) with
+            {
+                LineOverrides = [new() { BranchId = large.Lyrics.PrimaryBranchId, LineId = "line-0", LocalTransform = new() { Scale = .8 } }],
+            },
+        };
         var small = large with { Composition = Composition.Create(1280, 720, FrameRate.Fps30) };
         Assert.Same(large.Lyrics.Branches[0].Lines[0], small.Lyrics.Branches[0].Lines[0]);
+        Assert.Same(large.Lyrics.Branches[0].Lines[0], scaled.Lyrics.Branches[0].Lines[0]);
         using var pipeline = new SkiaRenderPipeline();
         var first = pipeline.GetSceneFrame(large, 500_000);
         var again = pipeline.GetSceneFrame(large, 900_000);
         // 行静止：两次补算复用同一不可变测量结果（旧实现每次重排并重建身份字符串）。
         Assert.Same(first.TokenGeometries[0].Clusters[0], again.TokenGeometries[0].Clusters[0]);
         Assert.Same(first.LineGeometries[0].BaseGeometry, again.LineGeometries[0].BaseGeometry);
-        foreach (var (snapshot, time) in new[] { (large, 100_000L), (large, 200_000L), (small, 200_000L), (large, 2_100_000L), (small, 2_500_000L), (large, 500_000L) })
+        foreach (var (snapshot, time) in new[] { (large, 100_000L), (scaled, 200_000L), (small, 200_000L), (large, 2_100_000L), (small, 2_500_000L), (large, 500_000L) })
         {
             using var fresh = new SkiaRenderPipeline();
             var actual = pipeline.GetSceneFrame(snapshot, time);
@@ -133,9 +140,9 @@ public sealed class SceneStaticCacheTests
             }
         }
         Assert.NotEqual(pipeline.GetSceneFrame(large, 100_000).LineGeometries[0].BaseGeometry.BaseWorldMatrix,
-            pipeline.GetSceneFrame(large, 200_000).LineGeometries[0].BaseGeometry.BaseWorldMatrix);
+            pipeline.GetSceneFrame(scaled, 200_000).LineGeometries[0].BaseGeometry.BaseWorldMatrix);
         Assert.Equal(pipeline.GetSceneFrame(large, 100_000).LineGeometries[0].BaseGeometry.AdvanceBounds,
-            pipeline.GetSceneFrame(large, 200_000).LineGeometries[0].BaseGeometry.AdvanceBounds);
+            pipeline.GetSceneFrame(scaled, 200_000).LineGeometries[0].BaseGeometry.AdvanceBounds);
         Assert.NotEqual(pipeline.GetSceneFrame(large, 500_000).LineGeometries[0].BaseGeometry.AdvanceBounds,
             pipeline.GetSceneFrame(small, 500_000).LineGeometries[0].BaseGeometry.AdvanceBounds);
     }

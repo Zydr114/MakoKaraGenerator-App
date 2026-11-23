@@ -6,7 +6,6 @@ import type {
   BasicLayoutFields,
   BasicLayoutPreset,
   CreateNodeKind,
-  LineEnterAnimation,
   LyricBranchTimingMode,
   OrchestrationClip,
   OrchestrationLeadInCommand,
@@ -32,8 +31,6 @@ export interface OrchestrationModel {
   markOf: ReadonlyMap<string, { containerId: string; index: number }>;
   /** 从任何来源的根都走不到的节点里，最上层的那些（它们的子树一并显示）。 */
   orphans: readonly OrchestrationNode[];
-  /** 工程默认的进入动画（G24），null 是关闭。 */
-  projectEnterAnimation: LineEnterAnimation | null;
 }
 
 export function buildOrchestration(response: ProjectOrchestrationResponse): OrchestrationModel {
@@ -78,7 +75,6 @@ export function buildOrchestration(response: ProjectOrchestrationResponse): Orch
     slotOf,
     markOf,
     orphans,
-    projectEnterAnimation: response.projectEnterAnimation ?? null,
   };
 }
 

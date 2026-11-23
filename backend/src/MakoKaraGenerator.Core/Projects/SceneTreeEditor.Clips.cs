@@ -4,7 +4,7 @@ namespace MakoKaraGenerator.Core.Projects;
 
 public static partial class SceneTreeEditor
 {
-    /// <summary>在普通或槽位布局中设置单句微调；保留本句动画和源数据。</summary>
+    /// <summary>在普通或槽位布局中设置单句微调；保留源数据。</summary>
     public static bool TrySetLocalTransform(Project project, string branchId, string lineId, LyricLocalTransform? local,
         out Project result, out ValidationReport report)
     {
@@ -14,7 +14,7 @@ public static partial class SceneTreeEditor
             && branch.Lines.Any(line => line.Id == lineId))) return Fail(project, "单句微调的源关联失效。", out result, out report);
         var next = current with { LocalTransform = local };
         int index = Array.FindIndex(tree.LineOverrides.ToArray(), item => item.LineId == lineId);
-        bool empty = next.LocalTransform is null && next.EnterAnimation is null;
+        bool empty = next.LocalTransform is null;
         var lines = index < 0 ? empty ? tree.LineOverrides : tree.LineOverrides.Add(next)
             : empty ? tree.LineOverrides.RemoveAt(index) : tree.LineOverrides.SetItem(index, next);
         return PresentationEditor.TrySetTree(project, tree with { LineOverrides = lines }, out result, out report);

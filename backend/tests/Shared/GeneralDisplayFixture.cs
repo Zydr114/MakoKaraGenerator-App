@@ -24,14 +24,13 @@ internal static class GeneralDisplayFixture
             ParentId = index < 2 ? DualId : TripleId, Placement = ScenePlacement.Create(new(index < 2 ? (index == 0 ? .28 : .72) : .5,
                 index < 2 ? (index == 0 ? .3 : .7) : (.15 + .25 * (index-2)))) }).ToArray();
         var dual = new SceneContainerDefinition { Id = DualId,ParentId = root,Layout = new() { Kind = LyricContainerLayoutKind.SlotSequence,
-            SlotIds = [..slots.Take(2).Select(s => s.Id)],SlotAnimation = new() { MaxVisibleLines = 2,EnterDurationUs = 0,ExitDurationUs = 0,RetentionPolicy = SlotRetentionPolicy.UntilLineEnd } } };
+            SlotIds = [..slots.Take(2).Select(s => s.Id)],SlotAnimation = new() { MaxVisibleLines = 2,RetentionPolicy = SlotRetentionPolicy.UntilLineEnd } } };
         var center = new SceneContainerDefinition { Id = CenterId,ParentId = root,Layout = new() { DefaultPlacement = ScenePlacement.Default } };
         var triple = new SceneContainerDefinition { Id = TripleId,ParentId = root,Layout = new() { Kind = LyricContainerLayoutKind.SlotSequence,
-            SlotIds = [..slots.Skip(2).Select(s => s.Id)],SlotAnimation = new() { MaxVisibleLines = 3,EnterDurationUs = 0,ExitDurationUs = 0,RetentionPolicy = SlotRetentionPolicy.UntilLineEnd } } };
+            SlotIds = [..slots.Skip(2).Select(s => s.Id)],SlotAnimation = new() { MaxVisibleLines = 3,RetentionPolicy = SlotRetentionPolicy.UntilLineEnd } } };
         var program = tree.Programs[0] with { DefaultContainerId = DualId,Clips = [new() { Id = "center-clip",ContainerId = CenterId,LineIds = ["line-2"] },
             new() { Id = "triple-clip",ContainerId = TripleId,LineIds = ["line-3","line-4","line-5"] }] };
-        tree = tree with { Nodes = tree.Nodes.AddRange(new[] { dual,center,triple }.Concat(slots)),Programs = tree.Programs.SetItem(0,program),
-            LineOverrides = [new() { BranchId = "primary",LineId = "line-2",EnterAnimation = new() { DurationUs = 300_000 } }] };
+        tree = tree with { Nodes = tree.Nodes.AddRange(new[] { dual,center,triple }.Concat(slots)),Programs = tree.Programs.SetItem(0,program) };
         if (!PresentationEditor.TrySetTree(project,tree,out var result,out var report)) throw new InvalidOperationException(report.ToSummary());
         return result;
     }

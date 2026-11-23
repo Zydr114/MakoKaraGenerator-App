@@ -29,7 +29,7 @@ public static class FrameProjection
             line.DisplayClipId is { } clip ? new(clip) : null, line.CueId is { } cue ? new(cue) : null,
             line.DisplayPhase == SceneDisplayPhase.Preparation ? DisplayPhase.Preparing
                 : line.Frame.Line.Time is { } range && scene.TimeUs >= range.EndUs ? DisplayPhase.Retained : DisplayPhase.Performing,
-            line.EnterProgress))];
+            1d))];
     }
     /// <summary>本帧所有真实源元素；输出绑定由实例再筛选，提示标记无假源元素。</summary>
     public static ImmutableArray<FrameToken> Tokens(SceneFrame scene)

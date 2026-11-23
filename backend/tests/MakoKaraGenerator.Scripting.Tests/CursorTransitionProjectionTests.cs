@@ -96,7 +96,7 @@ public sealed class CursorTransitionProjectionTests
     public void 槽位提前替换旧句时不补造离场端点但源完成事件保持()
     {
         var original = Project.Create("槽位替换", lyrics: LyricsDocument.Create([Row("from", 0, 500), Row("next", 300, 800)]));
-        var profile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0, MaxVisibleLines = 1,
+        var profile = SlotSequenceAnimationProfile.Default with { MaxVisibleLines = 1,
             RevealMode = SlotRevealMode.LeadBeforeNextStart, ConflictPolicy = SlotConflictPolicy.ReplacePrevious,
             Slots = [SlotSequenceSlot.Create("only", ScenePlacement.Default)] };
         var project = PresentationEditor.SetBranch(original, new() { BranchId = "primary", SlotSequenceProfile = profile });
@@ -131,7 +131,7 @@ public sealed class CursorTransitionProjectionTests
     private static ProjectSnapshot Rows(params LyricLine[] rows)
     {
         var project = Project.Create("后继", lyrics: LyricsDocument.Create(rows));
-        var profile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0, MaxVisibleLines = 4,
+        var profile = SlotSequenceAnimationProfile.Default with { MaxVisibleLines = 4,
             RevealMode = SlotRevealMode.LeadBeforeNextStart, Slots = [.. Enumerable.Range(0, 4).Select(index =>
                 SlotSequenceSlot.Create("slot-" + index, ScenePlacement.Create(new(.5, .2 + index * .2))))] };
         project = PresentationEditor.SetBranch(project, new() { BranchId = "primary", SlotSequenceProfile = profile });

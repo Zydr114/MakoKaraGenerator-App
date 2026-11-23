@@ -31,10 +31,10 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.60.0"
+CONTRACT = "1.61.0"
 BASELINE = "b5d4d71464a142cbc0e49806870526a5adb77e77"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
-FREEZE_DATE = "2026-11-22"
+FREEZE_DATE = "2026-11-23"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -66,7 +66,7 @@ GET|/api/v1/project-sessions/{id}/style|projectStyle|-|ProjectStyleResponse|200|
 GET|/api/v1/project-sessions/{id}/orchestration|projectOrchestration|-|ProjectOrchestrationResponse|200|13|读取精确修订的工程编排结构投影
 GET|/api/v1/project-sessions/{id}/orchestration/geometry|projectGeometryReference|-|ProjectGeometryReferenceResponse|200|13|读取精确修订的单节点固定容器参考
 GET|/api/v1/project-sessions/{id}/orchestration/line-local-transform|projectLineLocalTransform|-|ProjectLineLocalTransformResponse|200|13|读取精确修订的单句局部微调
-GET|/api/v1/project-sessions/{id}/orchestration/line-presentation|projectLinePresentation|-|ProjectLinePresentationResponse|200|13|读取精确修订的单句展示与进入动画继承
+GET|/api/v1/project-sessions/{id}/orchestration/line-presentation|projectLinePresentation|-|ProjectLinePresentationResponse|200|13|读取精确修订的单句展示
 POST|/api/v1/project-sessions/{id}/orchestration/measurements|measureOrchestration|SceneMeasurementRequest|SceneMeasurementResponse|200|13|读取真实Worker同帧几何与PNG
 GET|/api/v1/project-sessions/{id}/preset-applications|presetApplications|-|ProjectPresetApplicationsResponse|200|6|读取精确修订的工程预设应用投影
 GET|/api/v1/template-libraries|templateLibraries|-|TemplateLibrariesResponse|200|13|读取固定模板库描述而不访问个人入口
@@ -75,7 +75,7 @@ GET|/api/v1/template-libraries/{id}/templates/detail|templateDetail|-|TemplateDe
 POST|/api/v1/template-libraries/{id}/commands|templateCommand|TemplateLibraryCommandRequest|TemplateLibraryCommandResponse|200|13|提交独立个人模板库CAS修改意图
 GET|/api/v1/project-sessions/{id}/waveform|projectWaveform|-|ProjectWaveformResponse|200|6|读取同次音频准备的波形缓存元数据
 GET,HEAD|/api/v1/project-sessions/{id}/waveform/peaks|projectWaveformPeaks|-|waveformPeaks|200|6|读取有界小端float32峰值窗口
-POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交一百零六种已开放具名命令之一
+POST|/api/v1/project-sessions/{id}/commands|executeCommand|ProjectCommandRequest|ProjectCommandResponse|200|6|提交一百零四种已开放具名命令之一
 GET|/api/v1/file-roots/{rootGrantId}/entries|projectDirectoryEntries|-|ProjectDirectoryEntriesResponse|200|17|读取授权根下单层有界目录
 POST|/api/v1/project-sessions/{id}/lyrics-export-plans|planLyricsExport|LyricsExportPlanRequest|LyricsExportPlanResponse|201|17|预检来源或TTML全文档歌词导出与完整损失报告
 POST|/api/v1/project-sessions/{id}/lyrics-exports|exportLyrics|LyricsExportRequest|LyricsExportResponse|201|17|按固定计划及显式损失确认生成歌词内容
@@ -312,7 +312,7 @@ def generate(metadata):
             else:
                 op["x-capability"] = "project-sessions.orchestration.line-presentation.read"
                 op["x-query-schema"] = ref("ProjectLinePresentationQuery")
-                op["description"] += " localTransform/localEnterAnimation/effectiveEnterAnimation始终出现，可显式null；animationSource为line/project/none。"
+                op["description"] += " localTransform始终出现，可显式null。"
         if item["operationId"] == "measureOrchestration":
             op["x-capability"] = "orchestration.measurements.scene-measurement-v1"
             op["x-query-policy"] = {"allowUnknown": False, "allowed": []}
@@ -1061,8 +1061,6 @@ def inventory(spec, operations):
     completion_position = next(i for i, line in enumerate(lines) if line.startswith("| `orchestration.createClip`"))
     lines[completion_position:completion_position] = [
         "| `orchestration.setLayoutKind` | 显式containerId/kind/slotIds/newSlotCount；Auto空槽与0，SlotSequence总1..64 |",
-        "| `orchestration.setLineEnterAnimation` | branchId/lineId/animation；完整五字段或null恢复继承 |",
-        "| `orchestration.setProjectEnterAnimation` | animation；完整五字段或null关闭默认 |",
         "| `orchestration.setLeadInGeneration` | branchId/settings；六字段或null清设置 |",
         "| `orchestration.previewLeadInGeneration` | branchId/settings；完整分析，保持修订/history/redo |",
         "| `orchestration.applyLeadInGeneration` | branchId/settings/selectedLineIds；显式选择、完整重新分析后原子应用 |",
@@ -1158,11 +1156,11 @@ def manifest(outputs):
         files.update(ROOT.glob(pattern))
     # Explicit files, not class-name globs: shared types can live in a differently
     # named source file. A rename/removal requires review rather than dropping a hash.
-    for filename in ("ScenePlacement.cs", "LyricPresentationDefinition.cs", "NormalizedSafeArea.cs", "SceneTransform.cs",
+    for filename in ("ScenePlacement.cs", "LyricPresentationDefinition.cs", "NormalizedSafeArea.cs",
                      "SlotAnimationSpec.cs", "SlotSequenceAnimationProfile.cs", "SceneTreeGeometry.cs",
                      "SceneTreeEditor.Nodes.cs", "SceneTreeEditor.Reparent.cs", "SceneTreeEditor.Clips.cs",
                      "LeadInEditor.cs", "LyricLeadIn.cs", "LyricLocalTransform.cs", "PresentationEditor.cs", "LeadInGeneration.cs",
-                     "SceneContainerDefinition.cs", "SceneContent.cs", "LyricPresentationDefinition.Tree.cs", "SceneTreeEditor.LineAnimation.cs"):
+                     "SceneContainerDefinition.cs", "SceneContent.cs", "LyricPresentationDefinition.Tree.cs"):
         source = ROOT / "src/MakoKaraGenerator.Core/Projects" / filename
         if not source.is_file():
             raise ValueError("Missing reviewed orchestration behavior source: " + str(source.relative_to(ROOT)))
@@ -1821,11 +1819,61 @@ RETIRED_EXAMPLE_SCHEMAS = {
     "RecoveredJobResponse",
     "ProjectPackageResourceAssetRequest",
     "ProjectPackageResourceAssetResponse",
+    "ProjectOrchestrationSceneTransformDto",
+    "ProjectOrchestrationSceneTransformDtoInput",
+    "ProjectLineEnterAnimationDto",
+    "ProjectLineEnterAnimationDtoInput",
+    "SetLineEnterAnimationCommandDtoInput",
+    "SetProjectEnterAnimationCommandDtoInput",
 }
+RETIRED_SLOT_ANIMATION_FIELDS = (
+    "enterDurationUs",
+    "exitDurationUs",
+    "enterFrom",
+    "hold",
+    "exitTo",
+    "exitEasing",
+    "easing",
+)
+RETIRED_BASIC_ORCHESTRATION_SUBSTRINGS = (
+    "-enterDurationUs",
+    "-exitDurationUs",
+    "-enterFrom",
+    "-hold",
+    "-exitTo",
+    "-exitEasing",
+    "-easing",
+)
+
+
+def strip_removed_layout_animation_fields(case):
+    """Strip removed layout-level animation fields from retained basic-orchestration fixtures."""
+    value = case["value"]
+    schema = case["schema"]
+    if schema == "ProjectOrchestrationResponse" and isinstance(value, dict):
+        value.pop("projectEnterAnimation", None)
+    elif schema == "ProjectOrchestrationLayoutDto" and isinstance(value, dict):
+        if isinstance(value.get("slotAnimation"), dict):
+            for field in RETIRED_SLOT_ANIMATION_FIELDS:
+                value["slotAnimation"].pop(field, None)
+    elif schema == "ProjectOrchestrationSlotAnimationDtoInput" and isinstance(value, dict):
+        for field in RETIRED_SLOT_ANIMATION_FIELDS:
+            value.pop(field, None)
+    elif schema == "SetOrchestrationSlotAnimationCommandDtoInput" and isinstance(value, dict):
+        if isinstance(value.get("slotAnimation"), dict):
+            for field in RETIRED_SLOT_ANIMATION_FIELDS:
+                value["slotAnimation"].pop(field, None)
+    elif schema == "ProjectCommandRequest" and isinstance(value, dict):
+        command = value.get("command")
+        if isinstance(command, dict) and isinstance(command.get("slotAnimation"), dict):
+            for field in RETIRED_SLOT_ANIMATION_FIELDS:
+                command["slotAnimation"].pop(field, None)
+    return case
 
 
 def refresh_examples(existing_examples):
     """Deterministically refresh all modular fixture slices forward against the current contract."""
+    from editing_completion_fixtures import cases as editing_completion_cases
     from p1p2_fixtures import fixtures as p1p2_fixtures
     from p3_workshop_fixtures import fixtures as p3_fixtures
     from p4_author_fixtures import fixtures as p4_fixtures
@@ -1849,18 +1897,21 @@ def refresh_examples(existing_examples):
     from lyrics_refactor_fixtures import fixtures as lyrics_refactor_fixtures, PREFIX as LYRICS_REFACTOR_PREFIX
 
     refresh_prefixes = (
-        "p1p2-", "p3-workshop-", "p4-author-", RENDER_PREFIX, W8_PREFIX, "gpu-stream-", "glow-",
+        "editing-completion-", "p1p2-", "p3-workshop-", "p4-author-", RENDER_PREFIX, W8_PREFIX, "gpu-stream-", "glow-",
         AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX,
         STYLE_V2_PREFIX, FALLBACK_PREFIX, SOURCE_MATERIAL_FAILURE_PREFIX, SDK_V1_REMOVAL_PREFIX,
         LEAD_IN_PRESENTATION_PREFIX, TTML_IMPORT_PREFIX, RUBY_STYLE_PREFIX, PREVIEW_TRANSPORT_PREFIX,
         GPU_STREAM_RECOVERY_PREFIX, LYRICS_REFACTOR_PREFIX,
     )
     base_cases = [
-        copy.deepcopy(case) for case in existing_examples["cases"]
+        strip_removed_layout_animation_fields(copy.deepcopy(case)) for case in existing_examples["cases"]
         if not case["name"].startswith(refresh_prefixes)
         and not case["name"].startswith(RETIRED_EXAMPLE_PREFIXES)
         and case["schema"] not in RETIRED_EXAMPLE_SCHEMAS
+        and not (case["name"].startswith("basic-orchestration-animation-")
+                 and any(token in case["name"] for token in RETIRED_BASIC_ORCHESTRATION_SUBSTRINGS))
     ]
+    base_cases.extend(editing_completion_cases())
 
     # Build all modular fixture slices forward in canonical order; no historical rollback.
     pre_150 = p1p2_fixtures()["cases"] + p3_fixtures()["cases"] + p4_fixtures(include_sdk_v2=True)["cases"]

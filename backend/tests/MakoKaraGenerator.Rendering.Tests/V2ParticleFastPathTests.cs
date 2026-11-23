@@ -278,7 +278,7 @@ public sealed class V2ParticleFastPathTests
                 with { RubyAnnotations = [RubyAnnotation.Create("ruby-" + index, "word-" + index, "ほし")] });
         var project = Project.Create("M07 empty particle equivalence", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 182_000_000),
             LyricsDocument.Create(rows), lyricStyle: LyricStyle.Default with { FontFamilyName = "Noto Sans CJK SC", FontSizePx = 64 });
-        return ProjectSnapshot.FromProject(project with { EnterAnimation = null }) with { EffectInputsFingerprint = Fingerprint };
+        return ProjectSnapshot.FromProject(project) with { EffectInputsFingerprint = Fingerprint };
     }
 
     private const string VisualOnlySource = """

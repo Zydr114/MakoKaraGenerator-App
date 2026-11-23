@@ -210,6 +210,46 @@ public sealed class V2ExitPackageTests
         }
     }
 
+    [Fact]
+    public async Task 卡拉OK双行槽位布局下退场效果包保持可见且无布局淡入淡出遮蔽()
+    {
+        var package = await Package();
+        var baseSnapshot = Snapshot([package], [Instance(package, "exit")]);
+        var snapshot = baseSnapshot with
+        {
+            LyricPresentation = LyricPresentationDefinition.FromBranches([
+                new() { BranchId = baseSnapshot.Lyrics.PrimaryBranchId, SlotSequenceProfile = SlotSequenceAnimationProfile.Default }
+            ]),
+        };
+        var compiled = await Compile(snapshot, Compiler());
+        await using var session = await Factory(snapshot, compiled).CreateAsync(snapshot);
+
+        // At RevealTimeUs (t=0), line-0 is immediately visible at full opacity (no layout fade-in),
+        // matching t=250_000 (before RevealProgress=0.5 reveals line-1 in the second slot).
+        var reveal = await Prepare(session, snapshot, 0);
+        var midHold = await Prepare(session, snapshot, 250_000);
+        long revealAlpha = Alpha(Pixels(snapshot, reveal));
+        long holdAlpha = Alpha(Pixels(snapshot, midHold));
+        Assert.True(revealAlpha > 0);
+        Assert.Equal(holdAlpha, revealAlpha);
+
+        // Immediately after HideTimeUs (t=1_000_000), exit replica must NOT have opacity crushed to 0 by layout fade-out.
+        var justHidden = await Prepare(session, snapshot, 1_000_001);
+        Assert.Single(justHidden.Scene.Lines.Where(line => line.ExitReplica is not null && line.Frame.Line!.Id == "line-0"));
+        var midExit = await Prepare(session, snapshot, 1_300_000);
+        Assert.Single(midExit.Scene.Lines.Where(line => line.ExitReplica is not null && line.Frame.Line!.Id == "line-0"));
+        Assert.NotEmpty(midExit.ClusterTransforms);
+        Assert.All(midExit.TokenStyles, style => Assert.InRange(style.Update.OpacityFactor, .49, .51));
+
+        // Compare rendered exit pixels against a frame without exit effect package (line-1 only) to prove exit replica pixels are truly visible!
+        var noExitSnapshot = snapshot with { Effects = ProjectEffects.Empty, EffectInputsFingerprint = null };
+        using SkiaRenderPipeline renderer = new();
+        using var liveOnly = renderer.Render(RenderRequest.At(noExitSnapshot, 1_300_000) with { TransparentBackground = true });
+        long liveOnlyAlpha = Alpha(liveOnly.PixelMemory.ToArray());
+        long withExitAlpha = Alpha(Pixels(snapshot, midExit));
+        Assert.True(withExitAlpha > liveOnlyAlpha + 10_000, $"Expected visible exit replica pixels in SlotSequence layout, got withExit={withExitAlpha}, liveOnly={liveOnlyAlpha}.");
+    }
+
     private static async Task<EffectPackageContents> Package(long durationUs = 600_000)
     {
         var package = await EffectPackageStorage.ReadSupportedDirectoryAsync(Path.Combine(AppContext.BaseDirectory, "effect-packages-v2", "ClusterExit"));
@@ -240,7 +280,7 @@ public sealed class V2ExitPackageTests
         var project = Project.Create("SDK v2 exits", Composition.Create(640, 360, FrameRate.Fps30, outputDurationUs: 601_000_000),
             LyricsDocument.Create([first, second]), lyricStyle: LyricStyle.Default with { FontFamilyName = TestFonts.LigatureFfi, FontSizePx = 56,
                 Stroke = null, Shadow = null, Glow = null, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White });
-        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances), EnterAnimation = null });
+        return ProjectSnapshot.FromProject(project with { Effects = new(packages, instances) });
     }
     private static ScriptCompiler Compiler() => new(Path.Combine(AppContext.BaseDirectory, "script-refs", "net10.0"));
     private static async Task<CompiledProjectEffects> Compile(ProjectSnapshot snapshot, ScriptCompiler compiler)

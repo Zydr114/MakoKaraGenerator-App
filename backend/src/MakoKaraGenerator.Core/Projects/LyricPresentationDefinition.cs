@@ -24,8 +24,6 @@ public sealed record LyricLinePresentation
     public required string LineId { get; init; }
     /// <summary>当前容器或槽位基础布局上的单句微调；空值表示不微调。</summary>
     public LyricLocalTransform? LocalTransform { get; init; }
-    /// <summary>进入动画覆盖；空值继承工程默认。</summary>
-    public LineAnimation? EnterAnimation { get; init; }
 }
 
 /// <summary>现有分支设置的临时适配视图；不作为磁盘结构保存。</summary>
@@ -60,8 +58,7 @@ public sealed record LyricBranchPresentation
         && ReferenceRect.IsValid && DefaultPlacement is not { IsValid: false } && SafeArea.IsValid
         && double.IsFinite(MaxWidthRatio) && MaxWidthRatio is > 0 and <= 1
         && SlotSequenceProfile is not { IsValid: false } && !Lines.IsDefault
-        && Lines.All(line => !string.IsNullOrWhiteSpace(line.LineId) && line.LocalTransform is not { IsValid: false }
-            && line.EnterAnimation is not { IsValid: false })
+        && Lines.All(line => !string.IsNullOrWhiteSpace(line.LineId) && line.LocalTransform is not { IsValid: false })
         && Lines.Select(line => line.LineId).Distinct(StringComparer.Ordinal).Count() == Lines.Length;
     /// <summary>内容相等；避免不可变数组的引用相等影响无变化命令。</summary>
     public bool Equals(LyricBranchPresentation? other) => other is not null && BranchId == other.BranchId

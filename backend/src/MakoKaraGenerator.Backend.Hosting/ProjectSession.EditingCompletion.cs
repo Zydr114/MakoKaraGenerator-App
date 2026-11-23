@@ -10,30 +10,19 @@ public sealed partial class ProjectSession
 {
     internal static BackendErrorResponse? CheckLayoutAndLineAnimationIntent(ProjectCommandDto command)
     {
-        if (command is not (SetOrchestrationLayoutKindCommandDto or SetLineEnterAnimationCommandDto or SetProjectEnterAnimationCommandDto)) return null;
+        if (command is not SetOrchestrationLayoutKindCommandDto value) return null;
         if (!EditingCommandTypeMatches(command) || command.Target is not null || command.StartUs is not null
             || command.EndUs is not null || command.AnalysisJobId is not null) return CompletionInvalid();
-        bool valid = command switch
-        {
-            SetOrchestrationLayoutKindCommandDto value => IsStableId(value.ContainerId) && value.SlotIds is { Length: <= 64 } ids
-                && ids.All(IsStableId) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length
-                && value.NewSlotCount is >= 0 and <= 64 && (value.Kind == "Auto" ? ids.Length == 0 && value.NewSlotCount == 0
-                    : value.Kind == "SlotSequence" && ids.Length + value.NewSlotCount is >= 1 and <= 64),
-            SetLineEnterAnimationCommandDto value => IsStableId(value.BranchId) && IsStableId(value.LineId) && TryReadLineAnimation(value.Animation, out _),
-            SetProjectEnterAnimationCommandDto value => TryReadLineAnimation(value.Animation, out _),
-            _ => false,
-        };
+        bool valid = IsStableId(value.ContainerId) && value.SlotIds is { Length: <= 64 } ids
+            && ids.All(IsStableId) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length
+            && value.NewSlotCount is >= 0 and <= 64 && (value.Kind == "Auto" ? ids.Length == 0 && value.NewSlotCount == 0
+                : value.Kind == "SlotSequence" && ids.Length + value.NewSlotCount is >= 1 and <= 64);
         if (!valid) return CompletionInvalid();
         return JsonSerializer.SerializeToUtf8Bytes(command, ReadModelJson).Length > OrchestrationNodeCreationLimits.MaxIntentBytes
             ? CompletionBudget() : null;
     }
 
-    private static ProjectCommandDto CanonicalLayoutAndLineAnimationCommand(ProjectCommandDto command) => command switch
-    {
-        SetLineEnterAnimationCommandDto value when TryReadLineAnimation(value.Animation, out var animation) => value with { Animation = ProjectLineAnimation(animation) },
-        SetProjectEnterAnimationCommandDto value when TryReadLineAnimation(value.Animation, out var animation) => value with { Animation = ProjectLineAnimation(animation) },
-        _ => command,
-    };
+    private static ProjectCommandDto CanonicalLayoutAndLineAnimationCommand(ProjectCommandDto command) => command;
 
     private void TryPrepareLayoutAndLineAnimation(Project before, ProjectCommandDto command, out Project after,
         out OrchestrationPropertiesCommandResultDto? result, out BackendErrorResponse? error)
@@ -45,35 +34,16 @@ public sealed partial class ProjectSession
             GuardNodeCreationTree(before);
             _ = BuildOrchestration(before, RevisionText);
             if (PresentationValidator.Validate(before).HasErrors) { error = CompletionRejected(); return; }
-            string? nodeId = null, branchId = null;
-            switch (command)
-            {
-                case SetOrchestrationLayoutKindCommandDto layout:
-                    nodeId = layout.ContainerId;
-                    PrepareLayoutKind(before, layout, out after, out error);
-                    if (error is not null) return;
-                    break;
-                case SetLineEnterAnimationCommandDto line:
-                    branchId = line.BranchId;
-                    if (!HasLocalTransformTarget(before, line.BranchId!, line.LineId!))
-                    { error = PropertiesStale("本句动画目标不存在于指定来源。", "command.lineId"); return; }
-                    TryReadLineAnimation(line.Animation, out var animation);
-                    if (!SceneTreeEditor.TrySetLineEnterAnimation(before, line.BranchId!, line.LineId!, animation, out after, out _))
-                    { error = CompletionRejected(); return; }
-                    break;
-                case SetProjectEnterAnimationCommandDto project:
-                    TryReadLineAnimation(project.Animation, out var projectAnimation);
-                    after = LineAnimationEditor.SetProjectAnimation(before, projectAnimation);
-                    break;
-                default: error = CompletionInvalid(); return;
-            }
+            if (command is not SetOrchestrationLayoutKindCommandDto layout) { error = CompletionInvalid(); return; }
+            string? nodeId = layout.ContainerId;
+            PrepareLayoutKind(before, layout, out after, out error);
+            if (error is not null) return;
             GuardNodeCreationTree(after);
             if (PresentationValidator.Validate(after).HasErrors) { after = before; error = CompletionRejected(); return; }
             bool changed = !ReferenceEquals(before, after);
             string revision = changed ? checked(ProjectRevision + 1).ToString(CultureInfo.InvariantCulture) : RevisionText;
-            result = new(command.Type["orchestration.".Length..], nodeId, branchId, changed);
+            result = new(command.Type["orchestration.".Length..], nodeId, null, changed);
             _ = BuildOrchestration(after, revision);
-            if (command is SetLineEnterAnimationCommandDto target) _ = BuildLinePresentation(after, revision, target.BranchId!, target.LineId!);
             ProjectChangeSetDto changes = changed ? new(["orchestration", "renderInputs"], [], [], [], true) : new([], [], [], [], false);
             ProjectCommandResponse upper = new(ProjectSessionId, RevisionText, revision, changed, false, false, false,
                 changed ? command.Type : Workspace.UndoName, changed ? null : Workspace.RedoName, changes,
@@ -133,24 +103,10 @@ public sealed partial class ProjectSession
         var local = project.LyricPresentation.FindLine(lineId);
         var transform = local?.LocalTransform;
         return BoundedReadModel(new ProjectLinePresentationResponse(ProjectSessionId, revision, branchId, lineId,
-            transform is null ? null : new(transform.OffsetXRatio, transform.OffsetYRatio, transform.RotationDegrees, transform.Scale),
-            ProjectLineAnimation(local?.EnterAnimation), ProjectLineAnimation(local?.EnterAnimation ?? project.EnterAnimation),
-            local?.EnterAnimation is not null ? "line" : project.EnterAnimation is not null ? "project" : "none"));
+            transform is null ? null : new(transform.OffsetXRatio, transform.OffsetYRatio, transform.RotationDegrees, transform.Scale)));
     }
 
-    private static bool TryReadLineAnimation(ProjectLineEnterAnimationDto? value, out LineAnimation? animation)
-    {
-        animation = null;
-        if (value is null) return true;
-        if (!TryParseMicroseconds(value.DurationUs, out long duration) || !Enum.GetNames<AnimationEasing>().Contains(value.Easing, StringComparer.Ordinal)) return false;
-        animation = new() { DurationUs = duration, Easing = Enum.Parse<AnimationEasing>(value.Easing), StartOpacity = value.StartOpacity,
-            StartScale = value.StartScale, StartOffsetPx = value.StartOffsetPx };
-        return animation.IsValid;
-    }
-
-    private static ProjectLineEnterAnimationDto? ProjectLineAnimation(LineAnimation? value) => value is null ? null
-        : new(value.DurationUs.ToString(CultureInfo.InvariantCulture), value.Easing.ToString(), value.StartOpacity, value.StartScale, value.StartOffsetPx);
-    private static BackendErrorResponse CompletionInvalid() => new(BackendErrorCode.InvalidRequest, "布局类型或进入动画必须符合完整、有限的公开字段。", "command");
-    private static BackendErrorResponse CompletionRejected() => new(BackendErrorCode.CommandRejected, "布局或进入动画未通过完整展示校验。", "command", FailureCode: "PresentationInvalid");
+    private static BackendErrorResponse CompletionInvalid() => new(BackendErrorCode.InvalidRequest, "布局类型必须符合完整、有限的公开字段。", "command");
+    private static BackendErrorResponse CompletionRejected() => new(BackendErrorCode.CommandRejected, "布局未通过完整展示校验。", "command", FailureCode: "PresentationInvalid");
     private static BackendErrorResponse CompletionBudget() => new(BackendErrorCode.ResourceTooLarge, "完整意图、节点树、读投影或回执超过预算；工程未改变。", "command");
 }

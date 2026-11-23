@@ -184,8 +184,7 @@ public sealed class M09ResourceRuntimeTests
             { RubyAnnotations = [RubyAnnotation.Create("ruby", "token", "かし")] };
         return Project.Create("M09 fixed resources", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 5_000_000),
             LyricsDocument.Create([line]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 40,
-                SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null, Opacity = 1 })
-            with { EnterAnimation = null };
+                SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null, Opacity = 1 });
     }
 
     private static ProjectRenderSessionFactory Factory(TemporaryDirectory temp, IVideoFrameProvider videos, string backend)
@@ -197,7 +196,7 @@ public sealed class M09ResourceRuntimeTests
 
     private static ProjectSnapshot EmptySnapshot(EffectPackageContents package)
         => ProjectSnapshot.FromProject(Project.Create("M09 sprite", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 5_000_000),
-            LyricsDocument.Create([])) with { EnterAnimation = null, Effects = new([package], [Instance(package)]) });
+            LyricsDocument.Create([])) with { Effects = new([package], [Instance(package)]) });
 
     private static ProjectSnapshot MaterialSnapshot(EffectPackageContents material, EffectPackageContents overlay, string media)
     {

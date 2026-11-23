@@ -97,7 +97,7 @@ public sealed class V2ParticleExportTests
         var project = Project.Create("M08 finite export", Composition.Create(320, 180, FrameRate.Fps30, outputDurationUs: 800_000),
             LyricsDocument.Create([row]), lyricStyle: LyricStyle.Default with { FontFamilyName = "DejaVu Sans", FontSizePx = 40,
                 SungColor = RgbaColor.White, UnsungColor = RgbaColor.White, Stroke = null, Shadow = null, Glow = null });
-        project = project with { EnterAnimation = null, Effects = new([package], [new()
+        project = project with { Effects = new([package], [new()
         {
             Id = "particles", Name = "particles", PackageId = package.PackageId, Revision = package.Revision,
             ExportId = Assert.Single(EffectPackageDefinition.Read(package).Controllers).Id, Seed = 17,

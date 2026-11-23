@@ -33,7 +33,7 @@ public sealed partial class ProjectSession
                     ProjectGenerationSettings(program.LeadInGeneration, budget));
             })];
             budget.Item();
-            return BoundedReadModel(new ProjectOrchestrationResponse(ProjectSessionId, revision, nodes, programs, ProjectEnterAnimation: ProjectLineAnimation(project.EnterAnimation)));
+            return BoundedReadModel(new ProjectOrchestrationResponse(ProjectSessionId, revision, nodes, programs));
     }
 
     private static ProjectOrchestrationNodeDto ProjectNode(SceneContainerDefinition node, ReadModelBudget budget)
@@ -45,9 +45,8 @@ public sealed partial class ProjectSession
             budget.Item(value.SlotIds.Length); foreach (var id in value.SlotIds) budget.Text(id);
             if (value.SlotAnimation is { } animation)
             {
-                budget.Item(4);
-                budget.Text(animation.RevealMode.ToString(), animation.ConflictPolicy.ToString(), animation.RetentionPolicy.ToString(),
-                    animation.ExitEasing.ToString(), animation.Easing.ToString());
+                budget.Item();
+                budget.Text(animation.RevealMode.ToString(), animation.ConflictPolicy.ToString(), animation.RetentionPolicy.ToString());
             }
             layout = new(value.Kind.ToString(), value.DefaultPlacement is null ? null : Placement(value.DefaultPlacement),
                 new(value.SafeArea.Left, value.SafeArea.Top, value.SafeArea.Right, value.SafeArea.Bottom), value.MaxWidthRatio,

@@ -36,7 +36,7 @@ internal static class SvgRuntimePackageFixture
             Parameters = EffectParameterOverrides.Parse(JsonSerializer.Serialize(parameters ?? new { })),
         }], new() { SurfaceMemoryBytes = surfaceMemoryBytes });
         return ProjectSnapshot.FromProject(Project.Create("真实 SVG Runtime", Composition.Create(320, 180, FrameRate.Fps30,
-            outputDurationUs: 603_000_000), LyricsDocument.Create([])) with { Effects = effects, EnterAnimation = null });
+            outputDurationUs: 603_000_000), LyricsDocument.Create([])) with { Effects = effects });
     }
 
     internal static EffectPackageContents Package(string kind, bool atlas, string? bodyOverride = null)

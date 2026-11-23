@@ -95,7 +95,7 @@ public sealed class ExportedFrameTests : IDisposable
             lyrics with { Branches = [primary, translated] }, lyricStyle: LyricStyle.Default with
             { FontSizePx = 24, UnsungColor = RgbaColor.White, SungColor = RgbaColor.White }) with
         { LyricPresentation = LyricPresentationDefinition.FromBranches([new() { BranchId = primary.Id,
-            SlotSequenceProfile = SlotSequenceAnimationProfile.Default with { EnterDurationUs = 0, ExitDurationUs = 0 } },
+            SlotSequenceProfile = SlotSequenceAnimationProfile.Default },
             new() { BranchId = translated.Id, DefaultPlacement = ScenePlacement.Create(new(.5, .86)), SafeArea = NormalizedSafeArea.Translation }]) };
         if (transformContainer) project = PresentationEditor.SetBranch(project, project.LyricPresentation.Resolve(primary.Id) with
             { Placement = ScenePlacement.Create(new(.55, .47), rotationDegrees: 5, scale: .9) });

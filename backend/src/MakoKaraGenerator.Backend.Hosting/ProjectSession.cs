@@ -381,8 +381,6 @@ public sealed partial class ProjectSession
                     break;
 
                 case "orchestration.setLayoutKind":
-                case "orchestration.setLineEnterAnimation":
-                case "orchestration.setProjectEnterAnimation":
                     TryPrepareLayoutAndLineAnimation(before, request.Command, out after, out propertiesResult, out BackendErrorResponse? completionError);
                     if (completionError is not null) return Finish(ProjectCommandExecutionResult.Rejected(completionError));
                     if (!ReferenceEquals(before, after))

@@ -12,7 +12,6 @@ import type {
   LeadInAttachmentMode,
   LeadInGenerationCommandResult,
   LeadInGenerationSettings,
-  LineEnterAnimation,
   LineLocalTransform,
   OrchestrationClipMembersCommand,
   OrchestrationLeadIn,
@@ -139,10 +138,10 @@ export interface NewLeadIn {
 /** 片段成员命令（§15）的结果：失败时带原因，由对话框就地显示。 */
 export type ClipMembersResult = { result: 'applied' | 'unchanged' } | { result: 'failed'; error: string };
 
-/** 句子命令：本句微调、本句进入动画、工程默认进入动画。 */
+/** 句子命令：本句微调。 */
 export type LineCommand = Extract<
   ProjectCommand,
-  { type: 'orchestration.setLineLocalTransform' | 'orchestration.setLineEnterAnimation' | 'orchestration.setProjectEnterAnimation' }
+  { type: 'orchestration.setLineLocalTransform' }
 >;
 
 /** 新建节点的输入（G20-B）：名称空白等于不命名；slotCount 只对轮换容器。 */
@@ -579,7 +578,7 @@ export class OrchestrationStore {
     return { result: 'applied' };
   }
 
-  /** 句子命令（§14.7、§14.8）：本句微调、本句进入动画、工程默认进入动画。一条历史；值没变时后端是 no-op。 */
+  /** 句子命令（§14.7、§14.8）：本句微调。一条历史；值没变时后端是 no-op。 */
   async setLine(command: LineCommand): Promise<OrchestrationResult> {
     return this.outcome(await this.structureCommand(command, LINE_OPTIONS));
   }
@@ -587,16 +586,6 @@ export class OrchestrationStore {
   /** 本句微调（null 清除）。 */
   setLineTransform(branchId: string, lineId: string, transform: LineLocalTransform | null): Promise<OrchestrationResult> {
     return this.setLine({ type: 'orchestration.setLineLocalTransform', branchId, lineId, transform });
-  }
-
-  /** 本句进入动画（null 清除，改用工程默认）。 */
-  setLineEnterAnimation(branchId: string, lineId: string, animation: LineEnterAnimation | null): Promise<OrchestrationResult> {
-    return this.setLine({ type: 'orchestration.setLineEnterAnimation', branchId, lineId, animation });
-  }
-
-  /** 工程默认进入动画（null 关闭）。 */
-  setProjectEnterAnimation(animation: LineEnterAnimation | null): Promise<OrchestrationResult> {
-    return this.setLine({ type: 'orchestration.setProjectEnterAnimation', animation });
   }
 
   /** 改名：空白表示清除名称；与原名相同时后端是 no-op。 */

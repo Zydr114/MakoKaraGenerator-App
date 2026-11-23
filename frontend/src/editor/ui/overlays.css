@@ -32,7 +32,7 @@
   background: var(--dialog);
   color: var(--on-surface);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: clip;
   outline: none;
 }
 .dialog.ask {
@@ -236,7 +236,7 @@
   background: var(--dialog);
   color: var(--on-surface);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: clip;
   outline: none;
 }
 .sheet[data-entering] {

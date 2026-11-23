@@ -57,9 +57,10 @@
   border-radius: var(--radius-panel);
   background: var(--panel);
 }
+/* 用 clip 只做圆角裁切，不建立滚动容器，杜绝子控件聚焦引发的不可逆幽灵滚动 */
 .work-side,
 .work-center {
-  overflow: hidden;
+  overflow: clip;
 }
 .work-side.stage-zone,
 .work-center.stage-zone,

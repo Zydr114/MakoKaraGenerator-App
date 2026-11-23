@@ -166,6 +166,7 @@
 
 /* ———— 输入框 ———— */
 .tf {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -637,9 +638,11 @@
 .radio {
   display: flex;
 }
+/* 作为 React Aria VisuallyHidden 隐藏 input 的定位包含块，防止其逃逸到外层面板并触发意外滚动 */
 .switch-btn,
 .checkbox-btn,
 .radio-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;

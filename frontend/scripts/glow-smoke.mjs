@@ -167,6 +167,17 @@ try {
   check(isDeepStrictEqual(d.style.unsung.glow, glow) && properties.every(p => d.properties.includes(p)), '保存并重选后辉光定义保持');
   await appearance(page);
   await includeGlow(page, false);
+  const panelLayout = await page.eval(`(() => {
+    const side = document.querySelector('.library .work-side.right');
+    const head = document.querySelector('.template-detail .phead');
+    const tabs = document.querySelector('.template-tabs');
+    if (!side || !head || !tabs) return null;
+    const sr = side.getBoundingClientRect();
+    const hr = head.getBoundingClientRect();
+    const tr = tabs.getBoundingClientRect();
+    return { scrollTop: side.scrollTop, headVisible: hr.top >= sr.top - 1 && hr.bottom <= sr.bottom + 1, tabsVisible: tr.top >= sr.top - 1 && tr.bottom <= sr.bottom + 1 };
+  })()`);
+  check(!!panelLayout && panelLayout.scrollTop === 0 && panelLayout.headVisible && panelLayout.tabsVisible, '关闭辉光属性组后右栏不发生意外滚动且顶部元数据与页签仍可见');
   d = await definition(page);
   check(properties.every(p => !d.properties.includes(p)), '关闭属性组后辉光不写入模板');
   await appearance(page);

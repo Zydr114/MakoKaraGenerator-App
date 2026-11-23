@@ -1,0 +1,381 @@
+name: CI (Published Integration & Browser Smoke)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Daily nightly run at 19:00 UTC (03:00 CST)
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+    inputs:
+      run_browser_smoke:
+        description: 'Run headless Chromium CPU browser smoke tests'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-integration-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "true"
+
+jobs:
+  published-integration-linux:
+    name: Published Server + Frontend Integration (Linux x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux runtime & native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            cmake \
+            ffmpeg \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            libfontconfig1 \
+            libfreetype6 \
+            libsystemd-dev \
+            pkg-config \
+            xz-utils \
+            zlib1g-dev
+
+      # Build & cache the pinned minimal LGPL FFmpeg 9.0.2 ABI (libavformat>=63,
+      # libavcodec>=63, libavutil>=61) required by backend/native/media-presentation.
+      - name: Restore minimal LGPL FFmpeg 9.0.2 ABI cache
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mako-ffmpeg-9.0.2
+          key: mako-ffmpeg-9.0.2-lgpl-linux-x64-v1
+
+      - name: Build minimal LGPL FFmpeg 9.0.2 ABI (cache miss)
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          PREFIX="$HOME/.cache/mako-ffmpeg-9.0.2"
+          WORKDIR="$(mktemp -d)"
+          trap 'rm -rf "$WORKDIR"' EXIT
+          cd "$WORKDIR"
+          curl -fsSL -o ffmpeg-9.0.2.tar.xz https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          echo "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e  ffmpeg-9.0.2.tar.xz" | sha256sum -c -
+          tar -xf ffmpeg-9.0.2.tar.xz
+          cd ffmpeg-9.0.2
+          ./configure \
+            --prefix="$PREFIX" \
+            --enable-shared \
+            --disable-static \
+            --disable-autodetect \
+            --disable-everything \
+            --disable-programs \
+            --disable-doc \
+            --disable-debug \
+            --disable-network \
+            --disable-avdevice \
+            --disable-avfilter \
+            --disable-swscale \
+            --disable-swresample \
+            --disable-x86asm \
+            --enable-zlib \
+            --enable-decoder=h264,hevc,mpeg4,vp8,vp9,ffv1,png,mjpeg \
+            --enable-demuxer=mov,matroska,image_png_pipe,image_jpeg_pipe
+          make -j"$(nproc)"
+          make install
+
+      - name: Export FFmpeg 9.0.2 pkg-config & register dynamic linker path
+        run: |
+          PREFIX="$HOME/.cache/mako-ffmpeg-9.0.2"
+          echo "PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          echo "${PREFIX}/lib" | sudo tee /etc/ld.so.conf.d/mako-ffmpeg-9.conf >/dev/null
+          sudo ldconfig
+
+      - name: Build & test native media-presentation helper (Linux CTest)
+        run: |
+          cmake -S backend/native/media-presentation -B build-media-presentation -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+          cmake --build build-media-presentation --parallel
+          ctest --test-dir build-media-presentation --output-on-failure
+
+      - name: Install frontend dependencies & build full App deployment
+        run: |
+          pnpm run setup
+          pnpm build
+
+      - name: Run PublishedServer backend transport tests
+        working-directory: backend
+        run: >-
+          dotnet test tests/MakoKaraGenerator.Backend.Server.Tests/MakoKaraGenerator.Backend.Server.Tests.csproj
+          --configuration Release
+          --filter "Category=PublishedServer"
+          --blame-hang-timeout 3m
+
+      - name: Run frontend integration tests against published Server
+        run: pnpm --dir frontend test:integration
+
+      - name: Run published HTTP smoke & acceptance scripts (CPU path)
+        run: |
+          set -euo pipefail
+          DIST="$(node -e "console.log(JSON.parse(require('fs').readFileSync('.local/backend-current.json','utf8')).dist)")"
+          echo "Published dist: $DIST"
+          python3 backend/tools/backend-web-host/smoke.py --dist "$DIST" --output "$PWD/.local/ci-web-host-smoke"
+          python3 scripts/ruby-layout-http.py --dist "$DIST" --output "$PWD/.local/ci-ruby-layout"
+          python3 scripts/export-audio-normalization-http.py --dist "$DIST" --output "$PWD/.local/ci-audio-norm" --render-backend cpu
+
+      - name: Upload sanitized integration summaries on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-summaries-linux
+          path: |
+            .local/ci-*/summary.json
+          if-no-files-found: ignore
+
+  published-integration-windows:
+    name: Published Server + Frontend Integration (Windows x64)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Ensure FFmpeg is installed (Windows)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg -y --no-progress
+          }
+          ffmpeg -version | Select-Object -First 2
+
+      - name: Install frontend dependencies & build full App deployment
+        shell: pwsh
+        run: |
+          pnpm run setup
+          pnpm build
+
+      - name: Run PublishedServer backend transport tests
+        working-directory: backend
+        shell: pwsh
+        run: >-
+          dotnet test tests/MakoKaraGenerator.Backend.Server.Tests/MakoKaraGenerator.Backend.Server.Tests.csproj
+          --configuration Release
+          --filter "Category=PublishedServer"
+          --blame-hang-timeout 3m
+
+      - name: Run frontend integration tests against published Server
+        shell: pwsh
+        run: pnpm --dir frontend test:integration
+
+      - name: Run published HTTP acceptance scripts (CPU path)
+        shell: pwsh
+        run: |
+          $dist = (Get-Content .local/backend-current.json -Raw | ConvertFrom-Json).dist
+          Write-Host "Published dist: $dist"
+          python scripts/ruby-layout-http.py --dist "$dist" --output "$PWD/.local/ci-ruby-layout"
+          python scripts/export-audio-normalization-http.py --dist "$dist" --output "$PWD/.local/ci-audio-norm" --render-backend cpu
+
+      - name: Upload sanitized integration summaries on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-summaries-windows
+          path: |
+            .local/ci-*/summary.json
+          if-no-files-found: ignore
+
+  browser-smoke-cpu:
+    name: Headless Chromium Browser & Layout Smoke (Linux CPU)
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_browser_smoke != false) ||
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', 'backend/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            cmake \
+            ffmpeg \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            libfontconfig1 \
+            libfreetype6 \
+            libsystemd-dev \
+            pkg-config \
+            xz-utils \
+            zlib1g-dev
+
+      - name: Restore minimal LGPL FFmpeg 9.0.2 ABI cache
+        id: ffmpeg-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mako-ffmpeg-9.0.2
+          key: mako-ffmpeg-9.0.2-lgpl-linux-x64-v1
+
+      - name: Build minimal LGPL FFmpeg 9.0.2 ABI (cache miss)
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          PREFIX="$HOME/.cache/mako-ffmpeg-9.0.2"
+          WORKDIR="$(mktemp -d)"
+          trap 'rm -rf "$WORKDIR"' EXIT
+          cd "$WORKDIR"
+          curl -fsSL -o ffmpeg-9.0.2.tar.xz https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+          echo "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e  ffmpeg-9.0.2.tar.xz" | sha256sum -c -
+          tar -xf ffmpeg-9.0.2.tar.xz
+          cd ffmpeg-9.0.2
+          ./configure \
+            --prefix="$PREFIX" \
+            --enable-shared \
+            --disable-static \
+            --disable-autodetect \
+            --disable-everything \
+            --disable-programs \
+            --disable-doc \
+            --disable-debug \
+            --disable-network \
+            --disable-avdevice \
+            --disable-avfilter \
+            --disable-swscale \
+            --disable-swresample \
+            --disable-x86asm \
+            --enable-zlib \
+            --enable-decoder=h264,hevc,mpeg4,vp8,vp9,ffv1,png,mjpeg \
+            --enable-demuxer=mov,matroska,image_png_pipe,image_jpeg_pipe
+          make -j"$(nproc)"
+          make install
+
+      - name: Export FFmpeg 9.0.2 paths & register dynamic linker path
+        run: |
+          PREFIX="$HOME/.cache/mako-ffmpeg-9.0.2"
+          echo "PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=${PREFIX}/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          echo "${PREFIX}/lib" | sudo tee /etc/ld.so.conf.d/mako-ffmpeg-9.conf >/dev/null
+          sudo ldconfig
+
+      - name: Install Playwright Chromium for CDP smokes
+        run: npx --yes playwright@1.52.0 install --with-deps chromium
+
+      - name: Build App
+        run: |
+          pnpm run setup
+          pnpm build
+
+      - name: Start production web + backend and run CPU browser smokes
+        run: |
+          set -euo pipefail
+          node scripts/app.mjs start --port 5173 > .local/ci-app-start.log 2>&1 &
+          APP_PID=$!
+          cleanup() {
+            kill -TERM "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null 2>&1; then
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat .local/ci-app-start.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          node scripts/browser-smoke.mjs http://127.0.0.1:5173
+          node scripts/layout-check.mjs http://127.0.0.1:5173
+          node frontend/scripts/glow-smoke.mjs --url http://127.0.0.1:5173
+          node frontend/scripts/ruby-style-smoke.mjs --url http://127.0.0.1:5173
+
+      - name: Upload browser smoke screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-artifacts
+          path: |
+            .local/integration/**
+            .local/ci-app-start.log
+          if-no-files-found: ignore

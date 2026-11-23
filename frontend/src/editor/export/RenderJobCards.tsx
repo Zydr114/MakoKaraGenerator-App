@@ -1,12 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { ExportReport, JobResponse } from '../../protocol';
 import { backgroundFallbackLine, exportFallbackText } from '../model/background-fallback';
 import { defaultValidationFrames } from '../model/export-readiness';
-import { diagnosticText, downloadName, exportReportFacts, isTerminal, progressFraction, progressText, validationIssueText } from '../model/render-job';
+import { diagnosticText, exportReportFacts, isTerminal, progressFraction, progressText, validationIssueText } from '../model/render-job';
 import { recordedBackendText } from '../model/render-device';
-import { errorText } from '../session/editor-session';
 import { Button } from '../ui/Button';
-import { saveBlob } from '../ui/download';
 import { NumberField } from '../ui/fields';
 import { Icon } from '../ui/Icon';
 import { ProgressBar } from '../ui/indicators';
@@ -104,8 +102,8 @@ function ValidationResult(props: { track: JobTrack; revision: string; onCancel: 
   );
 }
 
-/** 导出任务：进度、取消、报告与下载、失败原因与诊断；开始按钮在导出页底部。还没有任务时不显示。 */
-export function ExportJobCard(props: { store: ExportStore; exportState: ExportState; revision: string; projectName: string }) {
+/** 导出任务：进度、取消、报告、失败原因与诊断；开始、下载与重新导出操作在导出页底部。还没有任务时不显示。 */
+export function ExportJobCard(props: { store: ExportStore; exportState: ExportState; revision: string }) {
   const { store, exportState } = props;
   const track = exportState.exportJob;
   const submitError = exportState.submitError?.kind === 'export' ? exportState.submitError.text : undefined;
@@ -116,33 +114,18 @@ export function ExportJobCard(props: { store: ExportStore; exportState: ExportSt
       {track && (
         <div className="job">
           <JobDevice track={track} />
-          <ExportResult track={track} store={store} revision={props.revision} projectName={props.projectName} />
+          <ExportResult track={track} store={store} revision={props.revision} />
         </div>
       )}
     </Group>
   );
 }
 
-function ExportResult(props: { track: JobTrack; store: ExportStore; revision: string; projectName: string }) {
+function ExportResult(props: { track: JobTrack; store: ExportStore; revision: string }) {
   const { track, store } = props;
   const { job } = track;
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string>();
   if (!isTerminal(job.state)) return <JobProgressView job={track.job} cancelling={track.cancelling} error={track.error} onCancel={() => void store.cancel('export')} />;
   if (!track.settled) return <Note className="job-result">正在读取导出报告……</Note>;
-
-  const download = async () => {
-    setDownloading(true);
-    setDownloadError(undefined);
-    try {
-      const content = await store.download();
-      saveBlob(content.blob, downloadName(content.fileName, props.projectName, content.contentType));
-    } catch (error) {
-      setDownloadError(errorText(error));
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const report = track.exportReport;
   const diagnostics = track.failureReport?.diagnostics ?? [];
@@ -151,12 +134,7 @@ function ExportResult(props: { track: JobTrack; store: ExportStore; revision: st
       <StaleNote revision={props.revision} sourceRevision={job.input?.sourceRevision} />
       {report ? (
         <>
-          <div className="job-done">
-            <OkLine>导出完成，成片在后端保留 1 小时，请及时下载。</OkLine>
-            <Button variant="tonal" size="sm" icon="download" isPending={downloading} isDisabled={downloading} onPress={() => void download()}>
-              下载
-            </Button>
-          </div>
+          <OkLine>导出完成，成片在后端保留 1 小时，请及时下载。</OkLine>
           <dl className="dl export-facts">
             {exportReportFacts(report).map((fact) => (
               <div key={fact.label}>
@@ -166,7 +144,6 @@ function ExportResult(props: { track: JobTrack; store: ExportStore; revision: st
             ))}
           </dl>
           <ExportFallback report={report} />
-          {downloadError && <Note error>{downloadError}</Note>}
         </>
       ) : (
         <Note error={job.state !== 'cancelled'} {...(job.state === 'cancelled' ? { className: 'job-cancelled' } : {})}>

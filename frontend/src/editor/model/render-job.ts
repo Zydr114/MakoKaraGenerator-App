@@ -67,6 +67,15 @@ export function isTerminal(state: JobState): boolean {
   return TERMINAL_JOB_STATES.has(state);
 }
 
+/** 导出页底部操作区的按钮模式：有当前修订成片时突出“下载成片”并附次级“重新导出”；工程改动后突出“重新导出”并保留次级“下载旧成片”。 */
+export type ExportFooterMode = 'start' | 'retry' | 'download' | 'staleDownload';
+
+export function exportFooterMode(input: { hasTrack: boolean; running: boolean; hasArtifact: boolean; stale: boolean }): ExportFooterMode {
+  if (!input.hasTrack || input.running) return 'start';
+  if (input.hasArtifact) return input.stale ? 'staleDownload' : 'download';
+  return 'retry';
+}
+
 const FAILURE_TEXT: Record<string, string> = {
   exportInputRejected: '工程里还有不满足导出要求的地方（例如某句或某个字没有时间、文本为空，或输出时长没有确定）。后端没有指出是哪一处（G29），请看上面的准备检查。',
   exportAudioUnsupported: '音频格式不受支持或文件不可用。请检查音频资源，或取消“含音轨”。',

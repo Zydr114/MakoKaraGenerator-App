@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diagnosticText, exportReportFacts } from '../../src/editor/model/render-job';
+import { diagnosticText, exportFooterMode, exportReportFacts } from '../../src/editor/model/render-job';
 import { micros, type ExportReport } from '../../src/protocol';
 
 const report = (overrides: Partial<ExportReport> = {}): ExportReport => ({
@@ -39,5 +39,15 @@ describe('导出源材质失败', () => {
     expect(text).toContain('lyricStyle.unsung.fill · package/ink · RenderMaterials');
     expect(text).toContain('表面 62 + 4 / 64，估算 0.95 + 0.25 / 512.00 MiB');
     expect(text).toContain('0:00.930');
+  });
+});
+
+describe('导出页底部按钮模式', () => {
+  it('按任务状态与修订新旧区分开始导出、重试、主下载与旧成片下载', () => {
+    expect(exportFooterMode({ hasTrack: false, running: false, hasArtifact: false, stale: false })).toBe('start');
+    expect(exportFooterMode({ hasTrack: true, running: true, hasArtifact: false, stale: false })).toBe('start');
+    expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: false, stale: false })).toBe('retry');
+    expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: true, stale: false })).toBe('download');
+    expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: true, stale: true })).toBe('staleDownload');
   });
 });

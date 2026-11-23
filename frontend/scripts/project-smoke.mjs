@@ -326,7 +326,12 @@ try {
   await page.waitFor(`document.querySelector('[aria-label="导出任务"] .job-result[data-state="succeeded"]')?.textContent.includes('导出完成')`, '导出完成', 300_000);
   const facts = await page.eval(`document.querySelector('[aria-label="导出任务"] .export-facts').textContent`);
   check(facts.includes('1920 × 1080') && facts.includes('120/120') && facts.includes('有（aac）'), `导出 MP4：报告与设置一致（${facts.slice(0, 80)}…）`);
-  await ui.click(page, 'button', '下载', { scope: '[aria-label="导出任务"] .job-result' });
+  check(
+    (await ui.read(page, 'button', '下载成片', 'return el.classList.contains("filled");', { scope: '.export-go' }))
+      && (await ui.read(page, 'button', '重新导出', 'return el.classList.contains("outlined");', { scope: '.export-go' })),
+    '导出完成后底部主按钮为“下载成片”，“重新导出”降为次级按钮',
+  );
+  await ui.click(page, 'button', '下载成片', { scope: '.export-go' });
   const videoSize = await waitDownload(`${projectName} 改.mp4`, 60_000);
   check(videoSize > 1000, `下载成片（${videoSize} 字节，文件名用工程名）`);
   await snapshot(page, 'export');

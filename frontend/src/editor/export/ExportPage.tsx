@@ -15,12 +15,14 @@ import {
 import { BACKGROUND_KIND_TEXT, audioResource, backgroundResource } from '../model/media';
 import { RENDER_BACKEND_LABEL, resolveChoice } from '../model/render-device';
 import { formatFrameRate } from '../model/settings';
+import { downloadName, exportFooterMode } from '../model/render-job';
 import { formatTime, frameStartUs, type FrameRate } from '../model/time';
 import { fitPreviewSize } from '../preview/preview-controller';
-import type { EditorSession, EditorState } from '../session/editor-session';
+import { errorText, type EditorSession, type EditorState } from '../session/editor-session';
 import { useProjectResources } from '../settings/project-resources';
 import { Button } from '../ui/Button';
 import { RadioGroup, Segmented, Switch } from '../ui/choices';
+import { saveBlob } from '../ui/download';
 import { Select } from '../ui/fields';
 import { useObservable } from '../ui/hooks';
 import { Icon, type IconName } from '../ui/Icon';
@@ -144,12 +146,12 @@ function ExportWork(props: WorkProps) {
           </Group>
           <FormatGroup store={store} exportState={exportState} hasAudio={hasAudio} />
           <ValidationCard store={store} exportState={exportState} revision={revision} frames={frames} />
-          <ExportJobCard store={store} exportState={exportState} revision={revision} projectName={state.summary.name} />
+          <ExportJobCard store={store} exportState={exportState} revision={revision} />
         </div>
         <div className="export-go">
           <span className="export-sum">{summary}</span>
           {isBlocked && <Note>准备检查里还有阻断项，处理之后才能开始导出。</Note>}
-          <StartExport store={store} exportState={exportState} blocked={isBlocked} includeAudio={includeAudio} />
+          <ExportActions store={store} exportState={exportState} revision={revision} projectName={state.summary.name} blocked={isBlocked} includeAudio={includeAudio} />
         </div>
       </aside>
       <ExportStage
@@ -227,21 +229,101 @@ function FormatGroup(props: { store: ExportStore; exportState: ExportState; hasA
   );
 }
 
-/** 底部的主按钮：有阻断项、任务进行中或后端不能导出时停用。 */
-function StartExport(props: { store: ExportStore; exportState: ExportState; blocked: boolean; includeAudio: boolean }) {
+/** 底部的主操作区：导出成功后突出“下载成片”并提供次级“重新导出”；工程已修改时突出“重新导出”并保留“下载旧成片”。 */
+function ExportActions(props: {
+  store: ExportStore;
+  exportState: ExportState;
+  revision: string;
+  projectName: string;
+  blocked: boolean;
+  includeAudio: boolean;
+}) {
   const { store, exportState } = props;
   const track = exportState.exportJob;
   const running = jobRunning(track);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string>();
+  const jobId = track?.job.jobId;
+  useEffect(() => setDownloadError(undefined), [jobId]);
+
+  const mode = exportFooterMode({
+    hasTrack: !!track,
+    running,
+    hasArtifact: !!track?.exportReport,
+    stale: !!track?.job.input?.sourceRevision && track.job.input.sourceRevision !== props.revision,
+  });
+  const canExport = !props.blocked && !running && !downloading && !!exportState.capabilities?.enabled;
+
+  const download = async () => {
+    setDownloading(true);
+    setDownloadError(undefined);
+    try {
+      const content = await store.download();
+      saveBlob(content.blob, downloadName(content.fileName, props.projectName, content.contentType));
+    } catch (error) {
+      setDownloadError(errorText(error));
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  if (mode === 'download' || mode === 'staleDownload') {
+    const downloadPrimary = mode === 'download';
+    const downloadButton = (
+      <Button
+        variant={downloadPrimary ? 'filled' : 'outlined'}
+        size="lg"
+        icon="download"
+        className={downloadPrimary ? 'export-primary' : 'export-secondary'}
+        isPending={downloading}
+        isDisabled={downloading}
+        onPress={() => void download()}
+      >
+        {downloadPrimary ? '下载成片' : '下载旧成片'}
+      </Button>
+    );
+    const reexportButton = (
+      <Button
+        variant={downloadPrimary ? 'outlined' : 'filled'}
+        size="lg"
+        icon="refresh"
+        className={downloadPrimary ? 'export-secondary' : 'export-primary'}
+        isDisabled={!canExport}
+        onPress={() => void store.startExport(props.includeAudio)}
+      >
+        重新导出
+      </Button>
+    );
+    return (
+      <>
+        <div className="export-actions">
+          {downloadPrimary ? (
+            <>
+              {downloadButton}
+              {reexportButton}
+            </>
+          ) : (
+            <>
+              {reexportButton}
+              {downloadButton}
+            </>
+          )}
+        </div>
+        {downloadError && <Note error>{downloadError}</Note>}
+      </>
+    );
+  }
+
   return (
     <Button
       variant="filled"
       size="lg"
       icon="movie"
       className="export-start"
-      isDisabled={props.blocked || running || !exportState.capabilities?.enabled}
+      isDisabled={!canExport}
       onPress={() => void store.startExport(props.includeAudio)}
     >
-      {track && !running ? '重新导出' : '开始导出'}
+      {mode === 'retry' ? '重新导出' : '开始导出'}
     </Button>
   );
 }

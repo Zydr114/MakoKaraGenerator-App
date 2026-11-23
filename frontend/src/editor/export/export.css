@@ -47,8 +47,21 @@
   color: var(--on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
-.export-go .export-start {
+.export-go .export-start,
+.export-actions .btn {
   height: 44px;
+}
+.export-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.export-actions .btn {
+  padding: 0 16px;
+}
+.export-actions .export-primary {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 准备检查：图标、名称、说明、去修复 */
@@ -164,12 +177,6 @@
 }
 .job-progress-row .btn.text {
   margin-right: -8px;
-}
-.job-done {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 .job-ok {
   margin: 0;

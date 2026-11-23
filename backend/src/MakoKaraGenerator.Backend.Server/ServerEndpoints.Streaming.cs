@@ -11,8 +11,13 @@ internal static partial class ServerEndpoints
 {
     private static readonly UploadPreparationLimits EventConnections = new();
     private static async Task EventsAsync(HttpRequest request, HttpResponse response, ProjectSessionRegistry registry, ClientRegistry clients,
-        IOptions<JsonOptions> jsonOptions)
+        IOptions<JsonOptions> jsonOptions, IHostApplicationLifetime lifetime)
     {
+        if (lifetime.ApplicationStopping.IsCancellationRequested)
+        {
+            await WriteError(request.HttpContext, new(BackendErrorCode.SessionClosing, "服务正在关闭，停止接受新操作。"), 503);
+            return;
+        }
         string client = Client(request);
         using IDisposable? connection = EventConnections.TryAcquire(client);
         if (connection is null) { await WriteError(request.HttpContext, new(BackendErrorCode.RequestQuotaExceeded, "事件连接已达到上限。"), 429); return; }
@@ -23,34 +28,41 @@ internal static partial class ServerEndpoints
         response.ContentType = "text/event-stream";
         response.Headers.CacheControl = "no-store";
         response.Headers["X-Accel-Buffering"] = "no";
-        await response.StartAsync(request.HttpContext.RequestAborted);
-        while (!request.HttpContext.RequestAborted.IsCancellationRequested)
+        using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(
+            request.HttpContext.RequestAborted, lifetime.ApplicationStopping);
+        CancellationToken stopping = stop.Token;
+        try
         {
-            BackendErrorResponse? auth = clients.Authenticate(client, LoopbackSecurity.Bearer(request));
-            if (auth is not null)
+            await response.StartAsync(stopping);
+            while (!stopping.IsCancellationRequested)
             {
-                await response.WriteAsync("event: client.expired\ndata: " + JsonSerializer.Serialize(auth, jsonOptions.Value.SerializerOptions) + "\n\n", request.HttpContext.RequestAborted);
-                await response.Body.FlushAsync(request.HttpContext.RequestAborted); return;
-            }
-            ClientEventsResponse batch = registry.ReadEvents(client, cursor);
-            if (batch.ResyncRequired)
-            {
-                await response.WriteAsync("event: resync.required\ndata: " + JsonSerializer.Serialize(batch, jsonOptions.Value.SerializerOptions) + "\n\n", request.HttpContext.RequestAborted);
-                await response.Body.FlushAsync(request.HttpContext.RequestAborted); return;
-            }
-            foreach (BackendEventResponse item in batch.Events)
-                await response.WriteAsync("id: " + item.EventSeq + "\nevent: " + item.Type + "\ndata: " + JsonSerializer.Serialize(item, jsonOptions.Value.SerializerOptions) + "\n\n", request.HttpContext.RequestAborted);
-            cursor = batch.EventCursor;
-            if (batch.Events.Length > 0) await response.Body.FlushAsync(request.HttpContext.RequestAborted);
-            using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(request.HttpContext.RequestAborted);
-            wait.CancelAfter(TimeSpan.FromSeconds(15));
-            try { await registry.WaitForEventsAsync(client, cursor, wait.Token); }
-            catch (OperationCanceledException) when (!request.HttpContext.RequestAborted.IsCancellationRequested)
-            {
-                await response.WriteAsync(": heartbeat\n\n", request.HttpContext.RequestAborted);
-                await response.Body.FlushAsync(request.HttpContext.RequestAborted);
+                BackendErrorResponse? auth = clients.Authenticate(client, LoopbackSecurity.Bearer(request));
+                if (auth is not null)
+                {
+                    await response.WriteAsync("event: client.expired\ndata: " + JsonSerializer.Serialize(auth, jsonOptions.Value.SerializerOptions) + "\n\n", stopping);
+                    await response.Body.FlushAsync(stopping); return;
+                }
+                ClientEventsResponse batch = registry.ReadEvents(client, cursor);
+                if (batch.ResyncRequired)
+                {
+                    await response.WriteAsync("event: resync.required\ndata: " + JsonSerializer.Serialize(batch, jsonOptions.Value.SerializerOptions) + "\n\n", stopping);
+                    await response.Body.FlushAsync(stopping); return;
+                }
+                foreach (BackendEventResponse item in batch.Events)
+                    await response.WriteAsync("id: " + item.EventSeq + "\nevent: " + item.Type + "\ndata: " + JsonSerializer.Serialize(item, jsonOptions.Value.SerializerOptions) + "\n\n", stopping);
+                cursor = batch.EventCursor;
+                if (batch.Events.Length > 0) await response.Body.FlushAsync(stopping);
+                using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+                wait.CancelAfter(TimeSpan.FromSeconds(15));
+                try { await registry.WaitForEventsAsync(client, cursor, wait.Token); }
+                catch (OperationCanceledException) when (!stopping.IsCancellationRequested)
+                {
+                    await response.WriteAsync(": heartbeat\n\n", stopping);
+                    await response.Body.FlushAsync(stopping);
+                }
             }
         }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested) { }
     }
 
     private static async Task ReadAssetAsync(string id, HttpRequest request, HttpResponse response, ResourceStore store)

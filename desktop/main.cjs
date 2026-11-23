@@ -12,8 +12,14 @@ const { validateWorkerMessage, workerFailureSummary } = require('./gpu-preview/w
 const { prepareDesktopSession } = require('./gpu-preview/session-paths.cjs');
 const { prepareStandaloneSession } = require('./runtime/standalone-paths.cjs');
 const privateFs = require('./runtime/private-fs.cjs');
-const { compatibleProductVersion, startBackendProcess, validateDesktopDeployment } = require('./runtime/backend-host.cjs');
+const {
+  EXPECTED_PRODUCT_VERSION,
+  compatibleProductVersion,
+  startBackendProcess,
+  validateDesktopDeploymentAsync,
+} = require('./runtime/backend-host.cjs');
 const { startStaticWebServer } = require('./runtime/web-server.cjs');
+const { createSplashController } = require('./splash/controller.cjs');
 
 if (process.versions.electron !== '45.2.1') throw new Error('Desktop requires the pinned Electron runtime');
 const windowsPortable = process.platform === 'win32' && (
@@ -32,7 +38,10 @@ let broker;
 let shmBridge;
 let webServer;
 let backendProcess;
+let pendingBackendStart = null;
+let splash = null;
 let singleInstanceGranted = true;
+const startupAbortController = new AbortController();
 
 function resolveDefaultTransport() {
   const raw = process.env.MAKO_PREVIEW_TRANSPORT?.trim().toLowerCase();
@@ -43,7 +52,7 @@ function resolveDefaultTransport() {
   return process.platform === 'linux' ? 'dma-buf' : 'shm';
 }
 
-function resolveStandaloneResources() {
+async function resolveStandaloneResourcesAsync(options = {}) {
   const resourcesDir = process.resourcesPath;
   const packagedFrontend = path.join(resourcesDir, 'frontend-dist');
   const packagedBackend = path.join(resourcesDir, 'backend-dist');
@@ -61,7 +70,7 @@ function resolveStandaloneResources() {
     }
     backendDist = JSON.parse(fs.readFileSync(pointer, 'utf8')).dist;
   }
-  const validated = validateDesktopDeployment(backendDist, '45.2.1');
+  const validated = await validateDesktopDeploymentAsync(backendDist, '45.2.1', options);
   if (!compatibleProductVersion(validated.deployment.version)) {
     throw new Error(`桌面后端部署版本 ${validated.deployment.version} 与当前应用不兼容。`);
   }
@@ -75,34 +84,18 @@ function resolveStandaloneResources() {
   if (shmAddon && !privateFs.isSamePath(fs.realpathSync(shmAddon), shmAddon)) {
     throw new Error('Desktop SHM bridge payload mismatch');
   }
-  return { frontendDist, backendDist: validated.dist, brokerAddon, brokerAddonSha256, shmAddon, shmAddonSha256 };
+  return {
+    frontendDist,
+    backendDist: validated.dist,
+    brokerAddon,
+    brokerAddonSha256,
+    shmAddon,
+    shmAddonSha256,
+    verifiedDeployment: validated.verifiedDeployment,
+  };
 }
 
-if (standaloneMode) {
-  sessionPaths = prepareStandaloneSession('makokara-generator');
-  app.setPath('userData', sessionPaths.userData);
-  app.setPath('crashDumps', sessionPaths.crashDumps);
-  app.commandLine.appendSwitch('disable-breakpad');
-  if (typeof app.setDesktopName === 'function') app.setDesktopName('makokara-generator.desktop');
-  singleInstanceGranted = app.requestSingleInstanceLock();
-  if (!singleInstanceGranted) {
-    app.exit(0);
-  } else {
-    if (!windowsPortable) {
-      standaloneResources = resolveStandaloneResources();
-      if (standaloneResources.brokerAddon) broker = require(standaloneResources.brokerAddon);
-      if (standaloneResources.shmAddon) shmBridge = require(standaloneResources.shmAddon);
-    }
-    config = { ready: false };
-  }
-} else {
-  root = fs.realpathSync(path.join(__dirname, '..'));
-  configFile = process.argv[launchConfigFlagIndex + 1];
-  config = readLaunchConfig(configFile, root, process.pid);
-  sessionPaths = prepareDesktopSession(root, config.sessionName);
-  app.setPath('userData', sessionPaths.userData);
-  app.setPath('crashDumps', sessionPaths.crashDumps);
-  app.commandLine.appendSwitch('disable-breakpad');
+function loadLaunchConfigAddons() {
   if (config.brokerAddon) {
     const addon = fs.realpathSync(config.brokerAddon);
     if (
@@ -127,6 +120,32 @@ if (standaloneMode) {
   }
 }
 
+if (standaloneMode) {
+  sessionPaths = prepareStandaloneSession('makokara-generator');
+  app.setPath('userData', sessionPaths.userData);
+  app.setPath('crashDumps', sessionPaths.crashDumps);
+  if (windowsPortable) {
+    const { ensureWindowsPortableTempDir } = require('./runtime/windows-portable.cjs');
+    app.setPath('temp', ensureWindowsPortableTempDir(sessionPaths));
+  }
+  app.commandLine.appendSwitch('disable-breakpad');
+  if (typeof app.setDesktopName === 'function') app.setDesktopName('makokara-generator.desktop');
+  singleInstanceGranted = app.requestSingleInstanceLock();
+  if (!singleInstanceGranted) {
+    app.exit(0);
+  } else {
+    config = { ready: false };
+  }
+} else {
+  root = fs.realpathSync(path.join(__dirname, '..'));
+  configFile = process.argv[launchConfigFlagIndex + 1];
+  config = readLaunchConfig(configFile, root, process.pid);
+  sessionPaths = prepareDesktopSession(root, config.sessionName);
+  app.setPath('userData', sessionPaths.userData);
+  app.setPath('crashDumps', sessionPaths.crashDumps);
+  app.commandLine.appendSwitch('disable-breakpad');
+}
+
 const performanceDiagnostics = config?.performanceDiagnostics ? require('./gpu-preview/performance-diagnostics.cjs').createPerformanceDiagnostics() : null;
 const measured = (type, action, metadata, threshold) => performanceDiagnostics ? performanceDiagnostics.measure(type, action, metadata, threshold) : action();
 const decimal = value => typeof value === 'string' && /^(0|[1-9]\d*)$/.test(value) && BigInt(value)<=0xffffffffffffffffn;
@@ -140,7 +159,7 @@ function diagnostics(value) {
   return value;
 }
 const delay = ms => new Promise(done=>setTimeout(done,ms));
-let window, stream, gpuInfo, ending=false, lost=false, attachBusy=false, attachSeq=0, previewIsolation;
+let window, stream, gpuInfo, ending=false, closingProcess=false, lost=false, attachBusy=false, attachSeq=0, previewIsolation;
 const events=[];
 const record=(type,detail={})=>{ events.push({type,ms:performance.now(),...detail}); if(events.length>256) events.shift(); };
 const safeState = value => {
@@ -189,9 +208,13 @@ function isolatePreview(code='gpuConsumerFailure',s=stream) {
 let standaloneStopPromise = null;
 function shutdownOwnedRuntime(timeoutMs = 15000) {
   standaloneStopPromise ??= (async () => {
+    const backendTimeoutMs = Math.max(1000, timeoutMs - 2000);
     const tasks = [];
     if (webServer) tasks.push(webServer.close().catch(() => {}));
-    if (backendProcess) tasks.push(backendProcess.stop().catch(() => {}));
+    if (pendingBackendStart) {
+      tasks.push(pendingBackendStart.then((proc) => proc?.stop?.(backendTimeoutMs)).catch(() => {}));
+    }
+    if (backendProcess) tasks.push(backendProcess.stop(backendTimeoutMs).catch(() => {}));
     if (tasks.length === 0) return;
     await Promise.race([Promise.all(tasks), delay(timeoutMs)]);
   })();
@@ -199,12 +222,15 @@ function shutdownOwnedRuntime(timeoutMs = 15000) {
 }
 function failStop(code='desktopUnhandledFailure') {
   if(ending)return;
-  ending=true;lost=true;
+  ending=true;closingProcess=true;lost=true;
+  startupAbortController.abort();
+  splash?.close();
+  if(window&&!window.isDestroyed())window.destroy();
   console.error(JSON.stringify({type:'desktop-fail-stop',code}));
-  void shutdownOwnedRuntime(5000).finally(()=>app.exit(1));
+  void Promise.race([shutdownOwnedRuntime(5000),delay(5000)]).finally(()=>app.exit(1));
 }
 function authorize(event) {
-  if(!window || event.sender!==window.webContents || event.senderFrame!==window.webContents.mainFrame || new URL(event.senderFrame.url).origin!==new URL(config.pageUrl).origin) throw new Error('Unexpected desktop caller');
+  if(!window || window.isDestroyed() || event.sender!==window.webContents || event.senderFrame!==window.webContents.mainFrame || new URL(event.senderFrame.url).origin!==new URL(config.pageUrl).origin) throw new Error('Unexpected desktop caller');
 }
 function send(s,message) {
   if(lost || !s.connection)throw new Error('Desktop stream disconnected');
@@ -389,7 +415,7 @@ async function detach() {
   if(s.isolated){await s.isolationPromise;return;}
   if(s.stopped&&!s.connection){if(stream===s)stream=null;return;}
   if(s.stopping){await s.stopPromise;if(s.isolated)await s.isolationPromise;return;}
-  s.stopping=true;window?.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
+  s.stopping=true;if(window&&!window.isDestroyed())window.webContents.send('mako-gpu:detach',{attachSeq:s.attachSeq});
   s.stopPromise=new Promise((done,reject)=>{s.resolveStop=done;const timeout=setTimeout(()=>reject(new Error('GPU drain deadline')),10000);s.clearStop=()=>clearTimeout(timeout);});
   try{send(s,{type:'stop',...controlIdentity(s)});await s.stopPromise;}catch{isolatePreview('gpuDrainTimeout',s);}
   finally{s.clearStop();if(s.isolated)await s.isolationPromise;else if(stream===s)stream=null;}
@@ -397,11 +423,13 @@ async function detach() {
 }
 async function attach(streamId,expectedInputGeneration) {
   if(lost)throw new Error('GPU preview disabled after an unsafe completion; restart the app to retry');
+  if(ending||closingProcess)throw new Error('Desktop is closing');
   if(typeof streamId!=='string'||!/^[a-zA-Z0-9_-]{1,128}$/.test(streamId)||!positive(expectedInputGeneration)||attachBusy)throw new Error('Invalid desktop stream attachment');
   attachBusy=true;
   let stage='drainPrevious';
   try{
     await detach();
+    if(ending||closingProcess)throw new Error('Desktop is closing');
     stage='claim';
     const response=await fetch(new URL(`/internal/gpu-preview-streams/${encodeURIComponent(streamId)}/claim`,config.baseUrl),{method:'POST',headers:{'Content-Type':'application/json','X-Mako-Desktop-Secret':config.consumerSecret},body:JSON.stringify({consumerId:config.consumerId,hostInstanceId:config.hostInstanceId,expectedInputGeneration}),signal:AbortSignal.timeout(10000)});
     if(!response.ok){stage=`claimHttp${response.status}`;throw new Error('Desktop stream claim rejected');}
@@ -418,18 +446,19 @@ async function attach(streamId,expectedInputGeneration) {
     if(transport==='shm'){
       if(process.platform==='linux'){
         while(true){
+          if(ending||closingProcess||s.isolated)throw new Error('Desktop is closing');
           try{
             const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));
             if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid SHM broker ownership');
             break;
-          }catch(error){if(Date.now()>until)throw error;await delay(20);}
+          }catch(error){if(Date.now()>until||ending||closingProcess||s.isolated)throw error;await delay(20);}
         }
       }else if(process.platform==='win32'){
         if(!/^\\\\\.\\pipe\\mkg-shm-[a-f0-9]{24,64}$/.test(claim.brokerEndpoint))throw new Error('Invalid Windows SHM broker endpoint');
       }
       s.connection=await connectLocalStream(claim.brokerEndpoint,{timeoutMs:Math.max(100,until-Date.now()),retryDelayMs:20});
     }else{
-      while(!s.connection){try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until)throw error;await delay(20);}}
+      while(!s.connection){if(ending||closingProcess||s.isolated)throw new Error('Desktop is closing');try{const st=fs.lstatSync(claim.brokerEndpoint),parent=fs.lstatSync(path.dirname(claim.brokerEndpoint));if(!st.isSocket()||st.uid!==process.getuid()||!parent.isDirectory()||parent.uid!==process.getuid()||(parent.mode&0o777)!==0o700||fs.realpathSync(path.dirname(claim.brokerEndpoint))!==path.dirname(claim.brokerEndpoint))throw new Error('Invalid broker ownership');s.connection=broker.connect(claim.brokerEndpoint);}catch(error){if(Date.now()>until||ending||closingProcess||s.isolated)throw error;await delay(20);}}
     }
     const hello=new Promise((done,reject)=>{s.resolveHello=done;s.rejectHello=reject;});
     s.helloNs=process.hrtime.bigint().toString();
@@ -447,6 +476,7 @@ async function attach(streamId,expectedInputGeneration) {
       finally{if(pollStarted!==null){const end=process.hrtime.bigint();if(end-pollStarted>=10000000n)performanceDiagnostics.add('main-poll',pollStarted,end,{lease:performanceDiagnostics.identity(s.lastFrameMetadata)});}}
     },2);
     await Promise.race([hello,delay(5000).then(()=>{if(!s.hello)throw new Error('GPU handshake deadline');})]);
+    if(ending||closingProcess||!window||window.isDestroyed())throw new Error('Desktop is closing');
     s.attachedMonotonicNs=process.hrtime.bigint().toString();
     // 返回值与事件内容相同：渲染端谁先到用谁，attachSeq 丢掉晚到的重复事件（preload.cjs）。
     s.attachSeq=++attachSeq;
@@ -460,7 +490,7 @@ async function attach(streamId,expectedInputGeneration) {
     return attached;
   }catch{
     const s=stream;
-    if(s)isolatePreview('gpuAttachFailed',s);
+    if(s&&!ending&&!closingProcess)isolatePreview('gpuAttachFailed',s);
     console.error(JSON.stringify({type:'desktop-attach-failed',stage}));
     throw new Error(`GPU attachment failed (${stage})`);
   }finally{attachBusy=false;}
@@ -497,12 +527,14 @@ ipcMain.handle('mako-gpu:acceptance-visibility',(event,visible)=>{
 ipcMain.on('mako-gpu:error',event=>{authorize(event);isolatePreview('gpuRendererReceiverFailed');});
 ipcMain.on('mako-gpu:drawn',(event,data)=>{authorize(event);const key=leaseKey(data);if(stream?.transport==='shm'){if(data.streamId===stream.streamId&&data.producerEpoch===stream.producerEpoch&&data.inputGeneration===stream.inputGeneration&&!stream.shmDrawnKeys.has(key)){stream.shmDrawnKeys.add(key);if(stream.shmDrawnKeys.size>64)stream.shmDrawnKeys.delete(stream.shmDrawnKeys.values().next().value);sTelemetry.drawn++;}safeState({type:'drawn',...data});return;}const done=completed.get(key),item=stream?.imports.get(key)??done?.item;if(item&&!item.drawn&&data.timestamp===item.metadata.timeUs){item.drawn=true;sTelemetry.drawn++;if(done){done.sample.drawn=true;done.sample.sampleRevision=++sampleRevision;sTelemetry.completedDrawnUnique++;sTelemetry.completedWithoutDraw--;}safeState({type:'drawn',...data});}});
 ipcMain.on('mako-gpu:renderer-release',(event,data)=>{authorize(event);if(stream?.imports.has(leaseKey(data)))record('renderer-release-requested',{frameSeq:data.frameSeq});});
-let closingProcess = false;
 async function close() {
   if(ending||closingProcess)return;
   closingProcess=true;
+  startupAbortController.abort();
+  splash?.close();
   try{await detach();}catch{isolatePreview('gpuShutdownFailed');}
   ending=true;
+  if(window&&!window.isDestroyed())window.destroy();
   await shutdownOwnedRuntime();
   app.exit(0);
 }
@@ -510,11 +542,13 @@ async function close() {
 // 这时问一下再退出。页面 3 秒没回应（卡住）就当作没拦，照常退出。
 let closing=false;
 async function requestClose() {
-  if(ending||closing)return;
+  if(ending||closing||closingProcess)return;
+  if(!window||window.isDestroyed()){await close();return;}
   closing=true;
   try{
     const blocked=await Promise.race([window.webContents.executeJavaScript("!window.dispatchEvent(new Event('beforeunload',{cancelable:true}))",true).catch(()=>false),delay(3000).then(()=>false)]);
-    if(blocked===true){
+    if(ending||closingProcess)return;
+    if(blocked===true&&window&&!window.isDestroyed()){
       const {response}=await dialog.showMessageBox(window,{type:'warning',buttons:['退出','取消'],defaultId:1,cancelId:1,noLink:true,title:'MakoKara Generator',
         message:'还有没保存的修改',detail:'工程、样式库模板或作者草稿有改动还没保存，现在退出会丢掉这些改动。'});
       if(response!==0)return;
@@ -523,23 +557,54 @@ async function requestClose() {
   }finally{closing=false;}
 }
 for(const signal of ['SIGINT','SIGTERM','SIGHUP'])process.on(signal,()=>void close());
-app.on('before-quit',event=>{if(!ending){event.preventDefault();void close();}});
+app.on('before-quit',event=>{event.preventDefault();void close();});
+app.on('window-all-closed',()=>{if(!ending&&!closingProcess&&!splash?.isHandingOff())void close();});
 app.on('child-process-gone',(_event,details)=>{if(details.type==='GPU')isolatePreview('gpuProcessLost');});
 if(standaloneMode&&singleInstanceGranted){
-  app.on('second-instance',()=>{if(window&&!window.isDestroyed()){if(window.isMinimized())window.restore();if(!window.isVisible())window.show();window.focus();}});
+  app.on('second-instance',()=>{
+    if(ending||closingProcess)return;
+    if(window&&!window.isDestroyed()){
+      if(window.isMinimized())window.restore();
+      if(!window.isVisible())window.show();
+      window.focus();
+    }else{
+      splash?.focus();
+    }
+  });
 }
 process.on('uncaughtException',()=>failStop('desktopUnhandledFailure'));
 process.on('unhandledRejection',()=>failStop('desktopUnhandledFailure'));
+const startupCancelled = () => ending || closingProcess || Boolean(splash?.isAborted()) || startupAbortController.signal.aborted;
 if(singleInstanceGranted)(async()=>{
+  await app.whenReady();
+  // 编辑器自带顶栏，不要 Electron 默认菜单；先居中展示启动画面，再异步完成部署校验与后端拉起。
+  Menu.setApplicationMenu(null);
+  const iconPng = fs.existsSync(path.join(__dirname, 'assets/icon.png')) ? path.join(__dirname, 'assets/icon.png') : path.join(__dirname, 'assets/icon-128.png');
+  splash = createSplashController({
+    BrowserWindow,
+    screen,
+    version: EXPECTED_PRODUCT_VERSION,
+    iconPath: iconPng,
+    onUserClose: () => { void close(); },
+  });
+  splash.show('validating');
+
   if (standaloneMode) {
     let portableBackendOptions;
     if (windowsPortable) {
-      const { resolveWindowsPortableResources, windowsPortableBackendOptions } = require('./runtime/windows-portable.cjs');
-      standaloneResources = resolveWindowsPortableResources(process.resourcesPath);
+      const { resolveWindowsPortableResourcesAsync, windowsPortableBackendOptions } = require('./runtime/windows-portable.cjs');
+      standaloneResources = await resolveWindowsPortableResourcesAsync(process.resourcesPath, { signal: startupAbortController.signal });
+      if (startupCancelled()) return;
       shmBridge = require(standaloneResources.shmAddon);
       portableBackendOptions = windowsPortableBackendOptions(standaloneResources, sessionPaths);
-      app.setPath('temp', portableBackendOptions.cwd);
+    } else {
+      standaloneResources = await resolveStandaloneResourcesAsync({ signal: startupAbortController.signal });
+      if (startupCancelled()) return;
+      if (standaloneResources.brokerAddon) broker = require(standaloneResources.brokerAddon);
+      if (standaloneResources.shmAddon) shmBridge = require(standaloneResources.shmAddon);
     }
+    if (startupCancelled()) return;
+    splash.update('web-server');
     webServer = await startStaticWebServer({
       distRoot: standaloneResources.frontendDist,
       port: 5180,
@@ -547,13 +612,17 @@ if(singleInstanceGranted)(async()=>{
       getBootstrap: () => backendProcess?.info,
       dictFetch: (url, init) => net.fetch(url, init),
     });
+    if (startupCancelled()) return;
+    splash.update('backend');
     const consumerId = randomBytes(16).toString('hex');
     const consumerSecret = randomBytes(32).toString('hex');
-    backendProcess = await startBackendProcess({
+    pendingBackendStart = startBackendProcess({
       ...portableBackendOptions,
       dist: standaloneResources.backendDist,
+      verifiedDeployment: standaloneResources.verifiedDeployment,
       profile: sessionPaths.profile,
       origins: webServer.origins,
+      signal: startupAbortController.signal,
       env: {
         ...portableBackendOptions?.env,
         MAKO_DESKTOP_CONSUMER_ID: consumerId,
@@ -562,6 +631,12 @@ if(singleInstanceGranted)(async()=>{
       },
       log: (line) => console.log(line),
     });
+    try {
+      backendProcess = await pendingBackendStart;
+    } finally {
+      pendingBackendStart = null;
+    }
+    if (startupCancelled()) return;
     backendProcess.exited.then((code) => { if (!ending && !closingProcess) failStop(`desktopBackendExited:${code}`); });
     config = {
       consumerId,
@@ -576,18 +651,30 @@ if(singleInstanceGranted)(async()=>{
       ready: true,
     };
   } else {
+    loadLaunchConfigAddons();
+    if (startupCancelled()) return;
+    let lastStage = typeof config.startupStage === 'string' ? config.startupStage : 'backend';
+    splash.update(lastStage);
     const deadline=Date.now()+45000;
-    while(!config.ready){if(Date.now()>deadline)throw new Error('Desktop launch deadline');await delay(50);config=readLaunchConfig(configFile,root,process.pid);}
+    while(!config.ready){
+      if(startupCancelled())return;
+      if(Date.now()>deadline)throw new Error('Desktop launch deadline');
+      await delay(50);
+      if(startupCancelled())return;
+      config=readLaunchConfig(configFile,root,process.pid);
+      if(typeof config.startupStage==='string'&&config.startupStage!==lastStage){
+        lastStage=config.startupStage;
+        splash.update(lastStage);
+      }
+    }
   }
-  await app.whenReady();
-  // 编辑器自带顶栏，不要 Electron 默认菜单；窗口按工作区收小，最小 1024 宽（界面改版的最窄断点）。
-  // 页面画好再显示，避免先闪一下白底。
-  Menu.setApplicationMenu(null);
+  if (startupCancelled()) return;
+  splash.update('gpu-and-window');
+  // 窗口按工作区收小，最小 1024 宽（界面改版的最窄断点）；页面画好再显示并关闭启动画面，避免白闪。
   const work=screen.getPrimaryDisplay().workAreaSize;
-  const iconPng = fs.existsSync(path.join(__dirname, 'assets/icon.png')) ? path.join(__dirname, 'assets/icon.png') : path.join(__dirname, 'assets/icon-128.png');
   window=new BrowserWindow({width:Math.min(1440,work.width),height:Math.min(1000,work.height),minWidth:1024,minHeight:640,title:'MakoKara Generator',icon:iconPng,show:false,
     webPreferences:{preload:path.join(__dirname,'gpu-preview/preload.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:true}});
-  window.once('ready-to-show',()=>{if(!ending&&!window.isDestroyed())window.show();});
+  window.once('ready-to-show',()=>{if(!startupCancelled()&&!window.isDestroyed())splash.handoffTo(window);});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   // v1 keeps one renderer epoch for the whole process. SPA history changes do
   // not emit will-navigate; full document navigation/reload is prohibited.
@@ -595,12 +682,20 @@ if(singleInstanceGranted)(async()=>{
   window.webContents.on('will-frame-navigate',event=>event.preventDefault());
   window.webContents.on('before-input-event',(event,input)=>{if(input.key==='F5'||((input.control||input.meta)&&input.key.toLowerCase()==='r'))event.preventDefault();});
   window.webContents.on('render-process-gone',()=>isolatePreview('gpuRendererLost'));
-  window.on('close',event=>{if(!ending){event.preventDefault();void requestClose();}});
-  window.on('hide',()=>{if(stream)void detach().catch(()=>{});});
+  window.webContents.on('will-prevent-unload',event=>{if(ending||closingProcess)event.preventDefault();});
+  window.on('close',event=>{event.preventDefault();void requestClose();});
+  window.on('hide',()=>{if(!ending&&!closingProcess&&stream)void detach().catch(()=>{});});
   gpuInfo=await app.getGPUInfo('complete');
+  if (startupCancelled()) return;
+  splash.update('loading-ui');
   await window.loadURL(config.pageUrl);
-  if(!ending&&!window.isDestroyed()&&!window.isVisible())window.show();
+  if(!startupCancelled()&&!window.isDestroyed()&&!window.isVisible())splash.handoffTo(window);
 })().catch((error)=>{
+  if(startupCancelled()||error?.name==='AbortError'){
+    void close();
+    return;
+  }
+  splash?.close();
   console.error(error?.stack||String(error));
   if(standaloneMode&&(windowsPortable||app.isReady())){try{dialog.showErrorBox('MakoKara Generator 启动失败',error?.message??String(error));}catch{}}
   failStop('desktopStartupFailed');

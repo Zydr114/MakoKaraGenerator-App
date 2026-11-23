@@ -127,13 +127,17 @@ function stageApp(stage, root, productVersion, exeName) {
     [CONTRACT, 'contract-manifest.json'],
     ['desktop/main.cjs', 'main.cjs'],
     ['desktop/assets/icon-128.png', 'assets/icon-128.png'],
+    ['desktop/assets/logo-wide.webp', 'assets/logo-wide.webp'],
+    ['desktop/assets/splash-bg.webp', 'assets/splash-bg.webp'],
   ]) {
     requireEntry(join(root, input));
     copyFileSync(join(root, input), join(app, output), constants.COPYFILE_EXCL);
   }
   const codeFile = (name) => name.endsWith('.cjs') && !name.endsWith('.test.cjs') && name !== 'ordinary-exec.cjs';
+  const splashFile = (name) => /\.(?:cjs|html|js)$/i.test(name) && !name.endsWith('.test.cjs');
   copyTree(join(root, 'desktop/runtime'), join(app, 'runtime'), codeFile);
   copyTree(join(root, 'desktop/gpu-preview'), join(app, 'gpu-preview'), codeFile);
+  copyTree(join(root, 'desktop/splash'), join(app, 'splash'), splashFile);
   writeFileSync(join(stage, 'README-PORTABLE.txt'), [
     'Extract the entire ZIP before running the app.',
     `Start ${exeName} from the extracted folder.`,

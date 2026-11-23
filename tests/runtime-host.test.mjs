@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -135,6 +136,66 @@ test('validateDist and validateDesktopDeployment reject tampering, symlinks, ext
   }
 });
 
+test('validateDistAsync and validateDesktopDeploymentAsync validate off-thread, reject tampering, support abort and non-forgeable verified tokens', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'mako-dist-async-test-'));
+  try {
+    makeFixtureDeployment(tmp, { withGpu: true });
+    const manifest = await backendHost.validateDistAsync(tmp);
+    assert.equal(manifest.version, backendHost.EXPECTED_PRODUCT_VERSION);
+
+    const validated = await backendHost.validateDesktopDeploymentAsync(tmp, '45.2.1');
+    assert.equal(validated.gpuManifest.abiVersion, 1);
+    assert.ok(validated.verifiedDeployment);
+
+    // Pre-aborted signal rejects with AbortError
+    const aborted = new AbortController();
+    aborted.abort();
+    await assert.rejects(
+      backendHost.validateDesktopDeploymentAsync(tmp, '45.2.1', { signal: aborted.signal }),
+      (error) => error.name === 'AbortError',
+    );
+
+    // Forged verifiedDeployment token cannot bypass validation on a tampered dist
+    writeFileSync(join(tmp, gpuLib), 'tampered-async');
+    await assert.rejects(backendHost.validateDesktopDeploymentAsync(tmp, '45.2.1'), /integrity mismatch/);
+    await assert.rejects(
+      backendHost.startBackendProcess({
+        dist: tmp,
+        verifiedDeployment: { dist: tmp, version: backendHost.EXPECTED_PRODUCT_VERSION },
+        profile: join(tmp, 'profile'),
+        origins: ['http://127.0.0.1:5180'],
+        log: () => {},
+      }),
+      /integrity mismatch/,
+    );
+
+    // Genuine verifiedDeployment token is accepted by startBackendProcess without re-hashing
+    makeFixtureDeployment(tmp, { withGpu: true });
+    const genuine = await backendHost.validateDesktopDeploymentAsync(tmp, '45.2.1');
+    const intercepted = new Error('spawn intercepted');
+    await assert.rejects(
+      backendHost.startBackendProcess({
+        dist: tmp,
+        verifiedDeployment: genuine.verifiedDeployment,
+        profile: join(tmp, 'profile'),
+        origins: ['http://127.0.0.1:5180'],
+        log: () => {},
+        spawnProcess: () => {
+          throw intercepted;
+        },
+      }),
+      (error) => error === intercepted,
+    );
+
+    // Extra file detection in async worker
+    writeFileSync(join(tmp, 'extra.txt'), 'nope');
+    await assert.rejects(backendHost.validateDistAsync(tmp), /extra or missing/);
+    rmSync(join(tmp, 'extra.txt'));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('startStaticWebServer enforces loopback, Host, bootstrap same-origin and serves static assets', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'mako-web-test-'));
   writeFileSync(join(tmp, 'index.html'), '<!doctype html><html>ok</html>');
@@ -188,6 +249,39 @@ test('prepareStandaloneSession creates private runtime directories and rejects s
     const symlinkBase = join(tmp, 'sym-app');
     symlinkSync(tmp, symlinkBase, isWindows ? 'junction' : 'dir');
     assert.throws(() => prepareStandaloneSession('sym-app', env), /symlink/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('startBackendProcess stop(overrideTimeoutMs) enforces shorter drain deadline and reaps hung child', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'mako-stop-override-test-'));
+  try {
+    makeFixtureDeployment(tmp, { withGpu: true });
+    const fakeScript = [
+      'const fs = require("node:fs");',
+      'const cred = process.env.MAKO_BACKEND_CREDENTIAL_FILE;',
+      'fs.writeFileSync(cred, JSON.stringify({ protocolVersion: "1", hostInstanceId: "h-hang", addresses: ["http://127.0.0.1:45556"], bootstrapToken: "tok-hang" }), { mode: 0o600 });',
+      'process.stdout.write("BACKEND_READY http://127.0.0.1:45556 h-hang\\n");',
+      'process.stdin.resume();',
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const proc = await backendHost.startBackendProcess({
+      dist: tmp,
+      profile: join(tmp, 'profile'),
+      origins: ['http://127.0.0.1:5180'],
+      stopTimeoutMs: 60_000,
+      log: () => {},
+      spawnProcess: (_exe, _args, spawnOpts) => spawn(process.execPath, ['-e', fakeScript], spawnOpts),
+    });
+    assert.ok(existsSync(proc.ready.credentialFile));
+    const started = Date.now();
+    const exitCode = await proc.stop(300);
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 4000, `expected stop(300) to finish promptly, took ${elapsed}ms`);
+    assert.notEqual(exitCode, 0);
+    assert.equal(existsSync(proc.ready.credentialFile), false);
+    assert.throws(() => process.kill(proc.ready.pid, 0), /ESRCH/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

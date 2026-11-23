@@ -1,7 +1,11 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
+using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.TestSupport;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
@@ -121,6 +125,131 @@ public sealed class BackendServerControlTests
             Assert.Equal(0, process.ExitCode);
             await stdoutTask.WaitAsync(deadline.Token);
             _ = await stderrTask.WaitAsync(deadline.Token);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task 活动SSE事件流连接存在时SHUTDOWN仍立即优雅排空退出()
+    {
+        string serverDll = WorkerBinaryLocator.LocateBackendServerDll();
+        Assert.True(File.Exists(serverDll), serverDll);
+
+        using TemporaryDirectory root = new();
+        string projects = Path.Combine(root.Path, "projects");
+        Directory.CreateDirectory(projects);
+        string bootstrap = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+
+        ProcessStartInfo start = new("dotnet")
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            WorkingDirectory = root.Path,
+        };
+        foreach (string key in start.Environment.Keys.Where(key => key.StartsWith("MAKO_BACKEND_", StringComparison.Ordinal)).ToArray())
+            start.Environment.Remove(key);
+        start.ArgumentList.Add(serverDll);
+        start.ArgumentList.Add("--urls");
+        start.ArgumentList.Add("http://127.0.0.1:0");
+        start.Environment["MAKO_BACKEND_RESOURCE_ROOT"] = Path.Combine(root.Path, "resources");
+        start.Environment["MAKO_BACKEND_STATE_ROOT"] = Path.Combine(root.Path, "state");
+        start.Environment["MAKO_BACKEND_ALLOWED_ROOTS"] = JsonSerializer.Serialize(new Dictionary<string, string> { ["ctrl"] = projects });
+        start.Environment["MAKO_BACKEND_BOOTSTRAP_TOKEN"] = bootstrap;
+        start.Environment["MAKO_BACKEND_SHUTDOWN_STDIN"] = "1";
+        start.Environment["MAKO_BACKEND_FFMPEG_PATH"] = TestMediaToolPaths.Ffmpeg;
+        start.Environment["MAKO_BACKEND_FFPROBE_PATH"] = TestMediaToolPaths.Ffprobe;
+
+        using Process process = Process.Start(start) ?? throw new InvalidOperationException("无法启动 Backend.Server。");
+        TaskCompletionSource<string> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task stdoutTask = Task.Run(async () =>
+        {
+            while (await process.StandardOutput.ReadLineAsync() is { } line)
+            {
+                if (line.StartsWith("BACKEND_READY ", StringComparison.Ordinal))
+                    ready.TrySetResult(line);
+            }
+            ready.TrySetException(new InvalidOperationException("Backend.Server exited before BACKEND_READY."));
+        });
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            using CancellationTokenSource startupDeadline = new(TimeSpan.FromSeconds(20));
+            string readyLine = await ready.Task.WaitAsync(startupDeadline.Token);
+            string[] parts = readyLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string baseUrl = parts[1];
+            string hostInstanceId = parts[2];
+
+            using HttpClient http = new() { BaseAddress = new Uri(baseUrl) };
+            using HttpRequestMessage registerReq = new(HttpMethod.Post, "/api/v1/clients")
+            {
+                Content = JsonContent.Create(new ClientRegistrationRequest()),
+            };
+            registerReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bootstrap);
+            using HttpResponseMessage registerRes = await http.SendAsync(registerReq, startupDeadline.Token);
+            Assert.Equal(HttpStatusCode.Created, registerRes.StatusCode);
+            JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
+            ClientRegistrationResponse client = (await registerRes.Content.ReadFromJsonAsync<ClientRegistrationResponse>(json, startupDeadline.Token))!;
+
+            // Create an empty session so the event journal immediately has a replayable event
+            // and GET /api/v1/events flushes headers without waiting 15s for the first heartbeat.
+            using HttpRequestMessage createReq = new(HttpMethod.Post, "/api/v1/project-sessions")
+            {
+                Content = JsonContent.Create(new CreateProjectSessionRequest(
+                    "sse-shutdown-probe",
+                    Metadata: new RequestMetadataDto(Guid.NewGuid().ToString("N"), hostInstanceId, DateTimeOffset.UtcNow.AddMinutes(5)))),
+            };
+            createReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", client.AccessToken);
+            createReq.Headers.Add("X-Mako-Client-Id", client.ClientId);
+            createReq.Headers.Add("X-Mako-Host-Instance-Id", hostInstanceId);
+            using HttpResponseMessage createRes = await http.SendAsync(createReq, startupDeadline.Token);
+            Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
+
+            // Keep /api/v1/events open without aborting from the client side, matching an open desktop window.
+            using HttpRequestMessage sseReq = new(HttpMethod.Get, "/api/v1/events");
+            sseReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", client.AccessToken);
+            sseReq.Headers.Add("X-Mako-Client-Id", client.ClientId);
+            sseReq.Headers.Add("X-Mako-Host-Instance-Id", hostInstanceId);
+            sseReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            using HttpResponseMessage sseRes = await http.SendAsync(sseReq, HttpCompletionOption.ResponseHeadersRead, startupDeadline.Token);
+            Assert.Equal(HttpStatusCode.OK, sseRes.StatusCode);
+            Assert.Equal("text/event-stream", sseRes.Content.Headers.ContentType!.MediaType);
+            await using Stream sseStream = await sseRes.Content.ReadAsStreamAsync(startupDeadline.Token);
+            using StreamReader sseReader = new(sseStream);
+            bool sawOpenedEvent = false;
+            while (!sawOpenedEvent)
+            {
+                string? line = await sseReader.ReadLineAsync(startupDeadline.Token);
+                Assert.NotNull(line);
+                if (line == "event: project.opened") sawOpenedEvent = true;
+            }
+            // Drain the data + blank terminator of project.opened so the server is parked in WaitForEventsAsync.
+            while (!string.IsNullOrEmpty(await sseReader.ReadLineAsync(startupDeadline.Token))) { }
+
+            // Trigger shutdown while the SSE connection is actively parked in WaitForEventsAsync.
+            using CancellationTokenSource shutdownDeadline = new(TimeSpan.FromSeconds(8));
+            await process.StandardInput.WriteLineAsync("SHUTDOWN");
+            await process.StandardInput.FlushAsync(shutdownDeadline.Token);
+            process.StandardInput.Close();
+
+            await process.WaitForExitAsync(shutdownDeadline.Token);
+            Assert.Equal(0, process.ExitCode);
+            await stdoutTask.WaitAsync(shutdownDeadline.Token);
+            string stderr = await stderrTask.WaitAsync(shutdownDeadline.Token);
+            Assert.DoesNotContain("BACKEND_HTTP_UNHANDLED_ERROR", stderr, StringComparison.Ordinal);
+
+            // Server ended the SSE stream cleanly on ApplicationStopping.
+            string? tail = await sseReader.ReadLineAsync(shutdownDeadline.Token);
+            Assert.Null(tail);
         }
         finally
         {

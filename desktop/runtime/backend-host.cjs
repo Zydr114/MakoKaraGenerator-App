@@ -6,7 +6,16 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const readline = require('node:readline');
+const { Worker } = require('node:worker_threads');
 const privateFs = require('./private-fs.cjs');
+
+const VERIFIED_DEPLOYMENTS = new WeakMap();
+
+function createVerifiedToken(dist, manifest) {
+  const token = Object.freeze({ dist, version: manifest.version });
+  VERIFIED_DEPLOYMENTS.set(token, { dist, manifest });
+  return token;
+}
 
 const ROLES = Object.freeze({
   server: 'MakoKaraGenerator.Backend.Server',
@@ -99,8 +108,9 @@ function ensureRegularNonSymlinkFile(filePath, label) {
   }
 }
 
-function validateScriptAbi(dist) {
-  const paths = Object.keys(ROLES).map((role) => path.join(dist, role, SCRIPT_ABI_DLL));
+function validateScriptAbi(dist, inventory = null) {
+  const roles = Object.keys(ROLES);
+  const paths = roles.map((role) => path.join(dist, role, SCRIPT_ABI_DLL));
   for (const filePath of paths) {
     try {
       ensureRegularNonSymlinkFile(filePath, SCRIPT_ABI_DLL);
@@ -108,12 +118,17 @@ function validateScriptAbi(dist) {
       throw new Error(`Server/Worker ${SCRIPT_ABI_DLL} bytes differ or are missing; publish a fresh matched deployment`);
     }
   }
-  if (sha256FileSync(paths[0]) !== sha256FileSync(paths[1])) {
+  const hashAt = (index) => {
+    const rel = `${roles[index]}/${SCRIPT_ABI_DLL}`;
+    if (inventory && Object.hasOwn(inventory, rel)) return inventory[rel];
+    return sha256FileSync(paths[index]);
+  };
+  if (hashAt(0) !== hashAt(1)) {
     throw new Error(`Server/Worker ${SCRIPT_ABI_DLL} bytes differ or are missing; publish a fresh matched deployment`);
   }
 }
 
-function validateDist(distDir) {
+function validateDistInternal(distDir) {
   const expectedRid = platformRid();
   const dist = fs.realpathSync(path.resolve(distDir));
   const deploymentPath = path.join(dist, 'deployment.json');
@@ -125,26 +140,22 @@ function validateDist(distDir) {
   if (!manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
     throw new Error('deployment.json is missing a valid files inventory');
   }
-  for (const [name, expected] of Object.entries(manifest.files)) {
+  const expectedEntries = Object.entries(manifest.files);
+  for (const [name] of expectedEntries) {
     const target = path.resolve(dist, name);
     if (!isInsideRoot(dist, target)) {
       throw new Error(`deployment integrity mismatch: ${name}`);
     }
-    let info;
-    try {
-      info = fs.lstatSync(target);
-    } catch {
-      throw new Error(`deployment integrity mismatch: ${name}`);
-    }
-    if (info.isSymbolicLink() || !info.isFile() || sha256FileSync(target) !== expected) {
+  }
+  // Single pass: reject any symlink inside dist and hash every regular file once.
+  const actual = inventorySync(dist);
+  delete actual['deployment.json'];
+  for (const [name, expected] of expectedEntries) {
+    if (!Object.hasOwn(actual, name) || actual[name] !== expected) {
       throw new Error(`deployment integrity mismatch: ${name}`);
     }
   }
-  const actual = inventorySync(dist);
-  delete actual['deployment.json'];
-  const actualKeys = Object.keys(actual);
-  const expectedKeys = Object.keys(manifest.files);
-  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key) => actual[key] !== manifest.files[key])) {
+  if (Object.keys(actual).length !== expectedEntries.length) {
     throw new Error('deployment contains extra or missing files; publish a fresh directory');
   }
   for (const [role, appName] of Object.entries(ROLES)) {
@@ -164,17 +175,22 @@ function validateDist(distDir) {
   } catch {
     throw new Error('complete Worker script-refs are required');
   }
-  validateScriptAbi(dist);
-  return manifest;
+  validateScriptAbi(dist, actual);
+  return { dist, manifest, inventory: actual };
+}
+
+function validateDist(distDir) {
+  return validateDistInternal(distDir).manifest;
 }
 
 function validateDesktopDeployment(distDir, expectedElectron = '45.2.1') {
-  const dist = fs.realpathSync(path.resolve(distDir));
-  const deployment = validateDist(dist);
+  const { dist, manifest: deployment, inventory } = validateDistInternal(distDir);
   const gpuManifestPath = path.join(dist, 'gpu-preview-manifest.json');
   ensureRegularNonSymlinkFile(gpuManifestPath, 'gpu-preview-manifest.json');
   const gpuManifest = JSON.parse(fs.readFileSync(gpuManifestPath, 'utf8'));
-  const gpuManifestHash = sha256FileSync(gpuManifestPath);
+  const gpuManifestHash = Object.hasOwn(inventory, 'gpu-preview-manifest.json')
+    ? inventory['gpu-preview-manifest.json']
+    : sha256FileSync(gpuManifestPath);
   if (
     gpuManifest.abiVersion !== 1 ||
     gpuManifest.electron !== expectedElectron ||
@@ -196,11 +212,82 @@ function validateDesktopDeployment(distDir, expectedElectron = '45.2.1') {
     } catch {
       throw new Error(`Desktop native payload missing: ${name}`);
     }
-    if (info.isSymbolicLink() || !info.isFile() || sha256FileSync(target) !== expected) {
+    const actualHash = Object.hasOwn(inventory, name) ? inventory[name] : sha256FileSync(target);
+    if (info.isSymbolicLink() || !info.isFile() || actualHash !== expected) {
       throw new Error(`Desktop native payload mismatch: ${name}`);
     }
   }
-  return { dist, deployment, gpuManifest };
+  return {
+    dist,
+    deployment,
+    gpuManifest,
+    verifiedDeployment: createVerifiedToken(dist, deployment),
+  };
+}
+
+function createAbortError(message) {
+  return Object.assign(new Error(message), { name: 'AbortError' });
+}
+
+function runValidationWorker(payload, { signal } = {}) {
+  if (signal?.aborted) {
+    return Promise.reject(createAbortError('部署校验已取消。'));
+  }
+  return new Promise((resolveWorker, rejectWorker) => {
+    const workerPath = path.join(__dirname, 'validate-worker.cjs');
+    const worker = new Worker(workerPath, { workerData: payload });
+    let settled = false;
+    const cleanup = () => {
+      if (signal) signal.removeEventListener('abort', onAbort);
+    };
+    const finishResolve = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolveWorker(value);
+    };
+    const finishReject = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      rejectWorker(error);
+    };
+    const onAbort = () => {
+      void worker.terminate().catch(() => {});
+      finishReject(createAbortError('部署校验已取消。'));
+    };
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    worker.once('message', (msg) => {
+      if (msg && msg.ok) {
+        finishResolve(msg.result);
+      } else {
+        const err = new Error(msg?.message ?? 'Deployment validation failed');
+        if (msg?.code) err.code = msg.code;
+        finishReject(err);
+      }
+    });
+    worker.once('error', (error) => finishReject(error));
+    worker.once('exit', (code) => {
+      if (!settled) {
+        finishReject(new Error(`Deployment validation worker exited unexpectedly (${code})`));
+      }
+    });
+  });
+}
+
+async function validateDistAsync(distDir, options = {}) {
+  const result = await runValidationWorker({ mode: 'dist', distDir }, options);
+  return result.manifest;
+}
+
+async function validateDesktopDeploymentAsync(distDir, expectedElectron = '45.2.1', options = {}) {
+  const result = await runValidationWorker({ mode: 'desktop', distDir, expectedElectron }, options);
+  return {
+    dist: result.dist,
+    deployment: result.deployment,
+    gpuManifest: result.gpuManifest,
+    verifiedDeployment: createVerifiedToken(result.dist, result.deployment),
+  };
 }
 
 function sanitizedBackendEnvironment(source = process.env) {
@@ -312,10 +399,20 @@ async function writePrivateJsonAtomic(filePath, info) {
 
 async function startBackendProcess(options = {}) {
   platformRid();
+  const signal = options.signal;
+  if (signal?.aborted) {
+    throw createAbortError('后端启动已取消。');
+  }
   const log = options.log ?? ((line) => console.log(line));
   const spawnFn = options.spawnProcess ?? childProcess.spawn;
   const dist = fs.realpathSync(path.resolve(options.dist));
-  const manifest = validateDist(dist);
+  const preverified = options.verifiedDeployment ? VERIFIED_DEPLOYMENTS.get(options.verifiedDeployment) : undefined;
+  const manifest = preverified && privateFs.isSamePath(preverified.dist, dist)
+    ? preverified.manifest
+    : (options.asyncValidation ? await validateDistAsync(dist, { signal }) : validateDist(dist));
+  if (signal?.aborted) {
+    throw createAbortError('后端启动已取消。');
+  }
   const origins = options.origins ?? [];
   if (origins.length === 0 || origins.some((origin) => !isValidOrigin(origin))) {
     throw new Error('Origins must be explicit http(s) origins with no path or credentials.');
@@ -468,7 +565,15 @@ async function startBackendProcess(options = {}) {
         } catch (error) {
           if (error.code !== 'ESRCH') throw error;
         }
-        await exited;
+        let killTimer;
+        const killWait = new Promise((resolveKill) => {
+          killTimer = setTimeout(resolveKill, 2000);
+        });
+        try {
+          await Promise.race([exited, killWait]);
+        } finally {
+          clearTimeout(killTimer);
+        }
       }
     } finally {
       clearTimeout(stopTimer);
@@ -478,25 +583,52 @@ async function startBackendProcess(options = {}) {
 
   try {
     const readyLine = await new Promise((resolveReady, rejectReady) => {
+      let settled = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onAbort);
+      };
+      const finishResolve = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolveReady(value);
+      };
+      const finishReject = (error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        rejectReady(error);
+      };
       const timer = setTimeout(() => {
-        rejectReady(new Error(`后端在 ${readyTimeoutMs / 1000} 秒内没有就绪。`));
+        lines.close();
+        finishReject(new Error(`后端在 ${readyTimeoutMs / 1000} 秒内没有就绪。`));
       }, readyTimeoutMs);
       const lines = readline.createInterface({ input: child.stdout });
+      const onAbort = () => {
+        lines.close();
+        finishReject(createAbortError('后端启动已取消。'));
+      };
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
       lines.on('line', (line) => {
         writeLogLine(line);
         log(`[backend] ${line}`);
         if (line.startsWith('BACKEND_READY ')) {
-          clearTimeout(timer);
           lines.removeAllListeners('line');
           const rest = line.slice('BACKEND_READY '.length).trim();
           const parts = rest.split(/\s+/);
-          resolveReady({ address: parts[0], hostInstanceId: parts[1] });
+          finishResolve({ address: parts[0], hostInstanceId: parts[1] });
         }
       });
       exited.then((code) => {
-        clearTimeout(timer);
         lines.close();
-        rejectReady(spawnError ?? new Error(`后端启动器提前退出（${code}）；日志见 ${path.join(runDir, 'server.log')}。`));
+        finishReject(spawnError ?? new Error(`后端启动器提前退出（${code}）；日志见 ${path.join(runDir, 'server.log')}。`));
       });
     });
 
@@ -537,9 +669,13 @@ async function startBackendProcess(options = {}) {
     }
 
     let stopping = null;
-    const stop = () => {
+    const stop = (overrideTimeoutMs) => {
+      const effectiveTimeoutMs =
+        Number.isFinite(overrideTimeoutMs) && overrideTimeoutMs > 0
+          ? overrideTimeoutMs
+          : stopTimeoutMs;
       stopping ??= (async () => {
-        await terminateOwnedChild(stopTimeoutMs);
+        await terminateOwnedChild(effectiveTimeoutMs);
         await fsp.rm(credentialFile, { force: true }).catch(() => {});
         if (bootstrapFile) await fsp.rm(bootstrapFile, { force: true }).catch(() => {});
         return exitCode;
@@ -578,7 +714,9 @@ module.exports = {
   sha256FileSync,
   startBackendProcess,
   validateDesktopDeployment,
+  validateDesktopDeploymentAsync,
   validateDist,
+  validateDistAsync,
   validateScriptAbi,
   writePrivateJsonAtomic,
 };

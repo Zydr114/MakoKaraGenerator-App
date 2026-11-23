@@ -3,7 +3,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const privateFs = require('./private-fs.cjs');
-const { compatibleProductVersion, validateDesktopDeployment } = require('./backend-host.cjs');
+const {
+  compatibleProductVersion,
+  validateDesktopDeployment,
+  validateDesktopDeploymentAsync,
+} = require('./backend-host.cjs');
 
 function packagedEntry(resources, relative, directory = false) {
   const target = path.join(resources, relative);
@@ -14,12 +18,8 @@ function packagedEntry(resources, relative, directory = false) {
   return target;
 }
 
-function resolveWindowsPortableResources(resourcesDir) {
-  const resources = fs.realpathSync(resourcesDir);
-  const frontendDist = packagedEntry(resources, 'frontend-dist', true);
-  packagedEntry(frontendDist, 'index.html');
-  const backendDist = packagedEntry(resources, 'backend-dist', true);
-  const { deployment, gpuManifest } = validateDesktopDeployment(backendDist);
+function finalizeWindowsPortableResources(resources, frontendDist, backendDist, validated) {
+  const { deployment, gpuManifest, verifiedDeployment } = validated;
   if (!compatibleProductVersion(deployment.version)) {
     throw new Error(`Incompatible Windows Portable backend version: ${deployment.version}`);
   }
@@ -31,11 +31,33 @@ function resolveWindowsPortableResources(resourcesDir) {
   const mediaTools = packagedEntry(resources, 'media-tools', true);
   const ffmpeg = packagedEntry(mediaTools, 'ffmpeg.exe');
   const ffprobe = packagedEntry(mediaTools, 'ffprobe.exe');
-  return { frontendDist, backendDist, shmAddon, shmAddonSha256, ffmpeg, ffprobe };
+  return { frontendDist, backendDist, shmAddon, shmAddonSha256, ffmpeg, ffprobe, verifiedDeployment };
+}
+
+function resolveWindowsPortableResources(resourcesDir) {
+  const resources = fs.realpathSync(resourcesDir);
+  const frontendDist = packagedEntry(resources, 'frontend-dist', true);
+  packagedEntry(frontendDist, 'index.html');
+  const backendDist = packagedEntry(resources, 'backend-dist', true);
+  const validated = validateDesktopDeployment(backendDist);
+  return finalizeWindowsPortableResources(resources, frontendDist, backendDist, validated);
+}
+
+async function resolveWindowsPortableResourcesAsync(resourcesDir, options = {}) {
+  const resources = fs.realpathSync(resourcesDir);
+  const frontendDist = packagedEntry(resources, 'frontend-dist', true);
+  packagedEntry(frontendDist, 'index.html');
+  const backendDist = packagedEntry(resources, 'backend-dist', true);
+  const validated = await validateDesktopDeploymentAsync(backendDist, '45.2.1', options);
+  return finalizeWindowsPortableResources(resources, frontendDist, backendDist, validated);
+}
+
+function ensureWindowsPortableTempDir(sessionPaths) {
+  return privateFs.ensurePrivateDir(path.join(sessionPaths.base, 'temp'), { label: 'Standalone temp directory' });
 }
 
 function windowsPortableBackendOptions(resources, sessionPaths) {
-  const temp = privateFs.ensurePrivateDir(path.join(sessionPaths.base, 'temp'), { label: 'Standalone temp directory' });
+  const temp = ensureWindowsPortableTempDir(sessionPaths);
   return {
     ffmpeg: resources.ffmpeg,
     ffprobe: resources.ffprobe,
@@ -45,4 +67,9 @@ function windowsPortableBackendOptions(resources, sessionPaths) {
   };
 }
 
-module.exports = { resolveWindowsPortableResources, windowsPortableBackendOptions };
+module.exports = {
+  ensureWindowsPortableTempDir,
+  resolveWindowsPortableResources,
+  resolveWindowsPortableResourcesAsync,
+  windowsPortableBackendOptions,
+};

@@ -115,9 +115,17 @@ test('Windows ZIP stages a renamed runtime, matched deployment, and only product
   put(root, 'backend/web/contract-manifest.json', JSON.stringify({ productVersion: version }));
   put(root, 'desktop/main.cjs', '');
   put(root, 'desktop/assets/icon-128.png', 'icon');
+  put(root, 'desktop/assets/logo-wide.webp', 'logo');
+  put(root, 'desktop/assets/splash-bg.webp', 'splash-bg');
   put(root, 'desktop/runtime/windows-portable.cjs', '');
+  put(root, 'desktop/runtime/validate-worker.cjs', '');
   put(root, 'desktop/runtime/unused.test.cjs', '');
   put(root, 'desktop/gpu-preview/preload.cjs', '');
+  put(root, 'desktop/splash/splash.html', '<html></html>');
+  put(root, 'desktop/splash/splash.js', '');
+  put(root, 'desktop/splash/preload.cjs', '');
+  put(root, 'desktop/splash/controller.cjs', '');
+  put(root, 'desktop/splash/unused.test.cjs', '');
   const backendDist = deploymentFixture(root);
   const stageParent = join(root, 'stage');
   const stage = join(stageParent, 'MakoKaraGenerator');
@@ -127,6 +135,14 @@ test('Windows ZIP stages a renamed runtime, matched deployment, and only product
   assert.equal(existsSync(join(stage, 'electron.exe')), false);
   assert.equal(existsSync(join(stage, 'resources/default_app.asar')), false);
   assert.equal(existsSync(join(stage, 'resources/app/runtime/unused.test.cjs')), false);
+  assert.equal(existsSync(join(stage, 'resources/app/runtime/validate-worker.cjs')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/assets/logo-wide.webp')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/assets/splash-bg.webp')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/splash/splash.html')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/splash/splash.js')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/splash/preload.cjs')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/splash/controller.cjs')), true);
+  assert.equal(existsSync(join(stage, 'resources/app/splash/unused.test.cjs')), false);
   assert.equal(JSON.parse(readFileSync(join(stage, 'resources/app/package.json'))).main, 'main.cjs');
 
   const resourcesDir = join(stage, 'resources');

@@ -343,7 +343,7 @@ if (command === 'build' || command === 'build:desktop') {
         performanceDiagnostics: !!values['performance-diagnostics'],
         ordinaryScheduling: !!values['ordinary-scheduling'],
       };
-      await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready: false });
+      await writeBootstrapFile(desktopConfigFile, { ...desktopSession, ready: false, startupStage: 'backend' });
       const electronArgs = [
         ...(cdpPort ? [`--remote-debugging-port=${cdpPort}`, '--remote-debugging-address=127.0.0.1'] : []),
         join(ROOT, 'desktop/main.cjs'),

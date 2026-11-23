@@ -62,6 +62,8 @@ function generateAppIcons(appDir, appResourcesDir) {
 
   copyFileSync(icon128Source, join(hicolor128, `${APP_ID}.png`));
   copyFileSync(icon128Source, join(assetsDir, 'icon-128.png'));
+  copyFileSync(join(ROOT, 'desktop/assets/logo-wide.webp'), join(assetsDir, 'logo-wide.webp'));
+  copyFileSync(join(ROOT, 'desktop/assets/splash-bg.webp'), join(assetsDir, 'splash-bg.webp'));
 
   const icon256Path = join(hicolor256, `${APP_ID}.png`);
   if (ffmpegBin && existsSync(logoSource)) {
@@ -126,6 +128,7 @@ function stageAppResources(appLibDir, frontendDist, backendDist, productVersion)
   const appResourcesDir = join(resourcesDir, 'app');
   mkdirSync(join(appResourcesDir, 'runtime'), { recursive: true });
   mkdirSync(join(appResourcesDir, 'gpu-preview'), { recursive: true });
+  mkdirSync(join(appResourcesDir, 'splash'), { recursive: true });
 
   writeFileSync(
     join(appResourcesDir, 'package.json'),
@@ -145,10 +148,13 @@ function stageAppResources(appLibDir, frontendDist, backendDist, productVersion)
   copyFileSync(join(ROOT, 'backend/web/contract-manifest.json'), join(appResourcesDir, 'contract-manifest.json'));
   copyFileSync(join(ROOT, 'desktop/main.cjs'), join(appResourcesDir, 'main.cjs'));
   copyDirectory(join(ROOT, 'desktop/runtime'), join(appResourcesDir, 'runtime'), {
-    filter: (name) => name.endsWith('.cjs'),
+    filter: (name) => name.endsWith('.cjs') && !name.endsWith('.test.cjs'),
   });
   copyDirectory(join(ROOT, 'desktop/gpu-preview'), join(appResourcesDir, 'gpu-preview'), {
     filter: (name) => name.endsWith('.cjs') && !name.endsWith('.test.cjs') && name !== 'ordinary-exec.cjs',
+  });
+  copyDirectory(join(ROOT, 'desktop/splash'), join(appResourcesDir, 'splash'), {
+    filter: (name) => /\.(?:cjs|html|js)$/i.test(name) && !name.endsWith('.test.cjs'),
   });
 
   copyDirectory(frontendDist, join(resourcesDir, 'frontend-dist'), {

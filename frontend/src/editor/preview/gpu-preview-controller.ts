@@ -1,5 +1,6 @@
 import { BackendError, ObservableValue, OutcomeUnknownError, type MakoClient } from '../../client';
 import type { DesktopPreviewBridge, GpuDiagnosticsSummary, GpuPlaybackState, GpuPreviewStreamState, PreviewSize, PreviewStreamApi, PreviewStreamTransport, Revision } from '../../protocol';
+import { knownRenderFailureText } from './render-failure-text';
 
 export interface GpuPreviewViewState {
   status: 'idle' | 'rendering' | 'ready' | 'error';
@@ -139,7 +140,7 @@ export class GpuPreviewController {
       const current=this.stream;
       if(event.streamId!==undefined&&(!current||event.streamId!==current.streamId||event.producerEpoch!==current.producerEpoch||event.inputGeneration!==current.inputGeneration))return;
       if(event.diagnostics)this.state$.set({...this.state$.get(),diagnostics:event.diagnostics});
-      if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.needsReconcile=true;this.state$.set({...this.state$.get(),status:'error',error:event.code??'连续预览失败'});}
+      if(event.type==='failed'){this.blocked=true;this.needsRecreate=true;this.needsReconcile=true;this.state$.set({...this.state$.get(),status:'error',error:knownRenderFailureText(event.code)??event.code??'连续预览失败'});}
       if(event.type==='drawn'&&this.attached&&current&&event.streamId===current.streamId&&event.producerEpoch===current.producerEpoch&&event.inputGeneration===current.inputGeneration&&event.timelineResetId===this.want?.playback.timelineResetId&&event.timeUs!==undefined){
         this.state$.set({status:'ready',api:current.api,transport:current.transport,frameRevision:current.source.sourceRevision as Revision,frameTimeUs:event.timeUs,...(event.diagnostics?{diagnostics:event.diagnostics}:{})});
       }
@@ -147,7 +148,13 @@ export class GpuPreviewController {
   }
   matchesProject(projectSessionId: string): boolean { return !this.disposed && this.projectSessionId === projectSessionId; }
   isEnabled(): boolean { return this.enabled; }
-  show(revision: Revision, playback: GpuPlaybackState): void {if(this.disposed)return;this.want={revision,playback};this.pump();}
+  show(revision: Revision, playback: GpuPlaybackState): void {
+    if(this.disposed)return;
+    const revisionChanged=this.want!==undefined&&this.want.revision!==revision;
+    this.want={revision,playback};
+    if(this.blocked&&!this.quarantined&&revisionChanged){this.blocked=false;this.sent=undefined;}
+    this.pump();
+  }
   setSize(size: PreviewSize): void {if(this.disposed||sameSize(this.size,size))return;this.size=size;this.pump();}
   setEnabled(value: boolean): void {if(this.enabled===value)return;this.enabled=value;this.sent=undefined;this.pump();}
   retry(): void {if(this.disposed||this.quarantined)return;this.blocked=false;this.sent=undefined;this.pump();}

@@ -338,5 +338,35 @@ it('stops cleanly without looping when authority reports a quarantined stream',a
   controller.retry();
   await Promise.resolve();
   expect(calls).toEqual(['create','list']);
+  controller.show(revision('2'),{mode:'paused',mediaTimeUs:0,rate:1,targetFps:24,timelineResetId:'r1',samplePerformanceMs:performance.now()});
+  await flushDesktopPreviewOperations();
+  expect(calls).toEqual(['create','list']);
   controller.dispose();
+});
+
+it('auto-recovers from a recoverable runtime failure when project revision changes and formats known codes',async()=>{
+  const f=fixture();const controller=f.make('p1','cpu');f.show(controller,'1');
+  try{
+    await flushDesktopPreviewOperations();
+    f.emit({type:'failed',streamId:'s1',producerEpoch:'1',inputGeneration:'1',code:'ImageEffectPartialFusion'});
+    expect(controller.state$.get().status).toBe('error');
+    expect(controller.state$.get().error).toContain('效果叠加范围冲突');
+    expect(controller.state$.get().error).toContain('ImageEffectPartialFusion');
+
+    // Same revision stays blocked to avoid crash loops.
+    f.show(controller,'1');
+    await flushDesktopPreviewOperations();
+    expect(f.creates).toHaveLength(1);
+
+    // Editing the project to a new revision reconciles the failed stream and recovers automatically.
+    f.show(controller,'2');
+    await flushDesktopPreviewOperations();
+    expect(f.calls).toContain('list');
+    expect(f.calls).toContain('close:s1');
+    expect(f.creates).toHaveLength(2);
+    expect(f.calls).toContain('attach:s2:1');
+    expect(controller.state$.get().status).not.toBe('error');
+  }finally{
+    controller.dispose();await flushDesktopPreviewOperations();
+  }
 });

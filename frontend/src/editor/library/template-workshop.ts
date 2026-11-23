@@ -30,6 +30,7 @@ import { SLOT_LABEL } from '../model/full-template';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
 import { formatTime, toMicros } from '../model/time';
 import { renderBackendErrorText } from '../preview/render-device';
+import { knownRenderFailureText } from '../preview/render-failure-text';
 import { errorText } from '../session/editor-session';
 import { draftSource, sampleFailure, savedSource, SAMPLE_SIZE, TEMPLATE_PREVIEW, type AuthorSampleSource, type LastGoodFrame, type SampleFrame, type SampleSource } from './template-thumbnails';
 
@@ -695,5 +696,9 @@ function compileLine(d: BackendSourceDiagnostic): string {
 function frameFailure(error: unknown): SampleFrame {
   const device = renderBackendErrorText(error);
   if (device) return { status: 'error', message: `${device}。可以在顶栏改用别的渲染设备。` };
+  if (error instanceof PreviewFailedError) {
+    const known = knownRenderFailureText(error.renderFailureCode);
+    if (known) return { status: 'error', message: `试样失败：${known}`, ...(error.renderFailureCode ? { failureCode: error.renderFailureCode } : {}) };
+  }
   return { status: 'error', message: `试样失败：${errorText(error)}` };
 }

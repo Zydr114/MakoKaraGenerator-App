@@ -386,6 +386,10 @@ describe('草稿试样', () => {
     expect(authorSampleFailure(opaqueFailure, []).message).toBe('脚本运行出错：预览渲染失败。\n预览未返回详细诊断，请到验证页签运行检查。');
     expect(authorSampleFailure(new PreviewFailedError(undefined, 'WorkerPackageTimedOut'), []).message).toBe('脚本运行超时（约 25 秒没有返回）');
     expect(authorSampleFailure(new PreviewFailedError({ code: 'x', message: '别的' } as never, 'Other'), []).message).toBe('试样失败：别的');
+    const partial = authorSampleFailure(new PreviewFailedError({ code: 'internalError', message: '预览渲染失败。' } as never, 'ImageEffectPartialFusion'), []);
+    expect(partial.message).toContain('效果叠加范围冲突');
+    expect(partial.message).toContain('ImageEffectPartialFusion');
+    expect(partial.failureCode).toBe('ImageEffectPartialFusion');
   });
 });
 

@@ -1,7 +1,7 @@
 // 模板缩略图（G17，W4 设计 §9.2；W7 设计 §2.5 改用工坊单行样本），以及试样画布共用的来源与失败文案。
 // 不依赖 React。像素只是模板卡片试样，不等于工程里的最终外观。详情区的试样画布见 template-workshop.ts。
 
-import { BackendError, ObservableValue, type MakoClient } from '../../client';
+import { BackendError, ObservableValue, PreviewFailedError, type MakoClient } from '../../client';
 import {
   micros,
   type AuthorDraftSampleOptions,
@@ -15,6 +15,7 @@ import {
 } from '../../protocol';
 import { staticDefinition } from '../model/full-template';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
+import { knownRenderFailureText } from '../preview/render-failure-text';
 import { errorText } from '../session/editor-session';
 
 export const TEMPLATE_PREVIEW = 'template-preview-sessions.create';
@@ -196,6 +197,10 @@ export function draftSource(draftRevision: string, definition: FullTemplateDefin
 export function sampleFailure(error: unknown, kind: TemplateKind): SampleFrame {
   if (error instanceof BackendError && error.code === 'commandNotSupported') {
     return { status: 'unsupported', message: kind === 'composite' ? '组合模板暂不支持试样' : '暂不支持试样' };
+  }
+  if (error instanceof PreviewFailedError) {
+    const known = knownRenderFailureText(error.renderFailureCode);
+    if (known) return { status: 'error', message: `试样失败：${known}`, ...(error.renderFailureCode ? { failureCode: error.renderFailureCode } : {}) };
   }
   return { status: 'error', message: `试样失败：${errorText(error)}` };
 }

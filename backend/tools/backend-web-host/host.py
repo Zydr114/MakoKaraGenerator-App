@@ -348,11 +348,9 @@ def validate_dist(dist):
 
 
 def source_input_paths():
-    paths = ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props',
-             'global.json', 'NuGet.Config', 'NuGet.config']
-    if IS_WINDOWS:
-        paths.extend(['build/MakoMediaPresentation.Native.targets', 'native/media-presentation'])
-    return paths
+    return ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props',
+            'global.json', 'NuGet.Config', 'NuGet.config',
+            'build/MakoMediaPresentation.Native.targets', 'native/media-presentation']
 
 
 def source_inputs():

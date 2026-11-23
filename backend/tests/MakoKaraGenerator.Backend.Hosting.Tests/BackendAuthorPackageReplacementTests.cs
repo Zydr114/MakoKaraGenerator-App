@@ -147,9 +147,11 @@ public sealed class BackendAuthorPackageReplacementTests
 
     private static (byte[] Bytes, string Family) ReplacementCollectionFont()
     {
-        const string linuxPath = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
-        if (OperatingSystem.IsLinux() || File.Exists(linuxPath))
+        string? linuxPath = PackageFontFixture.FindLinuxNotoCjkTtc();
+        if (linuxPath is not null)
             return (File.ReadAllBytes(linuxPath), "Noto Sans CJK SC");
+        if (OperatingSystem.IsLinux())
+            throw new FileNotFoundException("未找到可用的 Linux Noto Sans CJK TTC 字体文件。");
 
         string fontsDir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
         string msyh = Path.Combine(fontsDir, "msyh.ttc");

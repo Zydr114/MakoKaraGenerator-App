@@ -2,11 +2,14 @@ cmake_minimum_required(VERSION 3.24)
 project(mkg_presentation C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(MAKO_PRESENTATION_LINUX_DEVKIT_DIR "" CACHE PATH "Optional pinned LGPL FFmpeg 9.0.2 Linux x64 devkit directory")
 if(WIN32)
   if(NOT MINGW OR NOT CMAKE_C_COMPILER_ID STREQUAL "Clang" OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Use a native Windows x64 llvm-mingw toolchain (see README.md).")
   endif()
   include(windows_devkit.cmake)
+elseif(NOT "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}" STREQUAL "")
+  include(linux_devkit.cmake)
 else()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(AV REQUIRED IMPORTED_TARGET libavformat>=63 libavcodec>=63 libavutil>=61)
@@ -20,6 +23,21 @@ function(add_presentation_executable name source)
     target_include_directories(${name} SYSTEM PRIVATE "${ffmpeg_devkit}/include")
     target_link_options(${name} PRIVATE -municode -static -Wl,--dependent-load-flag=0x800)
     set_target_properties(${name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${windows_tool_dir}/$<0:>")
+  elseif(NOT "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}" STREQUAL "")
+    target_include_directories(${name} SYSTEM PRIVATE "${ffmpeg_linux_devkit}/include")
+    target_link_libraries(${name} PRIVATE
+      "${linux_tool_dir}/libavformat.so.63"
+      "${linux_tool_dir}/libavcodec.so.63"
+      "${linux_tool_dir}/libavutil.so.61"
+      ${CMAKE_DL_LIBS}
+    )
+    target_link_options(${name} PRIVATE -Wl,--disable-new-dtags)
+    set_target_properties(${name} PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${linux_tool_dir}/$<0:>"
+      BUILD_RPATH "\$ORIGIN"
+      INSTALL_RPATH "\$ORIGIN"
+      BUILD_WITH_INSTALL_RPATH TRUE
+    )
   else()
     target_link_libraries(${name} PRIVATE PkgConfig::AV ${CMAKE_DL_LIBS})
   endif()

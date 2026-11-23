@@ -61,8 +61,39 @@ export async function buildDesktopNative(root) {
 
   let artifacts;
   if (process.platform === 'linux') {
-    await step('python3', ['native/skia/bootstrap.py'], root);
-    await step('bash', ['native/skia/build-native.sh'], root);
+    const skiaLibPath = join(root, '.local/skia-p0/libSkiaSharp.so');
+    const skiaStampPath = join(root, '.local/skia-p0/libSkiaSharp.build-stamp.json');
+    const skiaSources = Object.fromEntries(
+      Object.entries(sourceInputs).filter(([key]) => key.startsWith('native/skia/')),
+    );
+    let skiaCacheValid = false;
+    try {
+      const stamp = JSON.parse(await readFile(skiaStampPath, 'utf8'));
+      if (
+        stamp?.schemaVersion === 1 &&
+        stamp?.platform === rid &&
+        JSON.stringify(stamp?.skiaSources) === JSON.stringify(skiaSources) &&
+        typeof stamp?.libSkiaSharpSha256 === 'string' &&
+        inside(root, await realpath(skiaLibPath)) &&
+        (await hash(skiaLibPath)) === stamp.libSkiaSharpSha256
+      ) {
+        await linuxSymbols(skiaLibPath, ['gr_mako_direct_context_flush_surface_vk_state', 'sk_mako_surface_get_vk_image_info']);
+        skiaCacheValid = true;
+      }
+    } catch {
+      skiaCacheValid = false;
+    }
+    if (skiaCacheValid) {
+      console.log('[desktop-build] Reusing verified cached libSkiaSharp.so matching native/skia/** inputs.');
+    } else {
+      await step('python3', ['native/skia/bootstrap.py'], root);
+      await step('bash', ['native/skia/build-native.sh'], root);
+      const builtSha = await hash(skiaLibPath);
+      await writeFile(
+        skiaStampPath,
+        JSON.stringify({ schemaVersion: 1, platform: rid, skiaSources, libSkiaSharpSha256: builtSha }, null, 2) + '\n',
+      );
+    }
     const { stdout } = await execute('bash', ['native/gpu-preview/bootstrap-headers.sh'], { cwd: root, maxBuffer: 1024 * 1024 });
     const headers = await realpath(stdout.trim());
     if (!inside(root, headers)) throw new Error('Native headers escaped App');

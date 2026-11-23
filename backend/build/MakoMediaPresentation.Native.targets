@@ -14,6 +14,7 @@
       <MakoMediaPresentationToolDir Condition="'$(MakoMediaPresentationToolDir)' == ''">$(TargetDir)media-tools</MakoMediaPresentationToolDir>
       <MakoMediaPresentationWindowsCompiler Condition="'$(MakoMediaPresentationWindowsCompiler)' == ''">x86_64-w64-mingw32-clang</MakoMediaPresentationWindowsCompiler>
       <MakoMediaPresentationWindowsStageDir>$(MakoMediaPresentationBuildDir)/media-tools</MakoMediaPresentationWindowsStageDir>
+      <MakoMediaPresentationLinuxStageDir>$(MakoMediaPresentationBuildDir)/media-tools</MakoMediaPresentationLinuxStageDir>
     </PropertyGroup>
     <Error Condition="!$([MSBuild]::IsOSPlatform('Linux')) and !$([MSBuild]::IsOSPlatform('Windows'))"
            Text="Media presentation native build requires Linux x64 or Windows x64." />
@@ -26,7 +27,10 @@
     </Exec>
     <Error Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationHostArchitecture)' != 'x86_64'"
            Text="Media presentation helper must be built on a Linux x86_64 host; cross-compilation is not configured." />
-    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF" />
+    <Error Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationLinuxDevkitDir)' != '' and !Exists('$(MakoMediaPresentationLinuxDevkitDir)')"
+           Text="MakoMediaPresentationLinuxDevkitDir does not exist: $(MakoMediaPresentationLinuxDevkitDir). Build it with native/media-presentation/build_linux_devkit.sh." />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationLinuxDevkitDir)' == ''" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DMAKO_PRESENTATION_LINUX_DEVKIT_DIR=" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationLinuxDevkitDir)' != ''" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF &quot;-DMAKO_PRESENTATION_LINUX_DEVKIT_DIR=$(MakoMediaPresentationLinuxDevkitDir)&quot;" />
     <Error Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(RuntimeIdentifier)' != '' and '$(RuntimeIdentifier)' != 'win-x64'"
            Text="Media presentation native ABI supports only win-x64 on Windows." />
     <Error Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(PROCESSOR_ARCHITECTURE)' != 'AMD64' or '$(PlatformTarget)' == 'x86' or '$(PlatformTarget)' == 'ARM64')"
@@ -36,7 +40,9 @@
     <Exec Condition="$([MSBuild]::IsOSPlatform('Windows'))" Command="cmake -S &quot;$(MakoMediaPresentationSourceDir)&quot; -B &quot;$(MakoMediaPresentationBuildDir)&quot; -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF &quot;-DCMAKE_C_COMPILER=$(MakoMediaPresentationWindowsCompiler)&quot; &quot;-DMAKO_PRESENTATION_WINDOWS_DEVKIT_ARCHIVE=$(MakoMediaPresentationWindowsDevkitArchive)&quot;" />
     <Exec Command="cmake --build &quot;$(MakoMediaPresentationBuildDir)&quot; --config Release --target mkg-presentation --parallel 2" />
     <ItemGroup>
-      <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Linux'))" Include="$(MakoMediaPresentationBuildDir)/mkg-presentation" />
+      <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationLinuxDevkitDir)' == ''" Include="$(MakoMediaPresentationBuildDir)/mkg-presentation" />
+      <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(MakoMediaPresentationLinuxDevkitDir)' != ''"
+                                       Include="$(MakoMediaPresentationLinuxStageDir)/mkg-presentation;$(MakoMediaPresentationLinuxStageDir)/libavutil.so.61;$(MakoMediaPresentationLinuxStageDir)/libavcodec.so.63;$(MakoMediaPresentationLinuxStageDir)/libavformat.so.63;$(MakoMediaPresentationLinuxStageDir)/FFmpeg-LICENSE.txt;$(MakoMediaPresentationLinuxStageDir)/zlib-LICENSE.txt;$(MakoMediaPresentationLinuxStageDir)/FFmpeg-Linux-Provenance.txt;$(MakoMediaPresentationLinuxStageDir)/ffmpeg-9.0.2.tar.xz;$(MakoMediaPresentationLinuxStageDir)/zlib-1.4.tar.gz;$(MakoMediaPresentationLinuxStageDir)/build_linux_devkit.sh" />
       <MakoMediaPresentationNativeFile Condition="$([MSBuild]::IsOSPlatform('Windows'))"
                                        Include="$(MakoMediaPresentationWindowsStageDir)/mkg-presentation.exe;$(MakoMediaPresentationWindowsStageDir)/avutil-61.dll;$(MakoMediaPresentationWindowsStageDir)/avcodec-63.dll;$(MakoMediaPresentationWindowsStageDir)/avformat-63.dll;$(MakoMediaPresentationWindowsStageDir)/FFmpeg-LICENSE.txt;$(MakoMediaPresentationWindowsStageDir)/zlib-LICENSE.txt;$(MakoMediaPresentationWindowsStageDir)/FFmpeg-Windows-Provenance.txt;$(MakoMediaPresentationWindowsStageDir)/ffmpeg-9.0.2.tar.xz;$(MakoMediaPresentationWindowsStageDir)/zlib-1.4.tar.gz;$(MakoMediaPresentationWindowsStageDir)/build_windows_devkit.ps1" />
     </ItemGroup>

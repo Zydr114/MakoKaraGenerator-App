@@ -1,7 +1,16 @@
 # Native media presentation helper
 
-The existing Linux build uses `pkg-config` and the controlled FFmpeg 9 ABI
-bundle. Windows is opt-in and supported on native Windows x64. No WSL,
+The Linux build supports two modes:
+- Default local dev: uses `pkg-config` against a host FFmpeg 9 (`libavformat>=63`) installation.
+- Controlled self-contained Linux devkit (used for CI / portable AppImage builds): build the
+  pinned minimal LGPL 2.1+ FFmpeg 9.0.2 bundle with
+  `bash backend/native/media-presentation/build_linux_devkit.sh` and pass its absolute path via
+  `-p:MakoMediaPresentationLinuxDevkitDir=...` (or environment variable
+  `MakoMediaPresentationLinuxDevkitDir`). The helper links against the co-located
+  `libavutil.so.61`, `libavcodec.so.63`, and `libavformat.so.63` via `$ORIGIN` RPATH and copies
+  the libraries, licenses, source archives, and build recipe into `media-tools/`.
+
+Windows is opt-in and supported on native Windows x64. No WSL,
 installed `ffmpeg.exe`, or FFmpeg package on `PATH` is used.
 
 | Input | Pin |

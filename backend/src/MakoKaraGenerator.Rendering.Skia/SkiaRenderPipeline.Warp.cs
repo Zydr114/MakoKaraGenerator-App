@@ -129,8 +129,9 @@ public sealed partial class SkiaRenderPipeline
                 throw new PreparedFrameException("WarpSurfaceBudgetExceeded", "网格源采样密度超出有限表面范围。");
             maximum = Math.Max(maximum, scale);
         }
-        // Directed ceiling removes unstable sub-pixel density changes and never undersamples.
-        return Math.Ceiling(maximum);
+        // Directed ceiling removes unstable sub-pixel density changes and never undersamples;
+        // tolerate tiny IEEE-754 rounding noise above integer scales (e.g. pure translations).
+        return Math.Max(1, Math.Ceiling(maximum - 1e-9));
     }
 
     private static PreparedTextWarpBinding FindWarpOwner(PreparedRenderFrame prepared, TextTarget target)

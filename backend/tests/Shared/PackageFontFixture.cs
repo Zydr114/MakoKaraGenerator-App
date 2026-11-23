@@ -5,7 +5,29 @@ namespace MakoKaraGenerator.TestSupport;
 
 internal static class PackageFontFixture
 {
-    private const string LinuxNotoPath = "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc";
+    private static readonly string[] LinuxNotoCandidates =
+    [
+        "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    ];
+
+    internal static string? FindLinuxNotoCjkTtc()
+    {
+        foreach (string candidate in LinuxNotoCandidates)
+            if (File.Exists(candidate))
+                return candidate;
+
+        foreach (string root in new[] { "/usr/share/fonts", "/usr/local/share/fonts" })
+        {
+            if (!Directory.Exists(root)) continue;
+            string? exact = Directory.EnumerateFiles(root, "NotoSansCJK-Regular.ttc", SearchOption.AllDirectories).FirstOrDefault();
+            if (exact is not null) return exact;
+            string? fallback = Directory.EnumerateFiles(root, "NotoSansCJK*.ttc", SearchOption.AllDirectories).FirstOrDefault();
+            if (fallback is not null) return fallback;
+        }
+        return null;
+    }
+
     internal static readonly string Family = OperatingSystem.IsLinux() ? "Mako Sans CJK SC" : ResolveWindowsFamily();
 
     private static string ResolveWindowsFamily()
@@ -18,8 +40,11 @@ internal static class PackageFontFixture
 
     internal static byte[] FontBytes()
     {
-        if (OperatingSystem.IsLinux() || File.Exists(LinuxNotoPath))
-            return ReplaceUtf16Be(File.ReadAllBytes(LinuxNotoPath), "Noto", "Mako");
+        string? linuxNotoPath = FindLinuxNotoCjkTtc();
+        if (linuxNotoPath is not null)
+            return ReplaceUtf16Be(File.ReadAllBytes(linuxNotoPath), "Noto", "Mako");
+        if (OperatingSystem.IsLinux())
+            throw new FileNotFoundException("未找到可用的 Linux Noto Sans CJK TTC 字体文件。", LinuxNotoCandidates[0]);
 
         string fontsDir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
         string msyhPath = Path.Combine(fontsDir, "msyh.ttc");

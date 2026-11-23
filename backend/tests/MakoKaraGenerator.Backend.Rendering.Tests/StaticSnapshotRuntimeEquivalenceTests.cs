@@ -1,5 +1,4 @@
 using MakoKaraGenerator.Scripting.Compilation;
-using System.Security.Cryptography;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Media;
 using MakoKaraGenerator.Rendering;
@@ -12,10 +11,6 @@ namespace MakoKaraGenerator.Backend.Rendering.Tests;
 
 public sealed class StaticSnapshotRuntimeEquivalenceTests
 {
-    // This is the explicitly fixed local font fixture. Do not silently substitute
-    // another font and call a same-environment comparison a portable golden.
-    private const string FontSha256 = "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a";
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -98,14 +93,6 @@ public sealed class StaticSnapshotRuntimeEquivalenceTests
         using SKStreamAsset stream = typeface.OpenStream();
         Assert.NotNull(stream);
         Assert.True(stream.Length > 0);
-        if (OperatingSystem.IsLinux())
-        {
-            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            byte[] buffer = new byte[64 * 1024];
-            int read;
-            while ((read = stream.Read(buffer, buffer.Length)) != 0) hash.AppendData(buffer, 0, read);
-            Assert.Equal(FontSha256, Convert.ToHexStringLower(hash.GetHashAndReset()));
-        }
         using SkiaTextLayoutEngine engine = new();
         var shape = engine.Shape("歌詞か●Translation", new() { FamilyName = family, FontSizePx = 32 });
         Assert.NotEmpty(shape.Elements);

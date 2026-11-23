@@ -1,0 +1,398 @@
+name: Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform(s) to package'
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - linux
+          - windows
+      create_draft_release:
+        description: 'Create or update a Draft GitHub Release with packaged assets'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package-linux:
+    name: Package Linux x64 (AppImage)
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: backend/Directory.Packages.props
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Linux native build and AppImage dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            clang \
+            ninja-build \
+            cmake \
+            pkg-config \
+            libsystemd-dev \
+            libvulkan-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            desktop-file-utils \
+            ffmpeg \
+            binutils \
+            patch \
+            curl \
+            xz-utils
+
+      - name: Cache verified libSkiaSharp.so
+        uses: actions/cache@v4
+        with:
+          path: |
+            .local/skia-p0/libSkiaSharp.so
+            .local/skia-p0/libSkiaSharp.build-stamp.json
+          key: skia-p0-lib-linux-x64-${{ hashFiles('native/skia/**') }}
+
+      - name: Cache Linux LGPL FFmpeg 9.0.2 devkit
+        uses: actions/cache@v4
+        with:
+          path: .local/linux-media-presentation-devkit
+          key: linux-ffmpeg9-devkit-${{ hashFiles('backend/native/media-presentation/build_linux_devkit.sh') }}
+
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: .local/electron-cache
+          key: electron-linux-x64-${{ hashFiles('desktop/pnpm-lock.yaml') }}
+
+      - name: Cache appimagetool 1.9.1
+        uses: actions/cache@v4
+        with:
+          path: .local/tools/appimagetool-x86_64.AppImage
+          key: appimagetool-x86_64-1.9.1
+
+      - name: Prepare appimagetool 1.9.1
+        run: |
+          set -euo pipefail
+          TOOL=".local/tools/appimagetool-x86_64.AppImage"
+          EXPECTED_SHA="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+          mkdir -p .local/tools
+          if [[ -f "$TOOL" ]] && [[ "$(sha256sum "$TOOL" | awk '{print $1}')" == "$EXPECTED_SHA" ]]; then
+            chmod +x "$TOOL"
+            exit 0
+          fi
+          rm -f "$TOOL" "$TOOL.part"
+          curl --fail --location --retry 3 --connect-timeout 20 --max-time 180 \
+            "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage" \
+            -o "$TOOL.part"
+          ACTUAL_SHA="$(sha256sum "$TOOL.part" | awk '{print $1}')"
+          if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+            echo "appimagetool SHA-256 mismatch: got $ACTUAL_SHA, expected $EXPECTED_SHA" >&2
+            exit 1
+          fi
+          mv -f "$TOOL.part" "$TOOL"
+          chmod +x "$TOOL"
+
+      - name: Prepare Linux LGPL FFmpeg 9.0.2 devkit
+        run: bash backend/native/media-presentation/build_linux_devkit.sh
+
+      - name: Verify native media-presentation CTests (Linux devkit)
+        run: |
+          set -euo pipefail
+          BUILD_DIR=".local/linux-media-presentation-ctest"
+          rm -rf "$BUILD_DIR"
+          cmake -S backend/native/media-presentation -B "$BUILD_DIR" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
+            -DMAKO_PRESENTATION_LINUX_DEVKIT_DIR="$PWD/.local/linux-media-presentation-devkit"
+          cmake --build "$BUILD_DIR" --parallel
+          ctest --test-dir "$BUILD_DIR" --output-on-failure
+          rm -rf "$BUILD_DIR"
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Build Linux desktop bundle
+        env:
+          MAKO_BUILD_JOBS: '4'
+          MakoMediaPresentationLinuxDevkitDir: ${{ github.workspace }}/.local/linux-media-presentation-devkit
+        run: |
+          set -euo pipefail
+          NODE_BIN="$(command -v node)"
+          export NODE_INCLUDE_DIR="$(dirname "$(dirname "$NODE_BIN")")/include/node"
+          if [[ ! -f "$NODE_INCLUDE_DIR/node_api.h" ]]; then
+            echo "Node N-API headers not found at $NODE_INCLUDE_DIR" >&2
+            exit 1
+          fi
+          pnpm run build:desktop
+
+      - name: Verify bundled Linux media-tools closure
+        run: |
+          set -euo pipefail
+          DIST="$(node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync('.local/backend-current.json','utf8')).dist)")"
+          TOOLS="$DIST/server/media-tools"
+          for f in \
+            mkg-presentation \
+            libavutil.so.61 \
+            libavcodec.so.63 \
+            libavformat.so.63 \
+            mkg-media-exec-gate \
+            libmkg_media_envelope.so \
+            FFmpeg-LICENSE.txt \
+            zlib-LICENSE.txt \
+            FFmpeg-Linux-Provenance.txt \
+            ffmpeg-9.0.2.tar.xz \
+            zlib-1.4.tar.gz \
+            build_linux_devkit.sh; do
+            if [[ -L "$TOOLS/$f" || ! -f "$TOOLS/$f" ]]; then
+              echo "Missing or symlinked bundled media tool: $TOOLS/$f" >&2
+              exit 1
+            fi
+          done
+          LDD_OUT="$(LC_ALL=C ldd "$TOOLS/mkg-presentation")"
+          echo "$LDD_OUT"
+          if grep -q "not found" <<<"$LDD_OUT"; then
+            echo "Unresolved shared library in mkg-presentation" >&2
+            exit 1
+          fi
+          for lib in libavformat.so.63 libavcodec.so.63 libavutil.so.61; do
+            if ! grep -Fq "$TOOLS/$lib" <<<"$LDD_OUT"; then
+              echo "$lib did not resolve to co-located $TOOLS/$lib" >&2
+              exit 1
+            fi
+          done
+
+      - name: Package Linux x64 AppImage
+        run: |
+          set -euo pipefail
+          node scripts/package-appimage.mjs --tool "$PWD/.local/tools/appimagetool-x86_64.AppImage"
+          mkdir -p .local/package-out
+          cp .local/release/MakoKaraGenerator-*-x86_64.AppImage .local/package-out/
+          (cd .local/package-out && sha256sum MakoKaraGenerator-*-x86_64.AppImage > SHA256SUMS-linux-x64.txt)
+          cat .local/package-out/SHA256SUMS-linux-x64.txt
+
+      - name: Upload Linux AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-linux-x64
+          path: |
+            .local/package-out/MakoKaraGenerator-*-x86_64.AppImage
+            .local/package-out/SHA256SUMS-linux-x64.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  package-windows:
+    name: Package Windows x64 (Portable ZIP)
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: backend/Directory.Packages.props
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache Windows export tools bundle (GPL FFmpeg + x264)
+        uses: actions/cache@v4
+        with:
+          path: .local/windows-export-tools
+          key: win-export-tools-${{ hashFiles('scripts/build-windows-export-tools.ps1', 'scripts/package-windows-media.mjs') }}
+
+      - name: Cache Windows LGPL FFmpeg 9.0.2 devkit
+        uses: actions/cache@v4
+        with:
+          path: .local/windows-media-devkit
+          key: win-ffmpeg9-devkit-${{ hashFiles('backend/native/media-presentation/build_windows_devkit.ps1', 'backend/native/media-presentation/windows_devkit.cmake') }}
+
+      - name: Cache llvm-mingw 20261117 toolchain
+        uses: actions/cache@v4
+        with:
+          path: .local/windows-toolchain
+          key: win-llvm-mingw-20261117-ucrt-x86_64
+
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: .local/electron-cache
+          key: electron-win-x64-${{ hashFiles('desktop/pnpm-lock.yaml') }}
+
+      - name: Prepare Windows native media bundles and toolchain
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/prepare-windows-packaging-tools.ps1
+
+      - name: Verify native media-presentation CTests and export tools bundle (Windows)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $buildDir = Join-Path $PWD '.local/windows-media-presentation-ctest'
+          if (Test-Path -LiteralPath $buildDir) { Remove-Item -LiteralPath $buildDir -Recurse -Force }
+          cmake -S backend/native/media-presentation -B $buildDir -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_TESTING=ON `
+            "-DCMAKE_C_COMPILER=$env:MakoMediaPresentationWindowsCompiler" `
+            "-DMAKO_PRESENTATION_WINDOWS_DEVKIT_ARCHIVE=$env:MakoMediaPresentationWindowsDevkitArchive"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build $buildDir --parallel
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ctest --test-dir $buildDir --output-on-failure
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item -LiteralPath $buildDir -Recurse -Force
+
+          $env:MAKO_WINDOWS_EXPORT_TOOLS_TEST_DIR = (Join-Path $PWD '.local/windows-export-tools')
+          node --experimental-test-module-mocks --test tests/package-windows-media.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Build and package Windows x64 Portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node scripts/package-windows.mjs --build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $outDir = Join-Path $PWD '.local/package-out'
+          $null = New-Item -ItemType Directory -Path $outDir -Force
+          $zips = @(Get-ChildItem -LiteralPath (Join-Path $PWD '.local/release') -Filter 'MakoKaraGenerator-*-windows-x64.zip')
+          if ($zips.Count -ne 1) {
+            throw "Expected exactly 1 Windows portable ZIP, found $($zips.Count)"
+          }
+          $dest = Join-Path $outDir $zips[0].Name
+          Copy-Item -LiteralPath $zips[0].FullName -Destination $dest -Force
+          $hash = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($zips[0].Name)" | Set-Content -LiteralPath (Join-Path $outDir 'SHA256SUMS-windows-x64.txt') -Encoding utf8
+          Get-Content -LiteralPath (Join-Path $outDir 'SHA256SUMS-windows-x64.txt')
+
+      - name: Upload Windows Portable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-windows-x64
+          path: |
+            .local/package-out/MakoKaraGenerator-*-windows-x64.zip
+            .local/package-out/SHA256SUMS-windows-x64.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    name: Create / Update Draft Release
+    needs: [package-linux, package-windows]
+    if: >-
+      always() &&
+      !cancelled() &&
+      (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.create_draft_release == true)) &&
+      (needs.package-linux.result == 'success' || needs.package-linux.result == 'skipped') &&
+      (needs.package-windows.result == 'success' || needs.package-windows.result == 'skipped') &&
+      (needs.package-linux.result == 'success' || needs.package-windows.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Assemble checksums and upload to Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          cat SHA256SUMS-*.txt | sort -k2 > SHA256SUMS.txt
+          rm -f SHA256SUMS-*.txt
+          ls -lh
+          cat SHA256SUMS.txt
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            VERSION="$(node -e "const fs=require('node:fs'); console.log(JSON.parse(fs.readFileSync('../backend/web/contract-manifest.json','utf8')).productVersion)")"
+            TAG="v${VERSION}"
+          fi
+
+          if EXISTING_DRAFT="$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null)"; then
+            if [[ "$EXISTING_DRAFT" != "true" ]]; then
+              echo "Release $TAG is already published; refusing to overwrite published release assets." >&2
+              exit 1
+            fi
+            gh release upload "$TAG" * --clobber
+          else
+            TARGET_ARGS=()
+            if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+              TARGET_ARGS=(--target "${GITHUB_SHA}")
+            fi
+            gh release create "$TAG" * \
+              --draft \
+              "${TARGET_ARGS[@]}" \
+              --title "MakoKara Generator ${TAG}" \
+              --generate-notes
+          fi

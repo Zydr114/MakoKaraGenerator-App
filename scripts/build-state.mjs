@@ -28,8 +28,11 @@ export function webInputs(root) {
 
 /** 后端发布的输入，规则同 backend/tools/backend-web-host/host.py 的 source_inputs。 */
 export function backendInputs(root) {
-  const paths = ['src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'NuGet.Config', 'NuGet.config'];
-  if (process.platform === 'win32') paths.push('build/MakoMediaPresentation.Native.targets', 'native/media-presentation');
+  const paths = [
+    'src', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props',
+    'global.json', 'NuGet.Config', 'NuGet.config',
+    'build/MakoMediaPresentation.Native.targets', 'native/media-presentation',
+  ];
   return trackedInputs(join(root, 'backend'), paths);
 }
 

@@ -1,0 +1,37 @@
+set(MAKO_PRESENTATION_LINUX_DEVKIT_DIR "" CACHE PATH "Pinned LGPL FFmpeg 9.0.2 Linux x64 devkit directory")
+if(NOT IS_DIRECTORY "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}")
+  message(FATAL_ERROR "Set MAKO_PRESENTATION_LINUX_DEVKIT_DIR to a built FFmpeg 9.0.2 Linux devkit (see README.md).")
+endif()
+
+set(ffmpeg_source_sha256 "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e")
+set(zlib_source_sha256 "02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584")
+
+file(SHA256 "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}/ffmpeg-9.0.2.tar.xz" actual_ffmpeg_sha256)
+if(NOT actual_ffmpeg_sha256 STREQUAL ffmpeg_source_sha256)
+  message(FATAL_ERROR "Linux devkit ffmpeg-9.0.2.tar.xz SHA-256 mismatch.")
+endif()
+file(SHA256 "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}/zlib-1.4.tar.gz" actual_zlib_sha256)
+if(NOT actual_zlib_sha256 STREQUAL zlib_source_sha256)
+  message(FATAL_ERROR "Linux devkit zlib-1.4.tar.gz SHA-256 mismatch.")
+endif()
+
+set(ffmpeg_linux_devkit "${MAKO_PRESENTATION_LINUX_DEVKIT_DIR}")
+set(linux_tool_dir "${CMAKE_CURRENT_BINARY_DIR}/media-tools")
+set(ffmpeg_linux_libs libavutil.so.61 libavcodec.so.63 libavformat.so.63)
+file(MAKE_DIRECTORY "${linux_tool_dir}")
+
+foreach(lib IN LISTS ffmpeg_linux_libs)
+  set(lib_src "${ffmpeg_linux_devkit}/lib/${lib}")
+  if(NOT EXISTS "${lib_src}")
+    message(FATAL_ERROR "Missing Linux FFmpeg devkit library: ${lib_src}")
+  endif()
+  file(COPY_FILE "${lib_src}" "${linux_tool_dir}/${lib}" ONLY_IF_DIFFERENT)
+endforeach()
+
+foreach(notice IN ITEMS FFmpeg-LICENSE.txt zlib-LICENSE.txt ffmpeg-9.0.2.tar.xz zlib-1.4.tar.gz)
+  file(COPY_FILE "${ffmpeg_linux_devkit}/${notice}" "${linux_tool_dir}/${notice}" ONLY_IF_DIFFERENT)
+endforeach()
+
+foreach(notice IN ITEMS FFmpeg-Linux-Provenance.txt build_linux_devkit.sh)
+  file(COPY_FILE "${CMAKE_CURRENT_LIST_DIR}/${notice}" "${linux_tool_dir}/${notice}" ONLY_IF_DIFFERENT)
+endforeach()

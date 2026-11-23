@@ -17,6 +17,7 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class WorkerRuntimeExportIntegrationTests
 {
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 真实Worker颜色背景字体包通过外置完整闭包导出()
     {
         using TemporaryDirectory temp = new();
@@ -45,6 +46,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
     }
 
     [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData("transparentProRes4444", true, "TransparentBackgroundDependency")]
     [InlineData("opaqueMp4", true, "BackgroundMediaUnavailable")]
     [InlineData("opaqueMp4", false, null)]
@@ -93,9 +95,17 @@ public sealed class WorkerRuntimeExportIntegrationTests
     [Theory]
     [InlineData("presets", "opaqueMp4")]
     [InlineData("presets", "transparentProRes4444")]
+    public Task 真实Worker固定预设导出保完整投影且不重复实例(string kind, string format)
+        => VerifyPresetOrAdvancedExportAsync(kind, format);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData("advanced", "opaqueMp4")]
     [InlineData("advanced", "transparentProRes4444")]
-    public async Task 真实Worker固定预设与高级包配方导出保完整投影且不重复实例(string kind, string format)
+    public Task 真实Worker高级包配方导出保完整投影且不重复实例(string kind, string format)
+        => VerifyPresetOrAdvancedExportAsync(kind, format);
+
+    private static async Task VerifyPresetOrAdvancedExportAsync(string kind, string format)
     {
         using TemporaryDirectory temp = new();
         ProjectSnapshot snapshot = Snapshot(kind);
@@ -113,11 +123,21 @@ public sealed class WorkerRuntimeExportIntegrationTests
 
     [Theory]
     [InlineData("image", "presets", "opaqueMp4", BackgroundPlaybackMode.FreezeLastFrame, BackgroundFit.Contain)]
-    [InlineData("image", "advanced", "transparentProRes4444", BackgroundPlaybackMode.FreezeLastFrame, BackgroundFit.Cover)]
     [InlineData("video", "static", "opaqueMp4", BackgroundPlaybackMode.FreezeLastFrame, BackgroundFit.Contain)]
-    [InlineData("video", "advanced", "opaqueMp4", BackgroundPlaybackMode.Loop, BackgroundFit.Cover)]
     [InlineData("video", "presets", "transparentProRes4444", BackgroundPlaybackMode.Loop, BackgroundFit.Contain)]
-    public async Task 真实Worker统一媒体授权输入导出保原背景fit循环冻结与完整帧(string mediaKind, string sourceKind, string format,
+    public Task 真实Worker统一媒体授权输入导出保原背景fit循环冻结与完整帧_CPU(string mediaKind, string sourceKind, string format,
+        BackgroundPlaybackMode playback, BackgroundFit fit)
+        => VerifyRuntimeMediaExportAsync(mediaKind, sourceKind, format, playback, fit);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
+    [InlineData("image", "advanced", "transparentProRes4444", BackgroundPlaybackMode.FreezeLastFrame, BackgroundFit.Cover)]
+    [InlineData("video", "advanced", "opaqueMp4", BackgroundPlaybackMode.Loop, BackgroundFit.Cover)]
+    public Task 真实Worker统一媒体授权输入导出保原背景fit循环冻结与完整帧_GPU(string mediaKind, string sourceKind, string format,
+        BackgroundPlaybackMode playback, BackgroundFit fit)
+        => VerifyRuntimeMediaExportAsync(mediaKind, sourceKind, format, playback, fit);
+
+    private static async Task VerifyRuntimeMediaExportAsync(string mediaKind, string sourceKind, string format,
         BackgroundPlaybackMode playback, BackgroundFit fit)
     {
         using TemporaryDirectory temp = new();
@@ -166,6 +186,7 @@ public sealed class WorkerRuntimeExportIntegrationTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 真实Worker拒绝授权媒体内容改变且不生成导出候选()
     {
         using TemporaryDirectory temp = new();

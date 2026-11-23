@@ -65,6 +65,8 @@ def prepare_archive(repository, revision, archive, expected, target, patches=())
             check=True,
             timeout=PATCH_TIMEOUT_SECONDS,
         )
+    if target.is_dir() and not target.is_symlink() and not any(target.iterdir()):
+        target.rmdir()
     if target.exists():
         for source in extracted.rglob("*"):
             if source.is_file():

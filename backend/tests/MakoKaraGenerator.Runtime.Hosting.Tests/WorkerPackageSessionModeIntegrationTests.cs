@@ -10,6 +10,7 @@ using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 
+[Trait("Category", "RequiresVulkan")]
 public sealed class WorkerPackageSessionModeIntegrationTests(ITestOutputHelper output)
 {
     [Theory]

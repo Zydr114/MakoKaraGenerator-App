@@ -19,9 +19,17 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class RubySpacingWorkerIntegrationTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task Wide_ruby_matches_real_static_and_package_worker_pixels_after_seek(bool package, bool transparent)
+    [InlineData(false)] [InlineData(true)]
+    public Task Wide_ruby_matches_real_static_worker_pixels_after_seek(bool transparent)
+        => VerifyWideRubyWorkerPixelsAsync(package: false, transparent);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
+    [InlineData(false)] [InlineData(true)]
+    public Task Wide_ruby_matches_real_package_worker_pixels_after_seek(bool transparent)
+        => VerifyWideRubyWorkerPixelsAsync(package: true, transparent);
+
+    private async Task VerifyWideRubyWorkerPixelsAsync(bool package, bool transparent)
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         var source = RubySpacingFixture.Create(width: 320);

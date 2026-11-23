@@ -13,6 +13,7 @@ namespace MakoKaraGenerator.Backend.Server.Tests;
 public sealed partial class PreviewTransportTests
 {
     [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData(StyleTemplateKind.Line)]
     [InlineData(StyleTemplateKind.Token)]
     public async Task 已导入高级整行元素模板支持完整候选试样与正式分配且不冒充静态定义(StyleTemplateKind kind)

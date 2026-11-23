@@ -25,7 +25,7 @@ const MIME_TYPES = Object.freeze({
 const LOOPBACK_ADDRS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 async function startStaticWebServer(options) {
-  const distRoot = fs.realpathSync(path.resolve(options.distRoot));
+  const distRoot = await fsp.realpath(path.resolve(options.distRoot));
   const requestedPort = options.port ?? 5180;
   const host = options.host ?? '127.0.0.1';
   const allowFallbackPort = options.allowFallbackPort ?? false;

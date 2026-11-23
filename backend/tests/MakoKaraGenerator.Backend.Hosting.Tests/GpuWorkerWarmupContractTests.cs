@@ -54,6 +54,7 @@ public sealed class GpuWorkerWarmupContractTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task Windows_job_guarded_worker_completes_gpu_warmup_and_device_proof()
     {
         if (!OperatingSystem.IsWindows()) return;

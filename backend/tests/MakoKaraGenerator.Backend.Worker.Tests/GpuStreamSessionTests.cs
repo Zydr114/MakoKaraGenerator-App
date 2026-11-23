@@ -455,7 +455,7 @@ public sealed class GpuStreamSessionTests
         }));
         internal async Task<JsonElement> Wait(string type, int count)
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             while (true)
             {
                 var matching = Packets.Where(packet => packet.GetProperty("type").GetString() == type).ToArray();

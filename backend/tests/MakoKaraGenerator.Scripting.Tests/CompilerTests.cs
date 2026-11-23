@@ -112,7 +112,13 @@ public sealed class CompilerTests
             ScriptCompilationResult result = await Compiler.Value.CompileAsync([new("src/Probe.cs", Source)]);
             string artifact = ScriptArtifactStore.Publish(root, result);
             Assert.Equal(artifact, ScriptArtifactStore.Publish(root, result));
-            var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true };
+            var info = new ProcessStartInfo("dotnet")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8,
+            };
             info.ArgumentList.Add(typeof(CompilerTests).Assembly.Location);
             info.ArgumentList.Add("--reuse"); info.ArgumentList.Add(artifact);
             using Process process = Process.Start(info)!;
@@ -227,6 +233,7 @@ internal static class ArtifactReuseProcess
         if (args is not ["--reuse", var path]) return 2;
         try
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
             ScriptCompilationResult result = ScriptArtifactStore.Load(path);
             using ScriptModule module = new(result.PeImage.AsMemory(), result.PdbImage.AsMemory());
             IDisposable instance = module.CreateInstance<IDisposable>("Probe");

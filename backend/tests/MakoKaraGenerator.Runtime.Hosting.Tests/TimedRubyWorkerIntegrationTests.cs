@@ -20,9 +20,17 @@ namespace MakoKaraGenerator.Runtime.Hosting.Tests;
 public sealed class TimedRubyWorkerIntegrationTests(ITestOutputHelper output)
 {
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public async Task 真实静态与包Worker保持独立注音像素PNG及回退寻址且脚本只能读取副本(bool package, bool transparent)
+    [InlineData(false)] [InlineData(true)]
+    public Task 真实静态Worker保持独立注音像素PNG及回退寻址且脚本只能读取副本(bool transparent)
+        => VerifyTimedRubyWorkerAsync(package: false, transparent);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
+    [InlineData(false)] [InlineData(true)]
+    public Task 真实包Worker保持独立注音像素PNG及回退寻址且脚本只能读取副本(bool transparent)
+        => VerifyTimedRubyWorkerAsync(package: true, transparent);
+
+    private async Task VerifyTimedRubyWorkerAsync(bool package, bool transparent)
     {
         PackageWorkerRuntimeFixture.AssertFixedFont();
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();

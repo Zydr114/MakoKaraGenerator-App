@@ -56,6 +56,7 @@ public sealed class ProjectHostingTests
     }
 
     [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData(false)] [InlineData(true)]
     public async Task 效果同帧测量使用原准备帧且普通渲染像素一致(bool layout)
     {
@@ -73,6 +74,7 @@ public sealed class ProjectHostingTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 布局试样的预设脚本材质与样式共同使用试样来源且不改源身份()
     {
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
@@ -143,6 +145,7 @@ public sealed class ProjectHostingTests
     }
 
     [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData(false)] [InlineData(true)]
     public async Task 无GUI调用真实固定包编译原生装配且独立会话重放保持全部帧和诊断(bool transparent)
     {
@@ -187,6 +190,7 @@ public sealed class ProjectHostingTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 编译失败完整保留固定来源且预取消不发布程序集或会话()
     {
         using TemporaryDirectory temp = new(); string cache = temp.FilePath("cache");

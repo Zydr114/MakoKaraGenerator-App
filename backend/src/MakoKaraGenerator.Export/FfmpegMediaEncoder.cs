@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Collections.Immutable;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
@@ -352,7 +353,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         {
             long observed = Math.Max(size, Volatile.Read(ref _exceededActualBytes));
             await DisposeAsync().ConfigureAwait(false);
-            DeleteTemporaryOutputQuietly();
+            await DeleteTemporaryOutputQuietlyAsync().ConfigureAwait(false);
             throw CreateSizeLimitExceededException(observed);
         }
 
@@ -417,7 +418,7 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         _monitorStop.Dispose();
         _sizeLimitSource.Dispose();
         _lifetime.Dispose();
-        if (!_completed) DeleteTemporaryOutputQuietly();
+        if (!_completed) await DeleteTemporaryOutputQuietlyAsync().ConfigureAwait(false);
     }
 
     private async Task MonitorOutputSizeAsync(long maximumOutputBytes, CancellationToken monitorToken)
@@ -469,14 +470,24 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
         }
     }
 
-    private void DeleteTemporaryOutputQuietly()
+    private async Task DeleteTemporaryOutputQuietlyAsync()
     {
-        try
+        // On Windows, a just-terminated child process (or real-time AV scanner) may hold a brief
+        // sharing lock on the temporary output right after exit; retry briefly before giving up.
+        int maxAttempts = OperatingSystem.IsWindows() ? 15 : 1;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
-            if (File.Exists(_temporaryOutputPath)) File.Delete(_temporaryOutputPath);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
+            try
+            {
+                if (!File.Exists(_temporaryOutputPath)) return;
+                File.Delete(_temporaryOutputPath);
+                return;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                if (attempt + 1 >= maxAttempts) return;
+                await Task.Delay(25 * (attempt + 1)).ConfigureAwait(false);
+            }
         }
     }
 
@@ -505,7 +516,34 @@ internal sealed class FfmpegEncodingSession : IVideoEncodingSession
     {
         try
         {
-            return await command.ExecuteAsync(_linked!.Token).ConfigureAwait(false);
+            using var childCancellation = new CancellationTokenSource();
+            var task = command.ExecuteAsync(childCancellation.Token);
+            using var registration = _linked!.Token.Register(() =>
+            {
+                // On Windows, shims (such as Chocolatey ffmpeg.exe or .cmd wrappers) spawn descendant
+                // processes; kill the entire process tree before CliWrap terminates the parent alone.
+                if (OperatingSystem.IsWindows())
+                {
+                    try
+                    {
+                        using Process process = Process.GetProcessById(task.ProcessId);
+                        process.Kill(entireProcessTree: true);
+                    }
+                    catch { }
+                }
+                try { childCancellation.Cancel(); }
+                catch (ObjectDisposedException) { }
+            });
+            try
+            {
+                CommandResult result = await task.ConfigureAwait(false);
+                _linked.Token.ThrowIfCancellationRequested();
+                return result;
+            }
+            catch (OperationCanceledException) when (_linked.Token.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(_linked.Token);
+            }
         }
         catch (Win32Exception exception)
         {

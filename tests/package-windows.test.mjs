@@ -147,17 +147,29 @@ test('Windows ZIP stages a renamed runtime, matched deployment, and only product
   });
   assert.equal(ensurePrivateDir.mock.callCount(), 1);
 
-  const tar = join(process.env.SystemRoot, 'System32/tar.exe');
   const output = join(root, 'output', 'portable custom.zip');
-  createWindowsZip(stageParent, output, tar);
+  createWindowsZip(stageParent, output);
   const extracted = join(root, 'extracted');
   mkdirSync(extracted);
-  execFileSync(tar, ['-xf', output, '-C', extracted]);
+  const psEnv = { ...process.env, MAKO_TEST_ZIP: output, MAKO_TEST_OUT: extracted };
+  for (const key of Object.keys(psEnv)) {
+    if (key.toUpperCase() === 'PSMODULEPATH') delete psEnv[key];
+  }
+  const extractScript = Buffer.from([
+    "$ErrorActionPreference = 'Stop'",
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+    '[System.IO.Compression.ZipFile]::ExtractToDirectory($env:MAKO_TEST_ZIP, $env:MAKO_TEST_OUT, [System.Text.UTF8Encoding]::new($false))',
+  ].join('\n'), 'utf16le').toString('base64');
+  execFileSync(
+    join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', extractScript],
+    { env: psEnv, windowsHide: true },
+  );
   for (const entry of [exeName, 'resources/media-tools/ffprobe.exe', 'resources/frontend-dist/index.html',
     'resources/backend-dist/server/media-tools/FFmpeg-LICENSE.txt', 'resources/backend-dist/desktop/shm_bridge.node']) {
     assert.ok(existsSync(join(extracted, 'MakoKaraGenerator', entry)), entry);
   }
-  assert.throws(() => createWindowsZip(stageParent, output, tar), { code: 'EEXIST' });
+  assert.throws(() => createWindowsZip(stageParent, output), { code: 'EEXIST' });
 });
 
 test('packaged resolution rejects a linked frontend without looking in the checkout', windowsOnly, (context) => {

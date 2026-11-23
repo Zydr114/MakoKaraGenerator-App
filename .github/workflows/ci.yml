@@ -66,12 +66,56 @@ jobs:
             libfontconfig1 \
             libfreetype6
 
+      - name: Cache Noto Sans CJK SC font (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: .local/ci-fonts/NotoSansCJKsc-Regular.otf
+          key: noto-sans-cjk-sc-2.004
+
       - name: Install native test dependencies (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
             choco install ffmpeg --no-progress -y
+          }
+          $fontDir = Join-Path $PWD '.local/ci-fonts'
+          $fontCache = Join-Path $fontDir 'NotoSansCJKsc-Regular.otf'
+          $expectedSha = '2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b'
+          $null = New-Item -ItemType Directory -Path $fontDir -Force
+          if (-not (Test-Path -LiteralPath $fontCache) -or (Get-FileHash -LiteralPath $fontCache -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedSha) {
+            $tmp = "$fontCache.part"
+            curl.exe --fail --location --retry 3 --connect-timeout 20 --max-time 120 `
+              'https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf' `
+              -o $tmp
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $actualSha = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actualSha -ne $expectedSha) {
+              throw "NotoSansCJKsc-Regular.otf SHA-256 mismatch: got $actualSha, expected $expectedSha"
+            }
+            Move-Item -LiteralPath $tmp -Destination $fontCache -Force
+          }
+          $winFont = Join-Path $env:WINDIR 'Fonts\NotoSansCJKsc-Regular.otf'
+          Copy-Item -LiteralPath $fontCache -Destination $winFont -Force
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts' `
+            -Name 'Noto Sans CJK SC (OpenType)' -Value 'NotoSansCJKsc-Regular.otf'
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class CiFontNotify {
+            [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+            public static extern int AddFontResourceW(string lpFileName);
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+            public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint Msg, UIntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+          }
+          "@
+          [void][CiFontNotify]::AddFontResourceW($winFont)
+          [UIntPtr]$res = [UIntPtr]::Zero
+          [void][CiFontNotify]::SendMessageTimeoutW([IntPtr]0xFFFF, 0x001D, [UIntPtr]::Zero, [IntPtr]::Zero, 2, 1000, [ref]$res)
+          if (Get-Service -Name FontCache -ErrorAction SilentlyContinue) {
+            Restart-Service -Name FontCache -Force -ErrorAction SilentlyContinue
           }
 
       - name: Restore
@@ -90,7 +134,9 @@ jobs:
         working-directory: backend
         run: dotnet build MakoKaraGenerator.slnx --configuration Release --no-restore
 
-      # Exclude Category=PublishedServer (RubyTimelineTransportTests requires pre-published self-contained artifacts).
+      # Exclude PublishedServer (needs pre-published self-contained artifacts) and RequiresVulkan
+      # (GitHub-hosted runners have no Vulkan GPU driver). Run test projects sequentially (-m:1)
+      # to avoid oversubscribing 2-core runners with concurrent child process trees.
       - name: Test
         working-directory: backend
         run: >-
@@ -98,7 +144,8 @@ jobs:
           --configuration Release
           --no-build
           --no-restore
-          --filter "Category!=PublishedServer"
+          -m:1
+          --filter "Category!=PublishedServer&Category!=RequiresVulkan"
           --blame-hang-timeout 90s
           --blame-hang-dump-type none
 

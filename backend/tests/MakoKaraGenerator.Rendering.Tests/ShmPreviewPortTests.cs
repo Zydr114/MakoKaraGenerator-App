@@ -295,6 +295,7 @@ public sealed class ShmPreviewPortTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public void VulkanShm模式免除Drm导出强耦合且可绘制合成图案()
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;

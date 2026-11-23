@@ -142,11 +142,22 @@ public sealed class WorkerResourceProxyTests
 
     private static string FindFontPath()
     {
+        string[] preferredNames = ["DejaVuSans.ttf", "arial.ttf", "segoeui.ttf", "LiberationSans-Regular.ttf", "NotoSans-Regular.ttf"];
         string[] roots = ["/usr/share/fonts", "/usr/local/share/fonts", Environment.GetFolderPath(Environment.SpecialFolder.Fonts)];
         string? path = roots.Where(Directory.Exists)
             .SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
-            .FirstOrDefault(file => file.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
-                || file.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
+            .Where(file => file.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase)
+                || file.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+            .Select(file => (Path: file, Name: Path.GetFileName(file), Size: new FileInfo(file).Length))
+            .Where(item => item.Size is > 0 and <= PackageResourceWorkerContract.MaximumGrantBytes)
+            .OrderBy(item =>
+            {
+                int preferredIndex = Array.FindIndex(preferredNames, name => string.Equals(name, item.Name, StringComparison.OrdinalIgnoreCase));
+                return preferredIndex >= 0 ? preferredIndex : preferredNames.Length;
+            })
+            .ThenBy(item => item.Size)
+            .Select(item => item.Path)
+            .FirstOrDefault();
         return path ?? throw new FileNotFoundException("测试需要可读取的系统字体文件。");
     }
 }

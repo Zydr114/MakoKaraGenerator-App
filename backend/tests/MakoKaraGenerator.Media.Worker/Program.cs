@@ -37,7 +37,7 @@ if (!decoding)
     if (mode == "probe-invalid") { Console.Write("{invalid"); return; }
     if (mode == "probe-overflow") { Console.Write(new string('o', 1_100_000)); Console.Out.Flush(); await Task.Delay(TimeSpan.FromHours(1)); }
     if (mode == "probe-error") { Console.Error.Write(new string('e', 512_000)); Environment.Exit(7); }
-    if (mode == "probe-late") await Task.Delay(1000);
+    if (mode == "probe-late") await Task.Delay(2500);
     if (mode == "probe-full-stderr") { Console.Error.Write(new string('e', 512_000)); Console.Error.Flush(); }
     Console.Write("{\"streams\":[{\"width\":1,\"height\":1,\"avg_frame_rate\":\"30/1\"}],\"format\":{\"duration\":\"2\"}}");
     return;
@@ -45,7 +45,7 @@ if (!decoding)
 using Stream output = Console.OpenStandardOutput();
 if (mode == "decoder-error") { Console.Error.Write("controlled decoder failure"); Environment.Exit(8); }
 if (mode == "decoder-error-flood") { Console.Error.Write(new string('e', 512_000)); Environment.Exit(8); }
-if (mode == "late-frame") await Task.Delay(1000);
+if (mode == "late-frame") await Task.Delay(2500);
 if (mode == "half-frame")
 {
     await output.WriteAsync(new byte[] { 1, 2 }); await output.FlushAsync();
@@ -62,8 +62,8 @@ else
         byte[] frame = [(byte)i, 2, 3, 255];
         if (mode == "drip-frame")
         {
-            foreach (byte value in frame) { await output.WriteAsync(new byte[] { value }); await output.FlushAsync(); await Task.Delay(200); }
+            foreach (byte value in frame) { await output.WriteAsync(new byte[] { value }); await output.FlushAsync(); await Task.Delay(450); }
         }
-        else { await output.WriteAsync(frame); await output.FlushAsync(); if (mode == "slow-sequence") await Task.Delay(80); }
+        else { await output.WriteAsync(frame); await output.FlushAsync(); if (mode == "slow-sequence") await Task.Delay(120); }
     }
 }

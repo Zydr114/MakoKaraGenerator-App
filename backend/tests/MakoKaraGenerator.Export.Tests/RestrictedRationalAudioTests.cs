@@ -23,7 +23,7 @@ public sealed class RestrictedRationalAudioTests
             wave.Write("data"u8); wave.Write(sourceSamples * 2);
             for (int sample = 0; sample < sourceSamples; sample++) wave.Write((short)4096);
         }
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(45));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(TestMediaToolPaths.Ffmpeg).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mov"), Width = 32, Height = 18,

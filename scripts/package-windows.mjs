@@ -190,14 +190,63 @@ function canonicalFuturePath(output) {
   return join(canonicalFuturePath(parent), basename(output));
 }
 
-export function createWindowsZip(stageParent, output, tar) {
+function runEncodedPowerShell(script, extraEnv = {}) {
+  // PowerShell 7's inherited module path can break Windows PowerShell 5.1.
+  const childEnv = { ...process.env, ...extraEnv };
+  for (const key of Object.keys(childEnv)) {
+    if (key.toUpperCase() === 'PSMODULEPATH') delete childEnv[key];
+  }
+  const encoded = Buffer.from(`$ProgressPreference = 'SilentlyContinue'\n${script}`, 'utf16le').toString('base64');
+  const systemRoot = process.env.SystemRoot;
+  if (!systemRoot || !win32.isAbsolute(systemRoot)) throw new Error('Cannot locate the Windows system directory.');
+  execFileSync(
+    join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+    { stdio: 'inherit', windowsHide: true, env: childEnv },
+  );
+}
+
+export function createWindowsZip(stageParent, output) {
   if (lstatSync(output, { throwIfNoEntry: false })) throw Object.assign(new Error(`ZIP already exists: ${output}`), { code: 'EEXIST' });
   const parent = dirname(output);
   mkdirSync(parent, { recursive: true });
   const scratch = mkdtempSync(join(parent, '.mako-zip-'));
   try {
     const tempZip = join(scratch, 'portable.zip');
-    execFileSync(tar, ['-a', '--options', 'zip:hdrcharset=UTF-8', '-cf', tempZip, '-C', stageParent, APP_NAME], { stdio: 'inherit', windowsHide: true });
+    // Use .NET ZipArchive with explicit UTF-8 entry names rather than Windows' bsdtar.exe:
+    // bsdtar's --options zip:hdrcharset=UTF-8 crashes (0xC0000005) on non-ASCII names under non-UTF-8 locales.
+    runEncodedPowerShell([
+      "$ErrorActionPreference = 'Stop'",
+      'Add-Type -AssemblyName System.IO.Compression',
+      'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+      "$stageParent = [System.IO.Path]::GetFullPath($env:MAKO_ZIP_STAGE_PARENT).TrimEnd('\\', '/')",
+      '$root = [System.IO.Path]::Combine($stageParent, $env:MAKO_ZIP_APP_NAME)',
+      '$prefix = $stageParent + [System.IO.Path]::DirectorySeparatorChar',
+      '$files = [System.IO.Directory]::GetFiles($root, "*", [System.IO.SearchOption]::AllDirectories)',
+      '[System.Array]::Sort($files, [System.StringComparer]::Ordinal)',
+      '$utf8 = [System.Text.UTF8Encoding]::new($false)',
+      '$stream = [System.IO.File]::Open($env:MAKO_ZIP_OUT, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)',
+      'try {',
+      '  $archive = [System.IO.Compression.ZipArchive]::new($stream, [System.IO.Compression.ZipArchiveMode]::Create, $true, $utf8)',
+      '  try {',
+      '    foreach ($file in $files) {',
+      '      if (-not $file.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {',
+      '        throw "Staged file escaped staging root: $file"',
+      '      }',
+      "      $rel = $file.Substring($prefix.Length).Replace('\\', '/')",
+      '      [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file, $rel, [System.IO.Compression.CompressionLevel]::Optimal)',
+      '    }',
+      '  } finally {',
+      '    $archive.Dispose()',
+      '  }',
+      '} finally {',
+      '  $stream.Dispose()',
+      '}',
+    ].join('\n'), {
+      MAKO_ZIP_STAGE_PARENT: stageParent,
+      MAKO_ZIP_APP_NAME: APP_NAME,
+      MAKO_ZIP_OUT: tempZip,
+    });
     copyFileSync(tempZip, output, constants.COPYFILE_EXCL);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -240,12 +289,11 @@ async function main() {
   const scratch = mkdtempSync(join(RELEASE_ROOT, '.windows-package-'));
   try {
     const stage = join(scratch, APP_NAME);
-    const tar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32/tar.exe');
     console.log(`[package:windows] Staging Windows x64 ${productVersion}`);
     stageWindowsApp({ stage, root: ROOT, electronDist, backendDist: state.dist, productVersion, exeName });
     stageWindowsMedia(mediaInputs, join(stage, 'resources'));
     for (const tool of ['ffmpeg.exe', 'ffprobe.exe']) assertWindowsX64Pe(join(stage, 'resources', 'media-tools', tool));
-    createWindowsZip(scratch, output, tar);
+    createWindowsZip(scratch, output);
     console.log(`[package:windows] ${output} (${(statSync(output).size / 1024 ** 2).toFixed(1)} MiB)`);
   } finally {
     rmSync(scratch, { recursive: true, force: true });

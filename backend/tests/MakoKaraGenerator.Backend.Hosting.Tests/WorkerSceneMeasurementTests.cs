@@ -111,6 +111,7 @@ public sealed class WorkerSceneMeasurementTests(ITestOutputHelper output)
     }
 
     [Theory]
+    [Trait("Category", "RequiresVulkan")]
     [InlineData("transparent", "TransparentBackgroundDependency")]
     [InlineData("opaque", "BackgroundMediaUnavailable")]
     public async Task 真实Worker同帧测量对缺背景材质照常返回并带去重兜底诊断(string alpha, string code)

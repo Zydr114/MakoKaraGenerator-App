@@ -16,6 +16,7 @@ using Xunit.Abstractions;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
+[Trait("Category", "RequiresVulkan")]
 public sealed class PreparedScriptWorkerTests(ITestOutputHelper output)
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);

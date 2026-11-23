@@ -7,6 +7,7 @@ using MakoKaraGenerator.Scripting;
 
 namespace MakoKaraGenerator.Backend.Rendering.Tests;
 
+[Trait("Category", "RequiresVulkan")]
 public sealed class PackageSnapshotRuntimeEquivalenceTests
 {
     [Theory]

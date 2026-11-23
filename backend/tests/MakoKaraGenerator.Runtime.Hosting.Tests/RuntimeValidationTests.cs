@@ -76,6 +76,7 @@ public sealed class RuntimeValidationTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 纯执行器真实编译固定包并保留完整源码失败来源()
     {
         using TemporaryDirectory temp = new();
@@ -94,6 +95,7 @@ public sealed class RuntimeValidationTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 纯执行器渲染真实控制器和原生图的两种输出()
     {
         using TemporaryDirectory temp = new(); var package = MixedEffectPackageFixture.Contents();

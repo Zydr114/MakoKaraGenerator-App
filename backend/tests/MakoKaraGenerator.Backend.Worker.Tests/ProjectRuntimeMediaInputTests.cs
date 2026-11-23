@@ -14,6 +14,7 @@ using MakoKaraGenerator.TestSupport;
 namespace MakoKaraGenerator.Backend.Worker.Tests;
 
 /// <summary>Worker 从 KRI1 私有媒体授权重建固定输入与采样绑定。</summary>
+[Trait("Category", "RequiresVulkan")]
 public sealed class ProjectRuntimeMediaInputTests
 {
     [Fact]

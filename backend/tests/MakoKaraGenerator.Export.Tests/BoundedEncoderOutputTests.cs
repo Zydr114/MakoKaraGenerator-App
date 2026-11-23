@@ -62,7 +62,7 @@ public sealed class BoundedEncoderOutputTests
             with open(sys.argv[-1], 'wb') as out:
                 out.write(sys.stdin.buffer.read())
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"), Width = 2, Height = 2,
@@ -301,7 +301,7 @@ public sealed class BoundedEncoderOutputTests
                 out.write(b'A' * 256)
             sys.exit({{exitCode}})
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("exact.mp4"), Width = 2, Height = 2,

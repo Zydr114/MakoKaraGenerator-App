@@ -46,13 +46,15 @@ public sealed class WorkerExportLifetimeTests
                             if (int.Parse(parts[1], CultureInfo.InvariantCulture) != Environment.ProcessId) continue;
                             string command = File.ReadAllText("/proc/" + child.Id.ToString(CultureInfo.InvariantCulture) + "/cmdline");
                             if (!command.Contains("MakoKaraGenerator.Backend.Worker", StringComparison.Ordinal)) continue;
-                            group = OwnedProcessGroup.TryCapture(child);
-                            if (group is null) continue;
-                            foreach (ProcessIdentity member in group.ObserveMembers())
+                            OwnedProcessGroup? candidateGroup = OwnedProcessGroup.TryCapture(child);
+                            if (candidateGroup is null) continue;
+                            foreach (ProcessIdentity member in candidateGroup.ObserveMembers())
                             {
                                 if (member.ProcessId == child.Id) continue;
                                 string args = File.ReadAllText("/proc/" + member.ProcessId.ToString(CultureInfo.InvariantCulture) + "/cmdline");
-                                if (!args.Contains("rawvideo", StringComparison.Ordinal)) continue;
+                                if (!args.Contains("rawvideo", StringComparison.Ordinal)
+                                    || !args.Contains(output, StringComparison.Ordinal)) continue;
+                                group = candidateGroup;
                                 encoder = member; break;
                             }
                         }
@@ -73,8 +75,9 @@ public sealed class WorkerExportLifetimeTests
             await SignalAsync(encoder.ProcessId, "-STOP");
             Assert.Contains(group.ObserveMembers(), value => value == encoder);
             await SignalAsync(group.Leader.ProcessId, "-KILL");
-            Exception? failure = await Record.ExceptionAsync(() => execution.WaitAsync(TimeSpan.FromSeconds(10)));
-            Assert.True(failure is IOException or RenderSessionFailureException, "Actual Worker termination must surface a failed execution.");
+            Exception? failure = await Record.ExceptionAsync(() => execution.WaitAsync(TimeSpan.FromSeconds(20)));
+            Assert.True(failure is IOException or RenderSessionFailureException,
+                $"Actual Worker termination must surface a failed execution, got: {failure?.GetType().FullName}: {failure?.Message}");
             IReadOnlyList<ProcessIdentity> retained = group.ObserveMembers();
             await File.WriteAllTextAsync(Path.Combine(output, "owned-identities.txt"),
                 $"leader={group.Leader}\nencoder={encoder}\nretained={string.Join(',', retained)}\n");

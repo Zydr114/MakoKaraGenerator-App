@@ -80,6 +80,7 @@ public sealed class StaticValidationTaskTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 包源码编译失败进入带来源诊断的验证报告()
     {
         var package = MixedEffectPackageFixture.Contents(controllerSource: "public sealed class PackEffect { invalid !!! }");

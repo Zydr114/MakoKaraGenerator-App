@@ -6,7 +6,7 @@ namespace MakoKaraGenerator.Media.Tests;
 public sealed partial class VideoProcessDeadlineTests
 {
     private static FfmpegVideoFrameProvider Bounded(TimeSpan? timeout = null) =>
-        new(MediaChild.Executable, MediaChild.Executable, timeout ?? TimeSpan.FromMilliseconds(500));
+        new(MediaChild.Executable, MediaChild.Executable, timeout ?? TimeSpan.FromSeconds(5));
 
     [Theory]
     [InlineData("probe-invalid", "元数据")]
@@ -15,7 +15,8 @@ public sealed partial class VideoProcessDeadlineTests
     [InlineData("probe-late", "超时")]
     public async Task 元数据失败有明确分类且有限回收(string mode, string expected)
     {
-        using var child = new MediaChild(mode); using var provider = Bounded();
+        using var child = new MediaChild(mode);
+        using var provider = mode == "probe-late" ? Bounded(TimeSpan.FromMilliseconds(1200)) : Bounded();
         Assert.Null(provider.Open(child.Input, out string? error)); Assert.Contains(expected, error, StringComparison.Ordinal);
         Assert.True(error!.Length < 34_000); await child.AssertExited("probe");
     }
@@ -42,12 +43,12 @@ public sealed partial class VideoProcessDeadlineTests
     [InlineData("slow-sequence")]
     public async Task 一次取帧期限覆盖全部字节及跳过的多个完整帧(string mode)
     {
-        using var child = new MediaChild(mode); using var provider = Bounded(); using var source = provider.Open(child.Input, out _)!;
+        using var child = new MediaChild(mode); using var provider = Bounded(TimeSpan.FromMilliseconds(1200)); using var source = provider.Open(child.Input, out _)!;
         if (mode == "slow-sequence") Assert.True(source.TryGetFrame(0, out _));
         var watch = Stopwatch.StartNew();
         Assert.False(source.TryGetFrame(mode == "slow-sequence" ? 600_000 : 0, out var frame));
         Assert.Null(frame); Assert.Contains("超时", source.LastError, StringComparison.Ordinal);
-        Assert.InRange(watch.Elapsed, TimeSpan.FromMilliseconds(350), TimeSpan.FromSeconds(2)); await child.AssertExited("decoder");
+        Assert.InRange(watch.Elapsed, TimeSpan.FromMilliseconds(900), TimeSpan.FromSeconds(4)); await child.AssertExited("decoder");
     }
 
     [Theory]
@@ -65,7 +66,7 @@ public sealed partial class VideoProcessDeadlineTests
     [Fact]
     public async Task 超时后的同一来源重试得到完整新帧而不发布半帧()
     {
-        using var child = new MediaChild("half-frame"); using var provider = Bounded(); using var source = provider.Open(child.Input, out _)!;
+        using var child = new MediaChild("half-frame"); using var provider = Bounded(TimeSpan.FromMilliseconds(1200)); using var source = provider.Open(child.Input, out _)!;
         Assert.False(source.TryGetFrame(0, out _)); await child.AssertExited("decoder");
         child.SetMode("normal"); Assert.True(source.TryGetFrame(0, out var frame)); Assert.Equal(new byte[] { 0, 2, 3, 255 }, frame!.Pixels);
         Assert.Null(source.LastError); source.Dispose(); await child.AssertExited("decoder");

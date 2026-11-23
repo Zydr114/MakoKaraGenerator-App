@@ -89,13 +89,21 @@ public sealed class WipeHighlightRenderingTests
     }
 
     [Theory]
-    [InlineData(WipeHighlightBlend.Normal, false)]
-    [InlineData(WipeHighlightBlend.Screen, false)]
-    [InlineData(WipeHighlightBlend.Add, false)]
-    [InlineData(WipeHighlightBlend.Normal, true)]
-    [InlineData(WipeHighlightBlend.Screen, true)]
-    [InlineData(WipeHighlightBlend.Add, true)]
-    public void 硬切换时峰以演唱位置为中心且三种混合按未预乘颜色计算(WipeHighlightBlend blend, bool gpu)
+    [InlineData(WipeHighlightBlend.Normal)]
+    [InlineData(WipeHighlightBlend.Screen)]
+    [InlineData(WipeHighlightBlend.Add)]
+    public void 硬切换时峰以演唱位置为中心且三种混合按未预乘颜色计算_CPU(WipeHighlightBlend blend)
+        => VerifyHardWipeHighlightPeak(blend, gpu: false);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
+    [InlineData(WipeHighlightBlend.Normal)]
+    [InlineData(WipeHighlightBlend.Screen)]
+    [InlineData(WipeHighlightBlend.Add)]
+    public void 硬切换时峰以演唱位置为中心且三种混合按未预乘颜色计算_GPU(WipeHighlightBlend blend)
+        => VerifyHardWipeHighlightPeak(blend, gpu: true);
+
+    private static void VerifyHardWipeHighlightPeak(WipeHighlightBlend blend, bool gpu)
     {
         var project = Project(Spec(blend));
         using var pipeline = Pipeline(gpu);

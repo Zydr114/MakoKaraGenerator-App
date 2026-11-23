@@ -15,13 +15,21 @@ namespace MakoKaraGenerator.Backend.Rendering.Tests;
 public sealed class ProjectImagePreviewRuntimeTests
 {
     [Theory]
-    [InlineData(false, false, BackgroundFit.Contain)]
-    [InlineData(false, false, BackgroundFit.Cover)]
-    [InlineData(false, true, BackgroundFit.Original)]
-    [InlineData(true, false, BackgroundFit.Contain)]
-    [InlineData(true, false, BackgroundFit.Cover)]
-    [InlineData(true, true, BackgroundFit.Original)]
-    public async Task 固定图片静态及包预览与原Runtime同帧完整像素一致且独立会话不互相释放(
+    [InlineData(false, BackgroundFit.Contain)]
+    [InlineData(false, BackgroundFit.Cover)]
+    [InlineData(true, BackgroundFit.Original)]
+    public Task 固定图片静态预览与原Runtime同帧完整像素一致且独立会话不互相释放(bool transparent, BackgroundFit fit)
+        => VerifyImagePreviewAsync(package: false, transparent, fit);
+
+    [Theory]
+    [Trait("Category", "RequiresVulkan")]
+    [InlineData(false, BackgroundFit.Contain)]
+    [InlineData(false, BackgroundFit.Cover)]
+    [InlineData(true, BackgroundFit.Original)]
+    public Task 固定图片包预览与原Runtime同帧完整像素一致且独立会话不互相释放(bool transparent, BackgroundFit fit)
+        => VerifyImagePreviewAsync(package: true, transparent, fit);
+
+    private static async Task VerifyImagePreviewAsync(
         bool package, bool transparent, BackgroundFit fit)
     {
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();
@@ -68,6 +76,7 @@ public sealed class ProjectImagePreviewRuntimeTests
     }
 
     [Fact]
+    [Trait("Category", "RequiresVulkan")]
     public async Task 包编译失败和创建期间取消均释放会话独占resolver且预取消不创建()
     {
         using TemporaryDirectory temp = new(); using FfmpegVideoFrameProvider videos = new();

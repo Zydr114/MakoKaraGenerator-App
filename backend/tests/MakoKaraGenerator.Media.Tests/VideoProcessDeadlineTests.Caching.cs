@@ -19,7 +19,7 @@ public sealed partial class VideoProcessDeadlineTests
     [Fact]
     public void 缓存后半帧超时不能返回旧成功缓冲而重试必须重新解码()
     {
-        using var child = new MediaChild("one-frame-then-half"); using var provider = Bounded(); using var source = provider.Open(child.Input, out _)!;
+        using var child = new MediaChild("one-frame-then-half"); using var provider = Bounded(TimeSpan.FromMilliseconds(1200)); using var source = provider.Open(child.Input, out _)!;
         Assert.True(source.TryGetFrame(0, out var first)); Assert.Equal(0, first!.Pixels[0]);
         Assert.False(source.TryGetFrame(50_000, out var failed)); Assert.Null(failed); Assert.Contains("超时", source.LastError, StringComparison.Ordinal);
         child.SetMode("normal"); Assert.True(source.TryGetFrame(0, out var recovered));

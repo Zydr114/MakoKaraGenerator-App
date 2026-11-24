@@ -35,21 +35,29 @@ public sealed record ShadowValue
 {
     /// <summary>有限合法的颜色、不透明度、方向角和非负距离／模糊半径。</summary>
     public ShadowValue(ColorRgba color, double opacity = 1, double angleDegrees = 45, double distancePx = 4, double blurRadiusPx = 8)
+        : this(color, opacity, angleDegrees, distancePx, blurRadiusPx, spreadPx: 0, gradient: null) { }
+
+    /// <summary>有限合法的颜色、不透明度、方向角、非负距离／模糊半径／外扩张及可选渐变。</summary>
+    public ShadowValue(ColorRgba color, double opacity, double angleDegrees, double distancePx, double blurRadiusPx, double spreadPx, GradientValue? gradient = null)
     {
-        ColorRgba.Unit(opacity); Point2.Finite(angleDegrees); Point2.Finite(distancePx); Point2.Finite(blurRadiusPx);
-        ArgumentOutOfRangeException.ThrowIfNegative(distancePx); ArgumentOutOfRangeException.ThrowIfNegative(blurRadiusPx);
-        Color = color; Opacity = opacity; AngleDegrees = angleDegrees; DistancePx = distancePx; BlurRadiusPx = blurRadiusPx;
+        ColorRgba.Unit(opacity); Point2.Finite(angleDegrees); Point2.Finite(distancePx); Point2.Finite(blurRadiusPx); Point2.Finite(spreadPx);
+        ArgumentOutOfRangeException.ThrowIfNegative(distancePx); ArgumentOutOfRangeException.ThrowIfNegative(blurRadiusPx); ArgumentOutOfRangeException.ThrowIfNegative(spreadPx);
+        Color = color; Opacity = opacity; AngleDegrees = angleDegrees; DistancePx = distancePx; BlurRadiusPx = blurRadiusPx; SpreadPx = spreadPx; Gradient = gradient;
     }
     /// <summary>直乘颜色。</summary>
     public ColorRgba Color { get; }
+    /// <summary>可选渐变；非空时替代纯色着色。</summary>
+    public GradientValue? Gradient { get; }
     /// <summary>独立阴影不透明度 [0,1]。</summary>
     public double Opacity { get; }
     /// <summary>0 度向右，90 度向下。</summary>
     public double AngleDegrees { get; }
     /// <summary>逻辑像素距离。</summary>
     public double DistancePx { get; }
-    /// <summary>逻辑像素模糊半径。</summary>
+    /// <summary>逻辑像素模糊半径；为 0 时绘制硬边阴影。</summary>
     public double BlurRadiusPx { get; }
+    /// <summary>整体轮廓向外扩张的逻辑像素宽度。</summary>
+    public double SpreadPx { get; }
 }
 /// <summary>中立外发光；以整体轮廓（字形加全部描边）为来源。</summary>
 public sealed record GlowValue

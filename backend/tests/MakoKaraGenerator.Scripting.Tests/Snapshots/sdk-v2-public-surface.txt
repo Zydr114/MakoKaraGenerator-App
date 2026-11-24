@@ -1548,6 +1548,7 @@ type sealed class MakoKaraGenerator.Scripting.ShadowUpdate : System.IEquatable<M
   property MakoKaraGenerator.Scripting.ShadowValue? Value { get; init; }
 type sealed class MakoKaraGenerator.Scripting.ShadowValue : System.IEquatable<MakoKaraGenerator.Scripting.ShadowValue>
   ctor (MakoKaraGenerator.Scripting.ColorRgba color, System.Double opacity = 1, System.Double angleDegrees = 45, System.Double distancePx = 4, System.Double blurRadiusPx = 8)
+  ctor (MakoKaraGenerator.Scripting.ColorRgba color, System.Double opacity, System.Double angleDegrees, System.Double distancePx, System.Double blurRadiusPx, System.Double spreadPx, MakoKaraGenerator.Scripting.GradientValue? gradient = null)
   method MakoKaraGenerator.Scripting.ShadowValue <Clone>$()
   method System.Boolean Equals(MakoKaraGenerator.Scripting.ShadowValue? other)
   method static System.Boolean op_Equality(MakoKaraGenerator.Scripting.ShadowValue? left, MakoKaraGenerator.Scripting.ShadowValue? right)
@@ -1556,10 +1557,12 @@ type sealed class MakoKaraGenerator.Scripting.ShadowValue : System.IEquatable<Ma
   method virtual System.Int32 GetHashCode()
   method virtual System.String ToString()
   property MakoKaraGenerator.Scripting.ColorRgba Color { get; }
+  property MakoKaraGenerator.Scripting.GradientValue? Gradient { get; }
   property System.Double AngleDegrees { get; }
   property System.Double BlurRadiusPx { get; }
   property System.Double DistancePx { get; }
   property System.Double Opacity { get; }
+  property System.Double SpreadPx { get; }
 type sealed class MakoKaraGenerator.Scripting.SourceBranch : System.IEquatable<MakoKaraGenerator.Scripting.SourceBranch>
   ctor (MakoKaraGenerator.Scripting.BranchId Id, System.String Name, System.String Role, System.Int32 SourceOrder, System.Collections.Immutable.ImmutableArray<MakoKaraGenerator.Scripting.LineId> LineIds)
   method MakoKaraGenerator.Scripting.SourceBranch <Clone>$()

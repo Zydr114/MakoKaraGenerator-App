@@ -46,9 +46,17 @@ public sealed partial class SkiaRenderPipeline
 
         ShadowSpec? shadowSpec = EffectiveShadow(style);
         bool outlined = outline.IsEnabled;
-        // 无描边时阴影仍挂在填充那一笔的滤镜上（像素与 P3 之前相同）；有描边时先单独画整体轮廓的阴影，再画描边与填充。
-        using SKImageFilter? shadow = CreateTextShadow(shadowSpec, style.Opacity, capture?.ShadowOnly == true || outlined);
-        if (outlined)
+        bool customShadow = shadowSpec is { IsEnabled: true }
+            && (shadowSpec.Gradient is not null || shadowSpec.SpreadPx > 0f || shadowSpec.BlurRadiusPx == 0f);
+        if (customShadow)
+        {
+            DrawCustomShadow(canvas, shaped, options, originX, baselineY, shadowSpec!, outline, style, composition, device, antialias,
+                drawUnitIndices, capture, lineSpan);
+            if (capture?.ShadowOnly == true) return;
+        }
+        // 无描边且为经典纯色模糊阴影时仍挂在填充那一笔的滤镜上（像素与 P3 之前相同）；有描边时先单独画整体轮廓的阴影，再画描边与填充。
+        using SKImageFilter? shadow = customShadow ? null : CreateTextShadow(shadowSpec, style.Opacity, capture?.ShadowOnly == true || outlined);
+        if (!customShadow && outlined)
         {
             if (capture?.ShadowOnly == true && shadow is null && shadowSpec is { IsEnabled: true })
                 throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
@@ -183,13 +191,89 @@ public sealed partial class SkiaRenderPipeline
         }
     }
 
+    /// <summary>绘制硬边（blur=0）、外扩张或渐变阴影；以整体轮廓（字形加全部描边再外扩 SpreadPx）为来源。</summary>
+    private void DrawCustomShadow(SKCanvas canvas, ShapedLine shaped, TextLayoutOptions options, float originX, float baselineY,
+        ShadowSpec shadowSpec, StrokeLayers outline, LyricStyle style, Composition composition, SKMatrix device, bool antialias,
+        ImmutableArray<int> drawUnitIndices, CapturePaint? capture, LineSpan? lineSpan)
+    {
+        float effectiveOpacity = style.Opacity * shadowSpec.Opacity;
+        if (effectiveOpacity <= 0f || drawUnitIndices is { IsDefault: false, IsEmpty: true }) return;
+        bool spread = shadowSpec.SpreadPx > 0f;
+        float radius = (outline.IsEnabled ? outline.TotalWidthPx : 0f) + (spread ? shadowSpec.SpreadPx : 0f);
+        if (!float.IsFinite(radius) || !float.IsFinite(radius * 2f))
+            throw new PreparedFrameException("UnsupportedNativeStyleValues", "阴影外扩张超出后端有限像素范围，不能夹值。");
+        SKStrokeJoin join = spread ? SKStrokeJoin.Round : ToSkStrokeJoin(outline.OuterJoin);
+
+        using var blur = shadowSpec.BlurRadiusPx > 0f ? SKImageFilter.CreateBlur(shadowSpec.BlurRadiusPx, shadowSpec.BlurRadiusPx) : null;
+        if (shadowSpec.BlurRadiusPx > 0f && blur is null)
+            throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建阴影模糊滤镜，不能当作没有阴影。");
+
+        if (shadowSpec.Gradient is { } shadowGradient)
+        {
+            if (!GradientSupport.IsSupported(shadowGradient))
+                throw new PreparedFrameException("UnsupportedEffectGradient", "阴影渐变尚未接入后端：" + GradientSupport.UnsupportedReason(shadowGradient));
+            ValidateNativeGradient(shadowGradient, shaped, style, composition, lineSpan);
+            byte alphaByte = ToOpacityByte(effectiveOpacity);
+            bool needsLayer = blur is not null || alphaByte < 255;
+            using var shading = CreateTextShading(shadowGradient, shaped, originX, baselineY, style, composition, device, lineSpan,
+                opacityOverride: needsLayer ? 1f : effectiveOpacity);
+            if (shading.IsEmpty)
+                throw new PreparedFrameException("GradientShaderUnavailable", "无法创建实际阴影渐变，不能改用纯色或隐藏阴影。");
+
+            capture?.MarkDrawn(canvas);
+            if (needsLayer)
+            {
+                using var layerReservation = capture?.Layer("CaptureShadowLayer");
+                using var layerPaint = new SKPaint { ImageFilter = blur, Color = SKColors.White.WithAlpha(alphaByte) };
+                int layer = canvas.SaveLayer(layerPaint);
+                canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                DrawOutline(canvas, shaped, options, originX, baselineY, radius, join, SKColors.White, antialias,
+                    drawUnitIndices, SKBlendMode.SrcOver, shader: shading.Shared, unitShader: shading.UnitShader);
+                canvas.RestoreToCount(layer);
+            }
+            else
+            {
+                int saved = canvas.Save();
+                canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                DrawOutline(canvas, shaped, options, originX, baselineY, radius, join, SKColors.White, antialias,
+                    drawUnitIndices, SKBlendMode.SrcOver, shader: shading.Shared, unitShader: shading.UnitShader);
+                canvas.RestoreToCount(saved);
+            }
+            return;
+        }
+
+        SKColor solidColor = ToSkColorWithOpacity(shadowSpec.Color, effectiveOpacity);
+        if (solidColor.Alpha == 0) return;
+        capture?.MarkDrawn(canvas);
+        bool needsSolidLayer = blur is not null || solidColor.Alpha < 255;
+        if (needsSolidLayer)
+        {
+            using var layerReservation = capture?.Layer("CaptureShadowLayer");
+            using var tint = SKColorFilter.CreateBlendMode(solidColor, SKBlendMode.SrcIn);
+            using var layerPaint = new SKPaint { ImageFilter = blur, ColorFilter = tint };
+            int layer = canvas.SaveLayer(layerPaint);
+            canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+            DrawOutline(canvas, shaped, options, originX, baselineY, radius, join, SKColors.White, antialias,
+                drawUnitIndices, SKBlendMode.SrcOver);
+            canvas.RestoreToCount(layer);
+        }
+        else
+        {
+            int saved = canvas.Save();
+            canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+            DrawOutline(canvas, shaped, options, originX, baselineY, radius, join, solidColor, antialias,
+                drawUnitIndices, SKBlendMode.SrcOver);
+            canvas.RestoreToCount(saved);
+        }
+    }
+
     /// <summary>画字形向外扩 <paramref name="radius"/> 的实心轮廓（整体轮廓或某一圈的外缘）；半径为 0 时就是字形本身。</summary>
     private void DrawOutline(SKCanvas canvas, ShapedLine shaped, TextLayoutOptions options, float originX, float baselineY,
         float radius, SKStrokeJoin join, SKColor color, bool antialias, ImmutableArray<int> drawUnitIndices,
-        SKBlendMode blendMode, SKImageFilter? imageFilter = null)
+        SKBlendMode blendMode, SKImageFilter? imageFilter = null, SKShader? shader = null, Func<ShapedDrawUnit, SKShader?>? unitShader = null)
         => _geometry.LayoutEngine.DrawLine(canvas, shaped, options, originX, baselineY, color, antialias,
-            radius > 0f ? SKPaintStyle.StrokeAndFill : SKPaintStyle.Fill, radius * 2f, imageFilter: imageFilter,
-            strokeJoin: join, blendMode: blendMode, drawUnitIndices: drawUnitIndices);
+            radius > 0f ? SKPaintStyle.StrokeAndFill : SKPaintStyle.Fill, radius * 2f, shader: shader, imageFilter: imageFilter,
+            strokeJoin: join, blendMode: blendMode, drawUnitIndices: drawUnitIndices, unitShader: unitShader);
 
     private static SKStrokeJoin ToSkStrokeJoin(StrokeJoin join) => join switch
     {

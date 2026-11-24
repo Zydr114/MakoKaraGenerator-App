@@ -63,7 +63,8 @@ public sealed partial class SkiaSceneGeometry
         ShadowSpec? shadowSpec = EffectiveShadow(style);
         float stroke = strokes.IsEnabled ? MathF.Max(strokes.TotalWidthPx, 0f) : 0f;
         float shadow = shadowSpec is { IsEnabled: true }
-            ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx)) + MathF.Max(shadowSpec.BlurRadiusPx, 0f) : 0f;
+            ? MathF.Max(MathF.Abs(shadowSpec.OffsetXPx), MathF.Abs(shadowSpec.OffsetYPx))
+                + MathF.Max(shadowSpec.BlurRadiusPx, 0f) + MathF.Max(shadowSpec.SpreadPx, 0f) : 0f;
         float legacy = MathF.Min(stroke + shadow + 2f, 64f);
         return style.Glow is { IsEnabled: true } glow
             ? Math.Max(legacy, (float)(ValidateGlow(glow) + 2 + (layout ? 0d : stroke))) : legacy;

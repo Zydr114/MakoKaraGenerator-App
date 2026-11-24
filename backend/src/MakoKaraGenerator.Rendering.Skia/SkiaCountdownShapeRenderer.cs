@@ -161,14 +161,81 @@ public sealed partial class SkiaRenderPipeline
         }
         if (capture?.GlowOnly == true) return;
 
+        SKMatrix device = canvas.TotalMatrix;
+        var gradientBox = (Left: left, Top: top, Width: Math.Max(1f, right - left), Height: Math.Max(1f, bottom - top));
+
         ShadowSpec? shadowSpec = SkiaSceneGeometry.EffectiveShadow(style);
         if (!path.IsEmpty && shadowSpec is { IsEnabled: true }
             && capture?.StrokeOnly != true && capture?.OuterStrokeOnly != true && capture?.RequestedSungPass != true
             && (capture?.ShadowOnly == true || capture?.Part is null))
         {
-            using var shadowFilter = CreateTextShadow(shadowSpec, 1f, shadowOnly: true)
-                ?? throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
-            DrawOutlinePath(canvas, path, outlineReach, ToSkStrokeJoin(strokes.OuterJoin), SKColors.White, antialias, SKBlendMode.SrcOver, shadowFilter);
+            bool customShadow = shadowSpec.Gradient is not null || shadowSpec.SpreadPx > 0f || shadowSpec.BlurRadiusPx == 0f;
+            if (!customShadow)
+            {
+                using var shadowFilter = CreateTextShadow(shadowSpec, 1f, shadowOnly: true)
+                    ?? throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建真实 shadow-only 滤镜，不能当作没有阴影。");
+                DrawOutlinePath(canvas, path, outlineReach, ToSkStrokeJoin(strokes.OuterJoin), SKColors.White, antialias, SKBlendMode.SrcOver, shadowFilter);
+            }
+            else
+            {
+                bool spread = shadowSpec.SpreadPx > 0f;
+                float radius = outlineReach + (spread ? shadowSpec.SpreadPx : 0f);
+                SKStrokeJoin join = spread ? SKStrokeJoin.Round : ToSkStrokeJoin(strokes.OuterJoin);
+                using var blur = shadowSpec.BlurRadiusPx > 0f ? SKImageFilter.CreateBlur(shadowSpec.BlurRadiusPx, shadowSpec.BlurRadiusPx) : null;
+                if (shadowSpec.BlurRadiusPx > 0f && blur is null)
+                    throw new PreparedFrameException("CaptureShadowFilterUnavailable", "无法创建阴影模糊滤镜，不能当作没有阴影。");
+                capture?.MarkDrawn(canvas);
+                if (shadowSpec.Gradient is { } shadowGradient)
+                {
+                    if (!GradientSupport.IsSupported(shadowGradient))
+                        throw new PreparedFrameException("UnsupportedEffectGradient", "阴影渐变尚未接入后端：" + GradientSupport.UnsupportedReason(shadowGradient));
+                    byte alphaByte = ToOpacityByte(shadowSpec.Opacity);
+                    bool needsLayer = blur is not null || alphaByte < 255;
+                    using SKShader? shader = CreateGradientShader(shadowGradient, gradientBox, needsLayer ? 1f : shadowSpec.Opacity, device);
+                    if (shader is null)
+                        throw new PreparedFrameException("GradientShaderUnavailable", "无法创建实际阴影渐变，不能改用纯色或隐藏阴影。");
+                    if (needsLayer)
+                    {
+                        using var layerReservation = capture?.Layer("CaptureShadowLayer");
+                        using var layerPaint = new SKPaint { ImageFilter = blur, Color = SKColors.White.WithAlpha(alphaByte) };
+                        int layer = canvas.SaveLayer(layerPaint);
+                        canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                        DrawOutlinePath(canvas, path, radius, join, SKColors.White, antialias, SKBlendMode.SrcOver, shader: shader);
+                        canvas.RestoreToCount(layer);
+                    }
+                    else
+                    {
+                        int saved = canvas.Save();
+                        canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                        DrawOutlinePath(canvas, path, radius, join, SKColors.White, antialias, SKBlendMode.SrcOver, shader: shader);
+                        canvas.RestoreToCount(saved);
+                    }
+                }
+                else
+                {
+                    SKColor solidColor = ToSkColorWithOpacity(shadowSpec.Color, shadowSpec.Opacity);
+                    if (solidColor.Alpha > 0)
+                    {
+                        if (blur is not null || solidColor.Alpha < 255)
+                        {
+                            using var layerReservation = capture?.Layer("CaptureShadowLayer");
+                            using var tint = SKColorFilter.CreateBlendMode(solidColor, SKBlendMode.SrcIn);
+                            using var layerPaint = new SKPaint { ImageFilter = blur, ColorFilter = tint };
+                            int layer = canvas.SaveLayer(layerPaint);
+                            canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                            DrawOutlinePath(canvas, path, radius, join, SKColors.White, antialias, SKBlendMode.SrcOver);
+                            canvas.RestoreToCount(layer);
+                        }
+                        else
+                        {
+                            int saved = canvas.Save();
+                            canvas.Translate(shadowSpec.OffsetXPx, shadowSpec.OffsetYPx);
+                            DrawOutlinePath(canvas, path, radius, join, solidColor, antialias, SKBlendMode.SrcOver);
+                            canvas.RestoreToCount(saved);
+                        }
+                    }
+                }
+            }
         }
         if (capture?.ShadowOnly == true) return;
 
@@ -189,9 +256,6 @@ public sealed partial class SkiaRenderPipeline
             canvas.Restore();
             return;
         }
-
-        SKMatrix device = canvas.TotalMatrix;
-        var gradientBox = (Left: left, Top: top, Width: Math.Max(1f, right - left), Height: Math.Max(1f, bottom - top));
 
         if (strokes.IsEnabled)
         {
@@ -297,7 +361,7 @@ public sealed partial class SkiaRenderPipeline
     }
 
     private static void DrawOutlinePath(SKCanvas canvas, SKPath path, float radius, SKStrokeJoin join, SKColor color,
-        bool antialias, SKBlendMode blendMode, SKImageFilter? imageFilter = null)
+        bool antialias, SKBlendMode blendMode, SKImageFilter? imageFilter = null, SKShader? shader = null)
     {
         using var paint = new SKPaint
         {
@@ -305,6 +369,7 @@ public sealed partial class SkiaRenderPipeline
             StrokeWidth = radius * 2f,
             StrokeJoin = join,
             Color = color,
+            Shader = shader,
             IsAntialias = antialias,
             BlendMode = blendMode,
             ImageFilter = imageFilter,

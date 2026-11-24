@@ -75,15 +75,16 @@ public sealed partial class SkiaRenderPipeline
     /// </para>
     /// </remarks>
     private static TextShading CreateTextShading(GradientSpec? gradient, ShapedLine shaped, float originX, float baselineY,
-        LyricStyle style, Composition composition, SKMatrix device, LineSpan? span = null)
+        LyricStyle style, Composition composition, SKMatrix device, LineSpan? span = null, float? opacityOverride = null)
     {
         if (gradient is null || !GradientSupport.IsSupported(gradient)) return TextShading.None;
+        float opacity = opacityOverride ?? style.Opacity;
         if (gradient.CoordinateSpace == GradientCoordinateSpace.Glyph)
         {
             var (ascent, descent) = LineMetrics(shaped, style);
-            return TextShading.PerUnit(unit => CreateGradientShader(gradient, GlyphBox(unit, originX, baselineY, ascent, descent), style.Opacity, device));
+            return TextShading.PerUnit(unit => CreateGradientShader(gradient, GlyphBox(unit, originX, baselineY, ascent, descent), opacity, device));
         }
-        return TextShading.Of(CreateGradientShader(gradient, ReferenceBox(gradient, shaped, originX, baselineY, style, composition, span), style.Opacity, device));
+        return TextShading.Of(CreateGradientShader(gradient, ReferenceBox(gradient, shaped, originX, baselineY, style, composition, span), opacity, device));
     }
 
     /// <summary>画布或整行坐标的参考框（左、上、宽、高）；宽高至少 1。</summary>

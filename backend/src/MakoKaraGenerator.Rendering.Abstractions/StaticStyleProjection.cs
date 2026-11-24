@@ -115,7 +115,8 @@ public static class StaticStyleProjection
     private static ImmutableArray<Fx.StrokeValue> Strokes(StrokeLayers strokes, PreparedSourceMaterials? materials) =>
         [.. strokes.Select(stroke => new Fx.StrokeValue(stroke.WidthPx, Material(stroke.Material, materials), (Fx.StrokeJoin)stroke.Join))];
     private static Fx.ShadowValue? Shadow(ShadowSpec? shadow) =>
-        shadow is null ? null : new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx);
+        shadow is null ? null : new(Color(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx,
+            shadow.SpreadPx, shadow.Gradient is { } gradient ? Gradient(gradient) : null);
     private static Fx.GlowValue? Glow(GlowSpec? glow) => glow is null ? null : new(Color(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx);
     private static Fx.WipeValue Wipe(WipeSpec wipe) => new(wipe.FeatherRatio, wipe.Highlight is { } highlight
         ? new(Color(highlight.Color), highlight.WidthRatio, highlight.Opacity, (Fx.WipeHighlightBlend)highlight.Blend) : null);
@@ -265,7 +266,17 @@ public static class StaticStyleProjection
     {
         if (value is null) return null;
         Native(value.AngleDegrees * (Math.PI / 180));
-        return ShadowSpec.Create(Color(value.Color), Native(value.Opacity), value.AngleDegrees, Native(value.DistancePx), Native(value.BlurRadiusPx));
+        GradientSpec? gradient = null;
+        if (value.Gradient is { } g)
+        {
+            gradient = Gradient(g);
+            Native(gradient.AngleDegrees * (Math.PI / 180));
+            if (gradient.Kind == GradientKind.Radial) { Native(gradient.RadiusX); Native(gradient.RadiusY); }
+            if (!GradientSupport.IsSupported(gradient))
+                throw new PreparedFrameException("UnsupportedEffectGradient", "脚本请求的阴影渐变尚未接入后端：" + GradientSupport.UnsupportedReason(gradient));
+        }
+        return ShadowSpec.Create(Color(value.Color), Native(value.Opacity), value.AngleDegrees, Native(value.DistancePx),
+            Native(value.BlurRadiusPx), Native(value.SpreadPx), gradient);
     }
     private static GlowSpec? Glow(Fx.GlowValue? value) => value is null ? null
         : GlowSpec.Create(Color(value.Color), Native(value.Opacity), Native(value.BlurRadiusPx), Native(value.SpreadPx));

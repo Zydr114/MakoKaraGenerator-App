@@ -203,7 +203,7 @@ public sealed partial class SkiaRenderPipeline
             // S 为累计描边宽度（P3 设计 §10.6 第 1 条），单层时就是原宽度。
             double stroke = style.Unsung.Strokes is { IsEnabled: true } strokes ? strokes.TotalWidthPx : 0;
             double shadow = style.Shadow is { IsEnabled: true } spec
-                ? Math.Max(Math.Abs((double)spec.OffsetXPx), Math.Abs((double)spec.OffsetYPx)) + 3 * (double)spec.BlurRadiusPx : 0;
+                ? Math.Max(Math.Abs((double)spec.OffsetXPx), Math.Abs((double)spec.OffsetYPx)) + 3 * (double)spec.BlurRadiusPx + spec.SpreadPx : 0;
             double total = stroke + shadow + 2;
             if (!float.IsFinite((float)total)) throw new PreparedFrameException("UnsupportedNativeStyleValues", "捕获装饰外扩超出后端范围，不能夹值。");
             return (float)total;

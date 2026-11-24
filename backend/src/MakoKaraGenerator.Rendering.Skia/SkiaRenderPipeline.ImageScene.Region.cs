@@ -119,7 +119,7 @@ public sealed partial class SkiaRenderPipeline
     {
         double outline = OutlineExtent(style.Unsung.Strokes);
         double shadow = style.Shadow is { IsEnabled: true } shade
-            ? Math.Max(Math.Abs(shade.OffsetXPx), Math.Abs(shade.OffsetYPx)) + 3d * shade.BlurRadiusPx : 0;
+            ? Math.Max(Math.Abs(shade.OffsetXPx), Math.Abs(shade.OffsetYPx)) + 3d * shade.BlurRadiusPx + shade.SpreadPx : 0;
         double glow = style.Glow is { IsEnabled: true } halo ? halo.SpreadPx + 3d * halo.BlurRadiusPx : 0;
         return outline + Math.Max(Math.Max(shadow, glow), 0);
     }

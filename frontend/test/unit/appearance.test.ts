@@ -571,10 +571,12 @@ describe('外观来源', () => {
     expect(shadow.rows.map((r) => `${r.property ? `${STYLE_PROPERTY_TEXT[r.property]} · ` : ''}来自 ${sourceText(r.source, ctx)}`)).toEqual([
       '未唱阴影 · 来自 工程样式',
       '未唱阴影颜色 · 来自 分配“红字”（第 2 行）',
+      '未唱阴影渐变 · 来自 工程样式',
       '未唱阴影不透明度 · 来自 工程样式',
       '未唱阴影角度 · 来自 工程样式',
       '未唱阴影距离 · 来自 工程样式',
       '未唱阴影模糊 · 来自 工程样式',
+      '未唱阴影扩张 · 来自 工程样式',
     ]);
     // 来源里没有的组不列。
     expect(sourceGroups({ style: STYLE, sources: sources.filter((s) => s.property === 'scale') }).map((g) => g.id)).toEqual(['scale']);

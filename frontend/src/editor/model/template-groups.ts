@@ -67,7 +67,7 @@ export interface TemplateGroup {
   properties: readonly TemplateProperty[];
 }
 
-const SHADOW_LEAVES = ['color', 'opacity', 'angleDegrees', 'distancePx', 'blurRadiusPx'] as const;
+const SHADOW_LEAVES = ['color', 'gradient', 'opacity', 'angleDegrees', 'distancePx', 'blurRadiusPx', 'spreadPx'] as const;
 const GLOW_LEAVES = ['color', 'opacity', 'blurRadiusPx', 'spreadPx'] as const;
 const HIGHLIGHT_LEAVES = ['color', 'widthRatio', 'opacity', 'blend'] as const;
 const withLeaves = (parent: string, leaves: readonly string[]) => [parent, ...leaves.map((leaf) => `${parent}.${leaf}`)] as TemplateProperty[];
@@ -133,6 +133,7 @@ export function sungStrokes<M>(style: CanonicalStyle<M>): StyleStroke<M>[] {
 
 const LEAF_SHORT: Record<string, string> = {
   color: '颜色',
+  gradient: '渐变',
   opacity: '不透明度',
   angleDegrees: '角度',
   distancePx: '距离',
@@ -214,7 +215,11 @@ export function groupSwatch(group: TemplateGroupId, style: AnyStyle): string | u
       return first ? materialCss(first.material) : undefined;
     }
     case 'shadow':
-    case 'sungShadow':
+    case 'sungShadow': {
+      const value = effectValue(style, group).value as StyleShadow | null;
+      if (!value) return undefined;
+      return value.gradient ? materialCss({ kind: 'gradient', gradient: value.gradient }) : cssColor(value.color);
+    }
     case 'glow':
     case 'sungGlow':
     case 'highlight': {
@@ -278,8 +283,8 @@ const EFFECT_PARENT: Record<EffectGroupId, TemplateProperty> = {
 /** 只选叶且样式里是 null 时的基准（后端部分覆盖从透明色合并，见 StyleBatchEditor）；不会关闭目标上的效果。 */
 const TRANSPARENT: StyleColor = { red: 0, green: 0, blue: 0, alpha: 0 };
 const EFFECT_BASIS: Record<EffectGroupId, EffectValue> = {
-  shadow: { color: TRANSPARENT, opacity: 1, angleDegrees: 0, distancePx: 0, blurRadiusPx: 0 },
-  sungShadow: { color: TRANSPARENT, opacity: 1, angleDegrees: 0, distancePx: 0, blurRadiusPx: 0 },
+  shadow: { color: TRANSPARENT, gradient: null, opacity: 1, angleDegrees: 0, distancePx: 0, blurRadiusPx: 0, spreadPx: 0 },
+  sungShadow: { color: TRANSPARENT, gradient: null, opacity: 1, angleDegrees: 0, distancePx: 0, blurRadiusPx: 0, spreadPx: 0 },
   glow: { color: TRANSPARENT, opacity: 1, spreadPx: 0, blurRadiusPx: 0 },
   sungGlow: { color: TRANSPARENT, opacity: 1, spreadPx: 0, blurRadiusPx: 0 },
   highlight: { color: TRANSPARENT, widthRatio: 0.25, opacity: 1, blend: 'screen' },
@@ -351,12 +356,15 @@ export function setTemplateEffect<G extends EffectGroupId>(
   definition: FullTemplateDefinition,
   group: G,
   value: EffectOf<G> | null | 'follow',
-  leaf?: keyof EffectOf<G> & string,
+  leaf?: (keyof EffectOf<G> & string) | readonly (keyof EffectOf<G> & string)[],
 ): FullTemplateDefinition {
   const parent = EFFECT_PARENT[group];
   const next = writeEffect(definition, group, value);
   if (definition.properties.includes(parent)) return next;
-  return { ...next, properties: sortProperties([...definition.properties, leaf ? (`${parent}.${leaf}` as TemplateProperty) : parent]) };
+  const added = !leaf
+    ? [parent]
+    : (Array.isArray(leaf) ? leaf : [leaf]).map((item) => `${parent}.${item}` as TemplateProperty);
+  return { ...next, properties: sortProperties([...definition.properties, ...added]) };
 }
 
 // ── 描边层列表：由内到外，最多 4 层；效果包材质只能在最内层 ──
@@ -426,12 +434,20 @@ export function definitionProblem(definition: FullTemplateDefinition): string | 
     const problem = material.kind === 'gradient' ? gradientProblem(material.gradient) : undefined;
     if (problem) return `${label}：${problem}`;
   }
+  const shadowGradients: [string, StyleShadow | null][] = [
+    ['未唱阴影', style.unsung.shadow],
+    ...(style.sung.shadow.kind === 'set' ? [['已唱阴影', style.sung.shadow.value] as [string, StyleShadow | null]] : []),
+  ];
+  for (const [label, shadow] of shadowGradients) {
+    const problem = shadow?.gradient ? gradientProblem(shadow.gradient) : undefined;
+    if (problem) return `${label}：${problem}`;
+  }
   return undefined;
 }
 
 /** 描边、阴影、辉光、高亮从“关”打开时的初值（高亮取后端默认：白色、0.25 倍字号、强度 100%、滤色）。 */
 export const DEFAULT_STROKE: StyleStroke<StaticMaterial> = { material: { kind: 'solid', color: { red: 0, green: 0, blue: 0, alpha: 255 } }, widthPx: 4, join: 'round' };
-export const DEFAULT_SHADOW: StyleShadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4 };
+export const DEFAULT_SHADOW: StyleShadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, gradient: null, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4, spreadPx: 0 };
 export const DEFAULT_GLOW: StyleGlow = { color: { red: 255, green: 255, blue: 255, alpha: 255 }, opacity: 1, spreadPx: 0, blurRadiusPx: 8 };
 export const DEFAULT_HIGHLIGHT: StyleWipeHighlight = { color: { red: 255, green: 255, blue: 255, alpha: 255 }, widthRatio: 0.25, opacity: 1, blend: 'screen' };
 

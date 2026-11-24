@@ -6,7 +6,7 @@
 
 import type { Revision } from './int64';
 
-/** 45 项属性路径，顺序即 local 与 sources 的输出顺序（OpenAPI StylePropertyPath）。父项（如 unsung.shadow）与其叶不能同批。 */
+/** 49 项属性路径，顺序即 local 与 sources 的输出顺序（OpenAPI StylePropertyPath）。父项（如 unsung.shadow）与其叶不能同批。 */
 export const STYLE_PROPERTY_PATHS = [
   'typography.fontFamilyName',
   'typography.fallbackFamilyNames',
@@ -23,16 +23,20 @@ export const STYLE_PROPERTY_PATHS = [
   'sung.strokes',
   'unsung.shadow',
   'unsung.shadow.color',
+  'unsung.shadow.gradient',
   'unsung.shadow.opacity',
   'unsung.shadow.angleDegrees',
   'unsung.shadow.distancePx',
   'unsung.shadow.blurRadiusPx',
+  'unsung.shadow.spreadPx',
   'sung.shadow',
   'sung.shadow.color',
+  'sung.shadow.gradient',
   'sung.shadow.opacity',
   'sung.shadow.angleDegrees',
   'sung.shadow.distancePx',
   'sung.shadow.blurRadiusPx',
+  'sung.shadow.spreadPx',
   'unsung.glow',
   'unsung.glow.color',
   'unsung.glow.opacity',
@@ -141,11 +145,16 @@ export const MAX_STROKE_LAYERS = 4;
 
 export interface StyleShadow {
   color: StyleColor;
+  /** 可选渐变；非空时替代纯色着色。 */
+  gradient: StyleGradient | null;
   /** 0..1。 */
   opacity: number;
   angleDegrees: number;
   distancePx: number;
+  /** 有限非负值，逻辑像素；为 0 时绘制硬边阴影。 */
   blurRadiusPx: number;
+  /** 有限非负值，逻辑像素；整体轮廓向外扩张距离。 */
+  spreadPx: number;
 }
 
 export interface StyleGlow {

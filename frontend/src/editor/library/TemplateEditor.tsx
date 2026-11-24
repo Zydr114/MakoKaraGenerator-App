@@ -521,6 +521,15 @@ function effectKind(group: EffectGroupId): 'shadow' | 'glow' | 'highlight' {
   return group === 'shadow' || group === 'sungShadow' ? 'shadow' : group === 'glow' || group === 'sungGlow' ? 'glow' : 'highlight';
 }
 
+function shadowMaterial(shadow: StyleShadow): StaticMaterial {
+  return shadow.gradient ? { kind: 'gradient', gradient: shadow.gradient } : { kind: 'solid', color: shadow.color };
+}
+
+function applyShadowMaterial(shadow: StyleShadow, material: StaticMaterial): StyleShadow {
+  if (material.kind === 'solid') return { ...shadow, color: material.color, gradient: null };
+  return { ...shadow, color: material.gradient.stops[0]?.color ?? shadow.color, gradient: material.gradient };
+}
+
 /**
  * 阴影、辉光（两态）与擦除高亮：右侧包含开关控制继承；这里的“无…”“关闭”写入显式 null（已唱一侧是 set null），
  * 已唱一侧的“跟随未唱”写入 follow。只含叶时是部分覆盖：改哪一项就把那一项写进模板。
@@ -531,7 +540,8 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
   const { mode, value } = templateEffectEditing(d, group);
   const sungSide = isSungEffect(group);
   const prefix = group.startsWith('sung') ? '已唱' : group === 'highlight' ? '' : '未唱';
-  const set = (next: StyleShadow | StyleGlow | StyleWipeHighlight | null | 'follow', leaf?: string) => onChange(setTemplateEffect(d, group, next as never, leaf as never));
+  const set = (next: StyleShadow | StyleGlow | StyleWipeHighlight | null | 'follow', leaf?: string | readonly string[]) =>
+    onChange(setTemplateEffect(d, group, next as never, leaf as never));
   const options = [
     ...(mode === 'partial' ? [{ value: 'partial', label: '部分覆盖' }] : []),
     ...(sungSide
@@ -542,6 +552,7 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
         ]),
   ];
   const editable = value && mode !== 'follow' ? value : undefined;
+  const editableShadow = kind === 'shadow' ? (editable as StyleShadow | undefined) : undefined;
   return {
     ctl: (
       <>
@@ -560,7 +571,15 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
           }}
           disabled={disabled}
         />
-        {editable ? (
+        {editableShadow ? (
+          <StaticMaterialValue
+            label={`${prefix}阴影颜色`}
+            material={shadowMaterial(editableShadow)}
+            onChange={(m) => set(applyShadowMaterial(editableShadow, m), m.kind === 'solid' ? ['color', 'gradient'] : 'gradient')}
+            disabled={disabled}
+            compact
+          />
+        ) : editable ? (
           <ColorField label={`${prefix}${text.name}颜色`} labelPlacement="none" size="sm" value={editable.color} onCommit={(color) => set({ ...editable, color }, 'color')} disabled={disabled} />
         ) : (
           <span className="small inherit">{mode === 'follow' ? '与未唱相同' : '明确关闭，不是继承'}</span>
@@ -570,7 +589,7 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
     sub: editable && (
       <>
         {mode === 'partial' && <Note>只覆盖模板包含的{text.name}属性，其余从目标继承。修改下方数值会将对应属性写进模板。</Note>}
-        {kind === 'shadow' && shadowFields(prefix, editable as StyleShadow, set, disabled)}
+        {kind === 'shadow' && shadowFields(prefix, editable as StyleShadow, set, disabled, mode !== 'partial')}
         {kind === 'glow' && glowFields(prefix, editable as StyleGlow, set, disabled, mode !== 'partial')}
         {kind === 'highlight' && highlightFields(editable as StyleWipeHighlight, set, disabled)}
       </>
@@ -578,20 +597,48 @@ function effectRow(d: FullTemplateDefinition, group: EffectGroupId, onChange: (n
   };
 }
 
-type EffectSetter = (next: StyleShadow | StyleGlow | StyleWipeHighlight, leaf: string) => void;
+type EffectSetter = (next: StyleShadow | StyleGlow | StyleWipeHighlight, leaf: string | readonly string[]) => void;
 
-function shadowFields(prefix: string, shadow: StyleShadow, set: EffectSetter, disabled: boolean): ReactNode {
+function shadowFields(prefix: string, shadow: StyleShadow, set: EffectSetter, disabled: boolean, whole: boolean): ReactNode {
+  const material = shadowMaterial(shadow);
   return (
     <>
+      <div className="ctl-row">
+        <span className="sub-lbl">着色</span>
+        <Select
+          label={`${prefix}阴影着色类型`}
+          labelPlacement="none"
+          size="sm"
+          className="w"
+          value={material.kind}
+          options={STATIC_KINDS}
+          onChange={(kind) => {
+            const next = kind === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material);
+            set(applyShadowMaterial(shadow, next), ['color', 'gradient']);
+          }}
+          disabled={disabled}
+        />
+      </div>
+      {shadow.gradient && (
+        <GradientFields
+          gradient={shadow.gradient}
+          onChange={(gradient) => set({ ...shadow, gradient }, 'gradient')}
+          disabled={disabled}
+        />
+      )}
       <div className="ctl-row">
         <span className="sub-lbl">不透明度</span>
         <InlineSlider label={`${prefix}阴影不透明度`} value={shadow.opacity} min={0} max={1} step={0.01} format={percent} onCommit={(opacity) => set({ ...shadow, opacity }, 'opacity')} disabled={disabled} />
       </div>
-      <div className="g3">
+      <div className="g2">
         <NumberField label="角度" labelPlacement="inside" size="sm" suffix="°" value={shadow.angleDegrees} onCommit={(angleDegrees) => set({ ...shadow, angleDegrees }, 'angleDegrees')} disabled={disabled} />
         <NumberField label="距离" labelPlacement="inside" size="sm" suffix="px" value={shadow.distancePx} min={0} onCommit={(distancePx) => set({ ...shadow, distancePx }, 'distancePx')} disabled={disabled} />
+      </div>
+      <div className="g2">
+        <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={shadow.spreadPx} min={0} onCommit={(spreadPx) => set({ ...shadow, spreadPx }, 'spreadPx')} disabled={disabled} />
         <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={shadow.blurRadiusPx} min={0} onCommit={(blurRadiusPx) => set({ ...shadow, blurRadiusPx }, 'blurRadiusPx')} disabled={disabled} />
       </div>
+      <Note>模糊为 0 时绘制硬边阴影，扩张可增大轮廓厚度。{whole && '距离、扩张、模糊都为 0 时不显示阴影。'}</Note>
     </>
   );
 }

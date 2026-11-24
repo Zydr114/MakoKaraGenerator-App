@@ -221,7 +221,7 @@ describe('样式库状态', () => {
   });
 
   it('已唱阴影：跟随未唱时显示未唱的值；改叶写成显式，整项可改回跟随或明确关闭', () => {
-    const shadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4 };
+    const shadow = { color: { red: 0, green: 0, blue: 0, alpha: 255 }, gradient: null, opacity: 0.5, angleDegrees: 45, distancePx: 4, blurRadiusPx: 4, spreadPx: 0 };
     const base = definition({ name: '阴影', kind: 'line', style: { ...STYLE, unsung: { ...STYLE.unsung, shadow } }, properties: ['sung.shadow'] });
     expect(templateEffectEditing(base, 'sungShadow')).toEqual({ mode: 'follow', value: shadow });
     expect(groupValueText('sungShadow', base.style, base.properties)).toBe('跟随未唱');
@@ -234,6 +234,30 @@ describe('样式库状态', () => {
     expect(off.style.sung.shadow).toEqual({ kind: 'set', value: null });
     expect(templateEffectEditing(off, 'sungShadow').mode).toBe('off');
     expect(setTemplateEffect(off, 'sungShadow', 'follow').style.sung.shadow).toEqual({ kind: 'follow' });
+  });
+
+  it('阴影支持硬边、外扩张与渐变，部分覆盖切换着色时同时写入 color 与 gradient', () => {
+    const gradient = {
+      kind: 'linear' as const,
+      angleDegrees: 90,
+      centerX: 0.5,
+      centerY: 0.5,
+      radiusX: 0.5,
+      radiusY: 0.5,
+      coordinateSpace: 'line' as const,
+      colorSpace: 'linearRgb' as const,
+      huePath: 'shorter' as const,
+      stops: [
+        { offset: 0, color: { red: 255, green: 0, blue: 0, alpha: 255 } },
+        { offset: 1, color: { red: 0, green: 0, blue: 255, alpha: 255 } },
+      ],
+    };
+    const shadow = { color: { red: 255, green: 0, blue: 0, alpha: 255 }, gradient, opacity: 1, angleDegrees: 45, distancePx: 6, blurRadiusPx: 0, spreadPx: 2.5 };
+    const partial = definition({ name: '硬渐变阴影', kind: 'line', style: { ...STYLE, unsung: { ...STYLE.unsung, shadow } }, properties: ['unsung.shadow.spreadPx'] });
+    const updated = setTemplateEffect(partial, 'shadow', shadow, ['color', 'gradient']);
+    expect(updated.properties).toEqual(['unsung.shadow.color', 'unsung.shadow.gradient', 'unsung.shadow.spreadPx']);
+    expect(groupValueText('shadow', updated.style)).toContain('线性渐变 90°');
+    expect(groupValueText('shadow', updated.style)).toContain('扩张 2.5 px');
   });
 
   it('新建草稿以“经典整行”为起点，算未保存；保存发 create（首次修订 missing），之后选中新模板、不再有修改', async () => {

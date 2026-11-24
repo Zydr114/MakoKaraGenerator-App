@@ -392,6 +392,16 @@ function ShadowEditor(props: {
 }) {
   const value = props.mode ?? (props.shadow ? 'on' : 'off');
   const editable = value === 'on' ? props.shadow : null;
+  const material: StaticMaterial | null = editable
+    ? editable.gradient
+      ? { kind: 'gradient', gradient: editable.gradient }
+      : { kind: 'solid', color: editable.color }
+    : null;
+  const applyMaterial = (next: StaticMaterial) => {
+    if (!editable) return;
+    if (next.kind === 'solid') props.onChange({ ...editable, color: next.color, gradient: null });
+    else props.onChange({ ...editable, color: next.gradient.stops[0]?.color ?? editable.color, gradient: next.gradient });
+  };
   return (
     <AppearanceRow label={props.label}>
       <div className="countdown-ctl-line">
@@ -405,26 +415,48 @@ function ShadowEditor(props: {
           disabled={props.disabled}
           onChange={props.onMode}
         />
-        {editable && (
-          <ColorField
+        {material && (
+          <StaticMaterialValue
             label={`${props.label}颜色`}
-            labelPlacement="none"
-            size="sm"
-            value={editable.color}
+            material={material}
             disabled={props.disabled}
-            onCommit={(color) => props.onChange({ ...editable, color })}
+            onChange={applyMaterial}
+            compact
           />
         )}
       </div>
-      {editable && (
+      {editable && material && (
         <>
+          <div className="ctl-row">
+            <span className="sub-lbl">着色</span>
+            <Select
+              label={`${props.label}着色类型`}
+              labelPlacement="none"
+              size="sm"
+              className="w"
+              value={material.kind}
+              options={STATIC_KINDS}
+              disabled={props.disabled}
+              onChange={(kind) => applyMaterial(kind === 'gradient' && material.kind === 'solid' ? gradientFrom(material.color) : solidFrom(material))}
+            />
+          </div>
+          {editable.gradient && (
+            <GradientFields
+              gradient={editable.gradient}
+              disabled={props.disabled}
+              onChange={(gradient) => props.onChange({ ...editable, gradient })}
+            />
+          )}
           <div className="ctl-row">
             <span className="sub-lbl">不透明度</span>
             <InlineSlider label={`${props.label}不透明度`} value={editable.opacity} min={0} max={1} step={0.01} format={percent} disabled={props.disabled} onCommit={(opacity) => props.onChange({ ...editable, opacity })} />
           </div>
-          <div className="g3">
+          <div className="g2">
             <NumberField label="角度" labelPlacement="inside" size="sm" suffix="°" value={editable.angleDegrees} disabled={props.disabled} onCommit={(angleDegrees) => props.onChange({ ...editable, angleDegrees })} />
             <NumberField label="距离" labelPlacement="inside" size="sm" suffix="px" value={editable.distancePx} min={0} disabled={props.disabled} onCommit={(distancePx) => props.onChange({ ...editable, distancePx })} />
+          </div>
+          <div className="g2">
+            <NumberField label="扩张" labelPlacement="inside" size="sm" suffix="px" value={editable.spreadPx} min={0} disabled={props.disabled} onCommit={(spreadPx) => props.onChange({ ...editable, spreadPx })} />
             <NumberField label="模糊" labelPlacement="inside" size="sm" suffix="px" value={editable.blurRadiusPx} min={0} disabled={props.disabled} onCommit={(blurRadiusPx) => props.onChange({ ...editable, blurRadiusPx })} />
           </div>
         </>

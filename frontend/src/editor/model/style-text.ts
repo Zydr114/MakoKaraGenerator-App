@@ -57,7 +57,9 @@ export function strokesText(strokes: readonly StyleStroke<AnyMaterial>[]): strin
 
 export function shadowText(shadow: StyleShadow | null): string {
   if (!shadow) return '关';
-  return `${formatColor(shadow.color)} · 不透明度 ${percentText(shadow.opacity)} · ${shadow.angleDegrees}° · 距离 ${shadow.distancePx} px · 模糊 ${shadow.blurRadiusPx} px`;
+  const paint = shadow.gradient ? materialText({ kind: 'gradient', gradient: shadow.gradient }) : formatColor(shadow.color);
+  const spread = shadow.spreadPx > 0 ? ` · 扩张 ${shadow.spreadPx} px` : '';
+  return `${paint} · 不透明度 ${percentText(shadow.opacity)} · ${shadow.angleDegrees}° · 距离 ${shadow.distancePx} px${spread} · 模糊 ${shadow.blurRadiusPx} px`;
 }
 
 export function glowText(glow: StyleGlow | null): string {

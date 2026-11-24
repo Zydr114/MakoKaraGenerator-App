@@ -10,6 +10,7 @@ import type {
   StyleChange,
   StyleColor,
   StyleGlow,
+  StyleGradient,
   StylePropertyPath,
   StyleShadow,
   StyleStroke,
@@ -43,7 +44,15 @@ export interface OverrideRow {
 }
 
 const SIDE_TEXT = { unsung: '未唱', sung: '已唱' } as const;
-const SHADOW_LEAF_TEXT = { color: '颜色', opacity: '不透明度', angleDegrees: '角度', distancePx: '距离', blurRadiusPx: '模糊' } as const;
+const SHADOW_LEAF_TEXT = {
+  color: '颜色',
+  gradient: '渐变',
+  opacity: '不透明度',
+  angleDegrees: '角度',
+  distancePx: '距离',
+  blurRadiusPx: '模糊',
+  spreadPx: '扩张',
+} as const;
 const GLOW_LEAF_TEXT = { color: '颜色', opacity: '不透明度', blurRadiusPx: '模糊', spreadPx: '扩张' } as const;
 
 function sideLabels(side: 'unsung' | 'sung'): Record<string, string> {
@@ -119,6 +128,21 @@ export const DEFAULT_SCENE_TEXT_APPEARANCE: SceneTextAppearance<StaticMaterial> 
   opacity: 1,
 };
 
+function cloneGradient(gradient: StyleGradient): StyleGradient {
+  return {
+    ...gradient,
+    stops: gradient.stops.map((stop) => ({ offset: stop.offset, color: { ...stop.color } })),
+  };
+}
+
+function cloneShadow(shadow: StyleShadow): StyleShadow {
+  return {
+    ...shadow,
+    color: { ...shadow.color },
+    gradient: shadow.gradient ? cloneGradient(shadow.gradient) : null,
+  };
+}
+
 function cloneStaticMaterial(material: SceneTextAppearance['pending']['fill']): StaticMaterial {
   if (material.kind === 'package') {
     return { kind: 'solid', color: { ...FALLBACK_WHITE_COLOR } };
@@ -128,10 +152,7 @@ function cloneStaticMaterial(material: SceneTextAppearance['pending']['fill']): 
   }
   return {
     kind: 'gradient',
-    gradient: {
-      ...material.gradient,
-      stops: material.gradient.stops.map((stop) => ({ offset: stop.offset, color: { ...stop.color } })),
-    },
+    gradient: cloneGradient(material.gradient),
   };
 }
 
@@ -146,7 +167,7 @@ function toStaticAppearance(side: StyleAppearance): StyleAppearance<StaticMateri
   return {
     fill: cloneStaticMaterial(side.fill),
     strokes: toStaticStrokes(side.strokes),
-    shadow: side.shadow ? { ...side.shadow, color: { ...side.shadow.color } } : null,
+    shadow: side.shadow ? cloneShadow(side.shadow) : null,
     glow: side.glow ? { ...side.glow, color: { ...side.glow.color } } : null,
   };
 }
@@ -157,7 +178,7 @@ function toStaticSungAppearance(side: StyleSungAppearance): StyleSungAppearance<
     strokes: side.strokes.kind === 'follow' ? { kind: 'follow' } : { kind: 'set', value: toStaticStrokes(side.strokes.value) },
     shadow: side.shadow.kind === 'follow'
       ? { kind: 'follow' }
-      : { kind: 'set', value: side.shadow.value ? { ...side.shadow.value, color: { ...side.shadow.value.color } } : null },
+      : { kind: 'set', value: side.shadow.value ? cloneShadow(side.shadow.value) : null },
     glow: side.glow.kind === 'follow'
       ? { kind: 'follow' }
       : { kind: 'set', value: side.glow.value ? { ...side.glow.value, color: { ...side.glow.value.color } } : null },
@@ -263,9 +284,15 @@ function describe(property: string, value: unknown): { text: string; swatch?: st
       const strokes = value as StyleStroke<AnyMaterial>[];
       return { text: strokesText(strokes), ...(strokes[0] ? { swatch: materialCss(strokes[0].material) } : {}) };
     }
-    case 'unsung.shadow':
+    case 'unsung.shadow': {
       if (value === null) return { text: '关' };
-      return isRecord(value) && isColor(value.color) ? { text: shadowText(value as unknown as StyleShadow), swatch: cssColor(value.color) } : raw;
+      if (!isRecord(value) || !isColor(value.color)) return raw;
+      const shadow = value as unknown as StyleShadow;
+      const swatch = shadow.gradient && isGradient(shadow.gradient)
+        ? materialCss({ kind: 'gradient', gradient: shadow.gradient })
+        : cssColor(shadow.color);
+      return { text: shadowText(shadow), swatch };
+    }
     case 'unsung.glow': {
       if (value === null) return { text: '关' };
       const glow = value as StyleGlow;
@@ -296,11 +323,16 @@ function describe(property: string, value: unknown): { text: string; swatch?: st
   }
 }
 
-/** 阴影、辉光的叶：颜色、不透明度、角度与像素值。 */
+/** 阴影、辉光的叶：颜色、渐变、不透明度、角度与像素值。 */
 function describeEffectLeaf(leaf: string, value: unknown, raw: { text: string }): { text: string; swatch?: string } {
   switch (leaf) {
     case 'color':
       return isColor(value) ? { text: formatColor(value), swatch: cssColor(value) } : raw;
+    case 'gradient':
+      if (value === null) return { text: '无（纯色）' };
+      return isGradient(value)
+        ? { text: materialText({ kind: 'gradient', gradient: value }), swatch: materialCss({ kind: 'gradient', gradient: value }) }
+        : raw;
     case 'opacity':
       return typeof value === 'number' ? { text: percentText(value) } : raw;
     case 'angleDegrees':
@@ -316,6 +348,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isColor(value: unknown): value is StyleColor {
   return isRecord(value) && ['red', 'green', 'blue', 'alpha'].every((k) => typeof value[k] === 'number');
+}
+
+function isGradient(value: unknown): value is StyleGradient {
+  return isRecord(value) && Array.isArray(value.stops);
 }
 
 function isStaticMaterial(value: unknown): value is StaticMaterial {

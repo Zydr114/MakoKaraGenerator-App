@@ -194,10 +194,12 @@ public static class LyricStyleResolver
         => MarkEffectSources(properties, follows || shadow is null || shadow.IsComplete, component => shadow is not null && component switch
         {
             LyricStyleEffectComponent.Color => shadow.Color is not null,
+            LyricStyleEffectComponent.Gradient => shadow.Gradient.IsSet,
             LyricStyleEffectComponent.Opacity => shadow.Opacity is not null,
             LyricStyleEffectComponent.AngleDegrees => shadow.AngleDegrees is not null,
             LyricStyleEffectComponent.DistancePx => shadow.DistancePx is not null,
             LyricStyleEffectComponent.BlurRadiusPx => shadow.BlurRadiusPx is not null,
+            LyricStyleEffectComponent.SpreadPx => shadow.SpreadPx is not null,
             _ => false,
         }, source, sources);
 

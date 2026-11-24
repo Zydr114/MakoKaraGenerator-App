@@ -170,10 +170,12 @@ internal static partial class ProjectDtoMapper
         : new ShadowSpecDto
         {
             Color = shadow.Color.ToHex(),
+            Gradient = ToDto(shadow.Gradient),
             Opacity = shadow.Opacity,
             AngleDegrees = shadow.AngleDegrees,
             DistancePx = shadow.DistancePx,
             BlurRadiusPx = shadow.BlurRadiusPx,
+            SpreadPx = shadow.SpreadPx,
         };
 
     /// <summary>把样式覆盖写成 DTO；空覆盖返回 <see langword="null"/>（整个字段省略）。</summary>
@@ -219,10 +221,14 @@ internal static partial class ProjectDtoMapper
             ? new ShadowSpecOverrideDto
             {
                 Color = shadow.Color?.ToHex(),
+                Gradient = shadow.Gradient.IsSet
+                    ? System.Text.Json.JsonSerializer.SerializeToElement(shadow.Gradient.Value is { } gradient ? ToDto(gradient) : null, ProjectJson.Options)
+                    : default,
                 Opacity = shadow.Opacity,
                 AngleDegrees = shadow.AngleDegrees,
                 DistancePx = shadow.DistancePx,
                 BlurRadiusPx = shadow.BlurRadiusPx,
+                SpreadPx = shadow.SpreadPx,
             } : null, ProjectJson.Options) : default;
 
     private static TypographySpecOverride? MapTypographyOverride(
@@ -662,13 +668,24 @@ internal static partial class ProjectDtoMapper
         try
         {
             ShadowSpecOverrideDto dto = System.Text.Json.JsonSerializer.Deserialize<ShadowSpecOverrideDto>(value, ProjectJson.Options)!;
+            OptionalValue<GradientSpec?> gradient = default;
+            if (dto.Gradient.ValueKind == System.Text.Json.JsonValueKind.Null)
+                gradient = OptionalValue.Set<GradientSpec?>(null);
+            else if (dto.Gradient.ValueKind != System.Text.Json.JsonValueKind.Undefined)
+            {
+                GradientSpecDto? gradientDto = System.Text.Json.JsonSerializer.Deserialize<GradientSpecDto>(dto.Gradient, ProjectJson.Options);
+                if (MapGradientSpec(gradientDto, location + ".gradient", issues) is { } mapped)
+                    gradient = OptionalValue.Set<GradientSpec?>(mapped);
+            }
             return OptionalValue.Set<ShadowSpecOverride?>(new ShadowSpecOverride
             {
                 Color = MapOptionalStyleColor(dto.Color, location + ".color", issues),
+                Gradient = gradient,
                 Opacity = dto.Opacity,
                 AngleDegrees = dto.AngleDegrees,
                 DistancePx = dto.DistancePx,
                 BlurRadiusPx = dto.BlurRadiusPx,
+                SpreadPx = dto.SpreadPx,
             });
         }
         catch (System.Text.Json.JsonException exception)
@@ -801,7 +818,8 @@ internal static partial class ProjectDtoMapper
     private static ShadowSpec? MapShadowSpec(
         ShadowSpecDto? dto,
         string location,
-        List<ProjectIssue> issues)
+        List<ProjectIssue> issues,
+        bool allowUnsupportedGradients = false)
     {
         if (dto is null)
         {
@@ -814,13 +832,23 @@ internal static partial class ProjectDtoMapper
             return null;
         }
 
+        GradientSpec? gradient = dto.Gradient is null
+            ? null
+            : MapGradientSpec(dto.Gradient, location + ".gradient", issues, allowUnsupportedGradients);
+        if (dto.Gradient is not null && gradient is null)
+        {
+            return null;
+        }
+
         ShadowSpec result = new()
         {
             Color = color,
+            Gradient = gradient,
             Opacity = dto.Opacity ?? 1f,
             AngleDegrees = dto.AngleDegrees ?? 45d,
             DistancePx = dto.DistancePx ?? 4f,
             BlurRadiusPx = dto.BlurRadiusPx ?? 8f,
+            SpreadPx = dto.SpreadPx ?? 0f,
         };
 
         if (!result.IsValid)

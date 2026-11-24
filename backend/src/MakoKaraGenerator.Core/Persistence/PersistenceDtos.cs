@@ -228,17 +228,22 @@ internal sealed class GlowSpecOverrideDto
 internal sealed class ShadowSpecOverrideDto
 {
     public string? Color { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public System.Text.Json.JsonElement Gradient { get; set; }
     public float? Opacity { get; set; }
     public double? AngleDegrees { get; set; }
     public float? DistancePx { get; set; }
     public float? BlurRadiusPx { get; set; }
+    public float? SpreadPx { get; set; }
 }
 
-/// <summary>方向阴影描述的 JSON 形态（schema v12 起）。</summary>
+/// <summary>方向阴影描述的 JSON 形态（schema v12 起，v35 起支持渐变与外扩张）。</summary>
 internal sealed class ShadowSpecDto
 {
     public string? Color { get; set; }
 
+    public GradientSpecDto? Gradient { get; set; }
+
     public float? Opacity { get; set; }
 
     public double? AngleDegrees { get; set; }
@@ -246,6 +251,8 @@ internal sealed class ShadowSpecDto
     public float? DistancePx { get; set; }
 
     public float? BlurRadiusPx { get; set; }
+
+    public float? SpreadPx { get; set; }
 }
 
 /// <summary>

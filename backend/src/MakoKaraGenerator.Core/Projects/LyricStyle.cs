@@ -84,7 +84,7 @@ public sealed record LyricStyle
         StrokeLayers Strokes(StrokeLayers layers) => layers.Count == 0 ? layers
             : StrokeLayers.From(layers.Select(layer => layer with { WidthPx = layer.WidthPx * factor }));
         ShadowSpec? Shadow(ShadowSpec? shadow) => shadow is null ? null
-            : shadow with { DistancePx = shadow.DistancePx * factor, BlurRadiusPx = shadow.BlurRadiusPx * factor };
+            : shadow with { DistancePx = shadow.DistancePx * factor, BlurRadiusPx = shadow.BlurRadiusPx * factor, SpreadPx = shadow.SpreadPx * factor };
         GlowSpec? Glow(GlowSpec? glow) => glow is null ? null
             : glow with { BlurRadiusPx = glow.BlurRadiusPx * factor, SpreadPx = glow.SpreadPx * factor };
     }

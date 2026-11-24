@@ -321,8 +321,13 @@ public static partial class ProjectValidator
         {
             ValidateFillOverride(unsung.Fill, location + ".unsung.fill", issues);
             if (unsung.Strokes is { } strokes) ValidateStrokes(strokes, location + ".unsung.strokes", issues);
-            if (unsung.Shadow is { IsSet: true, Value: { IsValid: false } })
-                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".unsung.shadow");
+            if (unsung.Shadow is { IsSet: true, Value: { } unsungShadow })
+            {
+                if (!unsungShadow.IsValid)
+                    Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".unsung.shadow");
+                else if (unsungShadow.Gradient is { IsSet: true, Value: { } shadowGradient })
+                    ValidateGradientSupport(shadowGradient, location + ".unsung.shadow.gradient", issues);
+            }
             if (unsung.Glow is { IsSet: true, Value: { IsValid: false } })
                 Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".unsung.glow");
         }
@@ -335,8 +340,13 @@ public static partial class ProjectValidator
                 if (strokes.Value.Value is { } layers) ValidateStrokes(layers, location + ".sung.strokes", issues);
                 else Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "已唱描边覆盖不能为空。", location + ".sung.strokes");
             }
-            if (sung.Shadow is { IsSet: true, Value: { FollowsUnsung: false, Value: { IsValid: false } } })
-                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".sung.shadow");
+            if (sung.Shadow is { IsSet: true, Value: { FollowsUnsung: false, Value: { } sungShadow } })
+            {
+                if (!sungShadow.IsValid)
+                    Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影覆盖描述无效。", location + ".sung.shadow");
+                else if (sungShadow.Gradient is { IsSet: true, Value: { } shadowGradient })
+                    ValidateGradientSupport(shadowGradient, location + ".sung.shadow.gradient", issues);
+            }
             if (sung.Glow is { IsSet: true, Value: { FollowsUnsung: false, Value: { IsValid: false } } })
                 Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光覆盖描述无效。", location + ".sung.glow");
         }
@@ -414,8 +424,13 @@ public static partial class ProjectValidator
     {
         ValidateFill(appearance.Fill, location + ".fill", issues);
         ValidateStrokes(appearance.Strokes, location + ".strokes", issues);
-        if (appearance.Shadow is { IsValid: false })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+        if (appearance.Shadow is { } shadow)
+        {
+            if (!shadow.IsValid)
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+            else
+                ValidateGradientSupport(shadow.Gradient, location + ".shadow.gradient", issues);
+        }
         if (appearance.Glow is { IsValid: false })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
     }
@@ -428,8 +443,13 @@ public static partial class ProjectValidator
             if (appearance.Strokes.Value is { } strokes) ValidateStrokes(strokes, location + ".strokes", issues);
             else Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "已唱描边不能为空。", location + ".strokes");
         }
-        if (appearance.Shadow is { FollowsUnsung: false, Value.IsValid: false })
-            Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+        if (appearance.Shadow is { FollowsUnsung: false, Value: { } sungShadow })
+        {
+            if (!sungShadow.IsValid)
+                Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "阴影描述无效。", location + ".shadow");
+            else
+                ValidateGradientSupport(sungShadow.Gradient, location + ".shadow.gradient", issues);
+        }
         if (appearance.Glow is { FollowsUnsung: false, Value.IsValid: false })
             Add(issues, DiagnosticCode.InvalidStyleValue, IssueSeverity.Error, "辉光描述无效。", location + ".glow");
     }

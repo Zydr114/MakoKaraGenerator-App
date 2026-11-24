@@ -139,11 +139,13 @@ public static class StyleBatchEditor
                     Glow = restore ? default : OptionalValue.Set<Followable<GlowSpecOverride?>>(style.Sung.Glow.FollowsUnsung ? Followable.Follow<GlowSpecOverride?>()
                         : Followable.Set<GlowSpecOverride?>(style.Sung.Glow.Value is { } glow ? GlowSpecOverride.FromSpec(glow) : null)),
                 }),
-                LyricStyleProperty.UnsungShadowColor or LyricStyleProperty.UnsungShadowOpacity or LyricStyleProperty.UnsungShadowAngleDegrees
-                    or LyricStyleProperty.UnsungShadowDistancePx or LyricStyleProperty.UnsungShadowBlurRadiusPx
+                LyricStyleProperty.UnsungShadowColor or LyricStyleProperty.UnsungShadowGradient or LyricStyleProperty.UnsungShadowOpacity
+                    or LyricStyleProperty.UnsungShadowAngleDegrees or LyricStyleProperty.UnsungShadowDistancePx
+                    or LyricStyleProperty.UnsungShadowBlurRadiusPx or LyricStyleProperty.UnsungShadowSpreadPx
                     => WithUnsung(overlay, value => value with { Shadow = CopyLeaf(value.Shadow, style.Unsung.Shadow, restore, current => CopyShadowLeaf(current, style.Unsung.Shadow, component, restore)) }),
-                LyricStyleProperty.SungShadowColor or LyricStyleProperty.SungShadowOpacity or LyricStyleProperty.SungShadowAngleDegrees
-                    or LyricStyleProperty.SungShadowDistancePx or LyricStyleProperty.SungShadowBlurRadiusPx
+                LyricStyleProperty.SungShadowColor or LyricStyleProperty.SungShadowGradient or LyricStyleProperty.SungShadowOpacity
+                    or LyricStyleProperty.SungShadowAngleDegrees or LyricStyleProperty.SungShadowDistancePx
+                    or LyricStyleProperty.SungShadowBlurRadiusPx or LyricStyleProperty.SungShadowSpreadPx
                     => WithSung(overlay, value => value with { Shadow = CopySungLeaf(value.Shadow, sung.Shadow, restore, current => CopyShadowLeaf(current, sung.Shadow, component, restore)) }),
                 LyricStyleProperty.UnsungGlowColor or LyricStyleProperty.UnsungGlowOpacity or LyricStyleProperty.UnsungGlowBlurRadiusPx
                     or LyricStyleProperty.UnsungGlowSpreadPx
@@ -231,14 +233,16 @@ public static class StyleBatchEditor
     private static ShadowSpecOverride CopyShadowLeaf(ShadowSpecOverride? current, ShadowSpec? source, LyricStyleEffectComponent component, bool restore)
     {
         ShadowSpecOverride value = current ?? new();
-        ShadowSpec basis = source ?? new() { Color = RgbaColor.Transparent, DistancePx = 0, BlurRadiusPx = 0, AngleDegrees = 0 };
+        ShadowSpec basis = source ?? new() { Color = RgbaColor.Transparent, DistancePx = 0, BlurRadiusPx = 0, AngleDegrees = 0, SpreadPx = 0 };
         return component switch
         {
             LyricStyleEffectComponent.Color => value with { Color = restore ? null : basis.Color },
+            LyricStyleEffectComponent.Gradient => value with { Gradient = restore ? default : OptionalValue.Set<GradientSpec?>(basis.Gradient) },
             LyricStyleEffectComponent.Opacity => value with { Opacity = restore ? null : basis.Opacity },
             LyricStyleEffectComponent.AngleDegrees => value with { AngleDegrees = restore ? null : basis.AngleDegrees },
             LyricStyleEffectComponent.DistancePx => value with { DistancePx = restore ? null : basis.DistancePx },
             LyricStyleEffectComponent.BlurRadiusPx => value with { BlurRadiusPx = restore ? null : basis.BlurRadiusPx },
+            LyricStyleEffectComponent.SpreadPx => value with { SpreadPx = restore ? null : basis.SpreadPx },
             _ => throw new ArgumentOutOfRangeException(nameof(component)),
         };
     }

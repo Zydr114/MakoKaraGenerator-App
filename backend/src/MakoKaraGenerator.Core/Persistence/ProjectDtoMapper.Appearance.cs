@@ -92,7 +92,7 @@ internal static partial class ProjectDtoMapper
             Fill = new FillSpec { Material = ReadMaterial(dto.Fill, path + ".fill", issues, allowUnsupportedGradients) },
             Strokes = dto.Strokes.ValueKind == JsonValueKind.Undefined ? StrokeLayers.Empty
                 : ReadStrokes(dto.Strokes, path + ".strokes", issues, allowUnsupportedGradients),
-            Shadow = dto.Shadow is null ? null : MapShadowSpec(dto.Shadow, path + ".shadow", issues),
+            Shadow = dto.Shadow is null ? null : MapShadowSpec(dto.Shadow, path + ".shadow", issues, allowUnsupportedGradients),
             Glow = dto.Glow is null ? null : MapGlowSpec(dto.Glow, path + ".glow", issues),
         };
     }
@@ -107,7 +107,7 @@ internal static partial class ProjectDtoMapper
             Strokes = ReadFollowable(dto.Strokes, path + ".strokes",
                 value => ReadStrokes(value, path + ".strokes.value", issues, allowUnsupportedGradients)),
             Shadow = ReadFollowable<ShadowSpec?>(dto.Shadow, path + ".shadow", value => value.ValueKind == JsonValueKind.Null ? null
-                : MapShadowSpec(JsonSerializer.Deserialize<ShadowSpecDto>(value, ProjectJson.Options), path + ".shadow.value", issues)),
+                : MapShadowSpec(JsonSerializer.Deserialize<ShadowSpecDto>(value, ProjectJson.Options), path + ".shadow.value", issues, allowUnsupportedGradients)),
             Glow = ReadFollowable<GlowSpec?>(dto.Glow, path + ".glow", value => value.ValueKind == JsonValueKind.Null ? null
                 : MapGlowSpec(JsonSerializer.Deserialize<GlowSpecDto>(value, ProjectJson.Options)!, path + ".glow.value", issues)),
         };

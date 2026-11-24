@@ -1,7 +1,7 @@
 namespace MakoKaraGenerator.Core.Projects;
 
 /// <summary>
-/// 样式里可以逐属性覆盖、恢复与追踪来源的各项（P3 设计 §10.5，共 45 个）。
+/// 样式里可以逐属性覆盖、恢复与追踪来源的各项（P3 设计 §10.5，共 49 个）。
 /// </summary>
 /// <remarks>
 /// <para>
@@ -45,6 +45,8 @@ public enum LyricStyleProperty
     UnsungShadow,
     /// <summary><c>unsung.shadow.color</c>。</summary>
     UnsungShadowColor,
+    /// <summary><c>unsung.shadow.gradient</c>。</summary>
+    UnsungShadowGradient,
     /// <summary><c>unsung.shadow.opacity</c>。</summary>
     UnsungShadowOpacity,
     /// <summary><c>unsung.shadow.angleDegrees</c>。</summary>
@@ -53,10 +55,14 @@ public enum LyricStyleProperty
     UnsungShadowDistancePx,
     /// <summary><c>unsung.shadow.blurRadiusPx</c>。</summary>
     UnsungShadowBlurRadiusPx,
+    /// <summary><c>unsung.shadow.spreadPx</c>。</summary>
+    UnsungShadowSpreadPx,
     /// <summary><c>sung.shadow</c>：已唱阴影整体（含关闭与跟随）。</summary>
     SungShadow,
     /// <summary><c>sung.shadow.color</c>。</summary>
     SungShadowColor,
+    /// <summary><c>sung.shadow.gradient</c>。</summary>
+    SungShadowGradient,
     /// <summary><c>sung.shadow.opacity</c>。</summary>
     SungShadowOpacity,
     /// <summary><c>sung.shadow.angleDegrees</c>。</summary>
@@ -65,6 +71,8 @@ public enum LyricStyleProperty
     SungShadowDistancePx,
     /// <summary><c>sung.shadow.blurRadiusPx</c>。</summary>
     SungShadowBlurRadiusPx,
+    /// <summary><c>sung.shadow.spreadPx</c>。</summary>
+    SungShadowSpreadPx,
     /// <summary><c>unsung.glow</c>：未唱辉光整体（含关闭）。</summary>
     UnsungGlow,
     /// <summary><c>unsung.glow.color</c>。</summary>
@@ -114,6 +122,8 @@ public enum LyricStyleEffectComponent
     None,
     /// <summary>颜色。</summary>
     Color,
+    /// <summary>渐变。</summary>
+    Gradient,
     /// <summary>不透明度。</summary>
     Opacity,
     /// <summary>阴影角度。</summary>
@@ -122,7 +132,7 @@ public enum LyricStyleEffectComponent
     DistancePx,
     /// <summary>模糊半径。</summary>
     BlurRadiusPx,
-    /// <summary>辉光扩张。</summary>
+    /// <summary>扩张距离。</summary>
     SpreadPx,
     /// <summary>高亮宽度比例。</summary>
     WidthRatio,
@@ -167,16 +177,20 @@ public static class LyricStylePropertyExtensions
         LyricStyleProperty.SungStrokes => "sung.strokes",
         LyricStyleProperty.UnsungShadow => "unsung.shadow",
         LyricStyleProperty.UnsungShadowColor => "unsung.shadow.color",
+        LyricStyleProperty.UnsungShadowGradient => "unsung.shadow.gradient",
         LyricStyleProperty.UnsungShadowOpacity => "unsung.shadow.opacity",
         LyricStyleProperty.UnsungShadowAngleDegrees => "unsung.shadow.angleDegrees",
         LyricStyleProperty.UnsungShadowDistancePx => "unsung.shadow.distancePx",
         LyricStyleProperty.UnsungShadowBlurRadiusPx => "unsung.shadow.blurRadiusPx",
+        LyricStyleProperty.UnsungShadowSpreadPx => "unsung.shadow.spreadPx",
         LyricStyleProperty.SungShadow => "sung.shadow",
         LyricStyleProperty.SungShadowColor => "sung.shadow.color",
+        LyricStyleProperty.SungShadowGradient => "sung.shadow.gradient",
         LyricStyleProperty.SungShadowOpacity => "sung.shadow.opacity",
         LyricStyleProperty.SungShadowAngleDegrees => "sung.shadow.angleDegrees",
         LyricStyleProperty.SungShadowDistancePx => "sung.shadow.distancePx",
         LyricStyleProperty.SungShadowBlurRadiusPx => "sung.shadow.blurRadiusPx",
+        LyricStyleProperty.SungShadowSpreadPx => "sung.shadow.spreadPx",
         LyricStyleProperty.UnsungGlow => "unsung.glow",
         LyricStyleProperty.UnsungGlowColor => "unsung.glow.color",
         LyricStyleProperty.UnsungGlowOpacity => "unsung.glow.opacity",
@@ -203,18 +217,20 @@ public static class LyricStylePropertyExtensions
     /// <summary>全部样式属性，顺序与 P3 设计 §10.5 的属性清单一致。</summary>
     public static IReadOnlyList<LyricStyleProperty> All { get; } = Enum.GetValues<LyricStyleProperty>();
 
-    /// <summary>未唱阴影的整体项与五个分量。</summary>
+    /// <summary>未唱阴影的整体项与七个分量。</summary>
     public static IReadOnlyList<LyricStyleProperty> UnsungShadowProperties { get; } =
     [
-        LyricStyleProperty.UnsungShadow, LyricStyleProperty.UnsungShadowColor, LyricStyleProperty.UnsungShadowOpacity,
-        LyricStyleProperty.UnsungShadowAngleDegrees, LyricStyleProperty.UnsungShadowDistancePx, LyricStyleProperty.UnsungShadowBlurRadiusPx,
+        LyricStyleProperty.UnsungShadow, LyricStyleProperty.UnsungShadowColor, LyricStyleProperty.UnsungShadowGradient,
+        LyricStyleProperty.UnsungShadowOpacity, LyricStyleProperty.UnsungShadowAngleDegrees, LyricStyleProperty.UnsungShadowDistancePx,
+        LyricStyleProperty.UnsungShadowBlurRadiusPx, LyricStyleProperty.UnsungShadowSpreadPx,
     ];
 
-    /// <summary>已唱阴影的整体项与五个分量。</summary>
+    /// <summary>已唱阴影的整体项与七个分量。</summary>
     public static IReadOnlyList<LyricStyleProperty> SungShadowProperties { get; } =
     [
-        LyricStyleProperty.SungShadow, LyricStyleProperty.SungShadowColor, LyricStyleProperty.SungShadowOpacity,
-        LyricStyleProperty.SungShadowAngleDegrees, LyricStyleProperty.SungShadowDistancePx, LyricStyleProperty.SungShadowBlurRadiusPx,
+        LyricStyleProperty.SungShadow, LyricStyleProperty.SungShadowColor, LyricStyleProperty.SungShadowGradient,
+        LyricStyleProperty.SungShadowOpacity, LyricStyleProperty.SungShadowAngleDegrees, LyricStyleProperty.SungShadowDistancePx,
+        LyricStyleProperty.SungShadowBlurRadiusPx, LyricStyleProperty.SungShadowSpreadPx,
     ];
 
     /// <summary>未唱辉光的整体项与四个分量。</summary>
@@ -245,13 +261,15 @@ public static class LyricStylePropertyExtensions
     {
         LyricStyleProperty.UnsungShadowColor or LyricStyleProperty.SungShadowColor or LyricStyleProperty.UnsungGlowColor
             or LyricStyleProperty.SungGlowColor or LyricStyleProperty.WipeHighlightColor => LyricStyleEffectComponent.Color,
+        LyricStyleProperty.UnsungShadowGradient or LyricStyleProperty.SungShadowGradient => LyricStyleEffectComponent.Gradient,
         LyricStyleProperty.UnsungShadowOpacity or LyricStyleProperty.SungShadowOpacity or LyricStyleProperty.UnsungGlowOpacity
             or LyricStyleProperty.SungGlowOpacity or LyricStyleProperty.WipeHighlightOpacity => LyricStyleEffectComponent.Opacity,
         LyricStyleProperty.UnsungShadowAngleDegrees or LyricStyleProperty.SungShadowAngleDegrees => LyricStyleEffectComponent.AngleDegrees,
         LyricStyleProperty.UnsungShadowDistancePx or LyricStyleProperty.SungShadowDistancePx => LyricStyleEffectComponent.DistancePx,
         LyricStyleProperty.UnsungShadowBlurRadiusPx or LyricStyleProperty.SungShadowBlurRadiusPx
             or LyricStyleProperty.UnsungGlowBlurRadiusPx or LyricStyleProperty.SungGlowBlurRadiusPx => LyricStyleEffectComponent.BlurRadiusPx,
-        LyricStyleProperty.UnsungGlowSpreadPx or LyricStyleProperty.SungGlowSpreadPx => LyricStyleEffectComponent.SpreadPx,
+        LyricStyleProperty.UnsungShadowSpreadPx or LyricStyleProperty.SungShadowSpreadPx
+            or LyricStyleProperty.UnsungGlowSpreadPx or LyricStyleProperty.SungGlowSpreadPx => LyricStyleEffectComponent.SpreadPx,
         LyricStyleProperty.WipeHighlightWidthRatio => LyricStyleEffectComponent.WidthRatio,
         LyricStyleProperty.WipeHighlightBlend => LyricStyleEffectComponent.Blend,
         _ => LyricStyleEffectComponent.None,

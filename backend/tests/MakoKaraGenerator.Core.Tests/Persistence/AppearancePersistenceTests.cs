@@ -50,6 +50,47 @@ public sealed class AppearancePersistenceTests : IDisposable
     }
 
     [Fact]
+    public void 阴影支持无模糊硬边外扩张和渐变且覆盖往返无损()
+    {
+        GradientSpec gradient = GradientSpec.Create(
+            [new GradientStop(0d, new RgbaColor(255, 40, 40)), new GradientStop(1d, new RgbaColor(30, 80, 255))],
+            GradientKind.Linear,
+            angleDegrees: 90d,
+            coordinateSpace: GradientCoordinateSpace.Line);
+        ShadowSpec hardGradientShadow = ShadowSpec.Create(
+            new RgbaColor(0, 0, 0, 0),
+            opacity: 0.9f,
+            angleDegrees: 45d,
+            distancePx: 6f,
+            blurRadiusPx: 0f,
+            spreadPx: 2.5f,
+            gradient: gradient);
+        Assert.True(hardGradientShadow.IsEnabled);
+        Assert.False(ShadowSpec.Create(new RgbaColor(255, 0, 0), distancePx: 0f, blurRadiusPx: 0f, spreadPx: 0f).IsEnabled);
+        Assert.True(ShadowSpec.Create(new RgbaColor(255, 0, 0), distancePx: 0f, blurRadiusPx: 0f, spreadPx: 2f).IsEnabled);
+
+        LyricStyle style = LyricStyle.Default with
+        {
+            Unsung = LyricStyle.Default.Unsung with { Shadow = hardGradientShadow },
+        };
+        LyricStyle scaled = style.ScaleDecorations(0.5d);
+        Assert.Equal((3f, 0f, 1.25f), (scaled.Unsung.Shadow!.DistancePx, scaled.Unsung.Shadow.BlurRadiusPx, scaled.Unsung.Shadow.SpreadPx));
+
+        LyricStyleOverride lineOverride = new()
+        {
+            Unsung = new() { Shadow = OptionalValue.Set<ShadowSpecOverride?>(new() { Gradient = OptionalValue.Set<GradientSpec?>(null), SpreadPx = 4f }) },
+        };
+        LyricLine line = LyricLine.Create("l1", "歌", styleOverride: lineOverride);
+        Project reloaded = RoundTrip(Project.Create("渐变硬阴影", lyrics: LyricsDocument.Create([line]), lyricStyle: style));
+
+        Assert.Equal(style, reloaded.LyricStyle);
+        Assert.Equal(lineOverride, reloaded.Lyrics.Lines[0].StyleOverride);
+        LyricStyle resolved = LyricStyleResolver.Resolve(reloaded.LyricStyle, lineOverride: reloaded.Lyrics.Lines[0].StyleOverride).Style;
+        Assert.Null(resolved.Unsung.Shadow!.Gradient);
+        Assert.Equal(4f, resolved.Unsung.Shadow.SpreadPx);
+    }
+
+    [Fact]
     public void 覆盖中的跟随显式关闭与扫字高亮跨行和元素往返()
     {
         LyricStyleOverride lineOverride = new()

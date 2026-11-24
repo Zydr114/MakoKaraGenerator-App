@@ -12,6 +12,9 @@ public sealed record ShadowSpec
     /// <summary>阴影颜色。</summary>
     public RgbaColor Color { get; init; } = new(0, 0, 0, 160);
 
+    /// <summary>可选渐变；非空时替代纯色 <see cref="Color"/> 着色。</summary>
+    public GradientSpec? Gradient { get; init; }
+
     /// <summary>阴影自身的不透明度，范围为 0 到 1。</summary>
     public float Opacity { get; init; } = 1f;
 
@@ -21,8 +24,11 @@ public sealed record ShadowSpec
     /// <summary>阴影偏移距离（画布像素）。</summary>
     public float DistancePx { get; init; } = 4f;
 
-    /// <summary>阴影模糊半径（画布像素）。</summary>
+    /// <summary>阴影模糊半径（画布像素）；为 0 时绘制硬边阴影。</summary>
     public float BlurRadiusPx { get; init; } = 8f;
+
+    /// <summary>整体轮廓向外扩张的画布像素数。</summary>
+    public float SpreadPx { get; init; }
 
     /// <summary>由方向和距离换算出的水平偏移。</summary>
     public float OffsetXPx => (float)(Math.Cos(AngleDegrees * (Math.PI / 180d)) * DistancePx);
@@ -37,10 +43,16 @@ public sealed record ShadowSpec
         && float.IsFinite(DistancePx)
         && DistancePx >= 0f
         && float.IsFinite(BlurRadiusPx)
-        && BlurRadiusPx >= 0f;
+        && BlurRadiusPx >= 0f
+        && float.IsFinite(SpreadPx)
+        && SpreadPx >= 0f
+        && (Gradient is null || Gradient.IsValid);
 
     /// <summary>当前阴影是否有足够参数可以绘制。</summary>
-    public bool IsEnabled => IsValid && Opacity > 0f && BlurRadiusPx > 0f && Color.Alpha > 0;
+    public bool IsEnabled => IsValid
+        && Opacity > 0f
+        && (Gradient is not null || Color.Alpha > 0)
+        && (DistancePx > 0f || BlurRadiusPx > 0f || SpreadPx > 0f);
 
     /// <summary>创建并校验一份阴影描述。</summary>
     /// <param name="color">阴影颜色。</param>
@@ -48,6 +60,8 @@ public sealed record ShadowSpec
     /// <param name="angleDegrees">阴影方向角。</param>
     /// <param name="distancePx">阴影偏移距离，必须为非负有限数。</param>
     /// <param name="blurRadiusPx">阴影模糊半径，必须为非负有限数。</param>
+    /// <param name="spreadPx">阴影外扩张距离，必须为非负有限数。</param>
+    /// <param name="gradient">可选渐变；非空时替代纯色着色。</param>
     /// <returns>新的阴影描述。</returns>
     /// <exception cref="ArgumentOutOfRangeException">任一参数超出有效范围。</exception>
     public static ShadowSpec Create(
@@ -55,15 +69,19 @@ public sealed record ShadowSpec
         float opacity = 1f,
         double angleDegrees = 45d,
         float distancePx = 4f,
-        float blurRadiusPx = 8f)
+        float blurRadiusPx = 8f,
+        float spreadPx = 0f,
+        GradientSpec? gradient = null)
     {
         ShadowSpec result = new()
         {
             Color = color,
+            Gradient = gradient,
             Opacity = opacity,
             AngleDegrees = angleDegrees,
             DistancePx = distancePx,
             BlurRadiusPx = blurRadiusPx,
+            SpreadPx = spreadPx,
         };
 
         return result.IsValid

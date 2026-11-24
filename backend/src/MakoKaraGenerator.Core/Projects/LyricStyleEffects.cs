@@ -202,10 +202,12 @@ public static class LyricStyleEffects
         ShadowSpec shadow = new()
         {
             Color = style.Shadow?.Color ?? new RgbaColor(0, 0, 0, 160),
+            Gradient = style.Shadow?.Gradient,
             Opacity = style.Shadow?.Opacity is > 0f ? style.Shadow.Opacity : 1f,
             AngleDegrees = Math.Atan2(y, x) * 180d / Math.PI,
             DistancePx = style.Shadow?.DistancePx is > 0f ? style.Shadow.DistancePx : distance,
-            BlurRadiusPx = style.Shadow?.BlurRadiusPx is > 0f ? style.Shadow.BlurRadiusPx : 8f,
+            BlurRadiusPx = style.Shadow?.BlurRadiusPx is >= 0f ? style.Shadow.BlurRadiusPx : 8f,
+            SpreadPx = style.Shadow?.SpreadPx is >= 0f ? style.Shadow.SpreadPx : 0f,
         };
         return style with { Shadow = shadow };
     }

@@ -1,10 +1,8 @@
 <p align="center">
   <a href="https://mako.talium.site/">
-    <img src="docs/images/promo-cover.png" alt="MakoKara Generator — 一体化可编程字幕引擎" width="92%" />
+    <img src="frontend/assets/logo/logo-wide.png" alt="MakoKara Generator" width="460" />
   </a>
 </p>
-
-<h1 align="center">MakoKara Generator</h1>
 
 <p align="center">
   <strong>跨平台卡拉 OK 歌词动画制作与可编程字幕视频渲染引擎</strong><br />

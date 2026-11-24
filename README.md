@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>跨平台卡拉 OK 歌词动画制作与字幕视频渲染工具</strong><br />
-  <sub>版本 <code>0.117.0</code> · 支持 Windows x64 &amp; Linux x64 · 桌面端 &amp; 浏览器端</sub>
+  <sub>版本 <code>0.120.0</code> · 支持 Windows x64 &amp; Linux x64 · 桌面端 &amp; 浏览器端</sub>
 </p>
 
 ---

@@ -79,17 +79,20 @@ public sealed partial class ProjectSession
     };
     private static StyleColorDto StyleColor(RgbaColor color) => new(color.Red, color.Green, color.Blue, color.Alpha);
     private static RgbaColor CoreColor(StyleColorDto color) => new(color.Red, color.Green, color.Blue, color.Alpha);
+    private static StyleGradientDto ProjectGradient(GradientSpec g, ReadModelBudget budget)
+    {
+        budget.Item(g.Stops.Length);
+        return new((StyleGradientKind)g.Kind, g.AngleDegrees, g.CenterX, g.CenterY,
+            g.RadiusX, g.RadiusY, (StyleGradientCoordinateSpace)g.CoordinateSpace, (StyleGradientColorSpace)g.ColorSpace,
+            (StyleGradientHuePath)g.HuePath, [.. g.Stops.Select(stop => new StyleGradientStopDto(stop.Offset, StyleColor(stop.Color)))]);
+    }
     private static StyleMaterialDto ProjectMaterial(MaterialSpec material, ReadModelBudget budget)
     {
         budget.Item();
         switch (material)
         {
             case MaterialSpec.Solid solid: return new SolidStyleMaterialDto(StyleColor(solid.Color));
-            case MaterialSpec.Gradient gradient:
-                GradientSpec g = gradient.Value; budget.Item(g.Stops.Length);
-                return new GradientStyleMaterialDto(new((StyleGradientKind)g.Kind, g.AngleDegrees, g.CenterX, g.CenterY,
-                    g.RadiusX, g.RadiusY, (StyleGradientCoordinateSpace)g.CoordinateSpace, (StyleGradientColorSpace)g.ColorSpace,
-                    (StyleGradientHuePath)g.HuePath, [.. g.Stops.Select(stop => new StyleGradientStopDto(stop.Offset, StyleColor(stop.Color)))]));
+            case MaterialSpec.Gradient gradient: return new GradientStyleMaterialDto(ProjectGradient(gradient.Value, budget));
             case MaterialSpec.PackageMaterial package:
                 budget.Text(package.PackageId, package.Revision, package.ExportId);
                 return new PackageStyleMaterialDto(package.PackageId, package.Revision, package.ExportId);
@@ -101,25 +104,26 @@ public sealed partial class ProjectSession
         budget.Item(strokes.Count);
         return [.. strokes.Select(stroke => new StyleStrokeDto(ProjectMaterial(stroke.Material, budget), stroke.WidthPx, (StyleStrokeJoin)stroke.Join))];
     }
-    private static StyleShadowDto? ProjectShadow(ShadowSpec? shadow) => shadow is null ? null
-        : new(StyleColor(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx);
+    private static StyleShadowDto? ProjectShadow(ShadowSpec? shadow, ReadModelBudget budget) => shadow is null ? null
+        : new(StyleColor(shadow.Color), shadow.Opacity, shadow.AngleDegrees, shadow.DistancePx, shadow.BlurRadiusPx, shadow.SpreadPx,
+            shadow.Gradient is { } gradient ? ProjectGradient(gradient, budget) : null);
     private static StyleGlowDto? ProjectGlow(GlowSpec? glow) => glow is null ? null
         : new(StyleColor(glow.Color), glow.Opacity, glow.BlurRadiusPx, glow.SpreadPx);
     private static StyleSungStrokesDto ProjectSungStrokes(Followable<StrokeLayers> strokes, ReadModelBudget budget) => strokes.FollowsUnsung
         ? new(StyleFollowKind.Follow) : new(StyleFollowKind.Set, ProjectStrokes(strokes.Value!, budget));
-    private static StyleSungShadowDto ProjectSungShadow(Followable<ShadowSpec?> shadow) => shadow.FollowsUnsung
-        ? new(StyleFollowKind.Follow) : new(StyleFollowKind.Set, ProjectShadow(shadow.Value));
+    private static StyleSungShadowDto ProjectSungShadow(Followable<ShadowSpec?> shadow, ReadModelBudget budget) => shadow.FollowsUnsung
+        ? new(StyleFollowKind.Follow) : new(StyleFollowKind.Set, ProjectShadow(shadow.Value, budget));
     private static StyleSungGlowDto ProjectSungGlow(Followable<GlowSpec?> glow) => glow.FollowsUnsung
         ? new(StyleFollowKind.Follow) : new(StyleFollowKind.Set, ProjectGlow(glow.Value));
     private static StyleAppearanceDto ProjectAppearance(TextAppearance appearance, ReadModelBudget budget)
     {
         return new(ProjectMaterial(appearance.Fill.Material, budget), ProjectStrokes(appearance.Strokes, budget),
-            ProjectShadow(appearance.Shadow), ProjectGlow(appearance.Glow));
+            ProjectShadow(appearance.Shadow, budget), ProjectGlow(appearance.Glow));
     }
     private static StyleSungAppearanceDto ProjectSungAppearance(SungAppearance appearance, ReadModelBudget budget)
     {
         return new(ProjectMaterial(appearance.Fill.Material, budget), ProjectSungStrokes(appearance.Strokes, budget),
-            ProjectSungShadow(appearance.Shadow), ProjectSungGlow(appearance.Glow));
+            ProjectSungShadow(appearance.Shadow, budget), ProjectSungGlow(appearance.Glow));
     }
     private static StyleWipeHighlightDto? ProjectHighlight(WipeHighlightSpec? highlight) => highlight is null ? null
         : new(StyleColor(highlight.Color), highlight.WidthRatio, highlight.Opacity, (StyleWipeHighlightBlend)highlight.Blend);
@@ -168,7 +172,7 @@ public sealed partial class ProjectSession
             if (unsung.Shadow.IsSet)
             {
                 if (unsung.Shadow.Value is not { } shadow) values.Add(new StyleUnsungShadowChangeDto(null));
-                else AddShadowLeaves(values, shadow, sung: false);
+                else AddShadowLeaves(values, shadow, sung: false, budget);
             }
             if (unsung.Glow.IsSet)
             {
@@ -184,7 +188,7 @@ public sealed partial class ProjectSession
             {
                 if (sung.Shadow.Value.FollowsUnsung) values.Add(new StyleSungShadowChangeDto(new(StyleFollowKind.Follow)));
                 else if (sung.Shadow.Value.Value is not { } shadow) values.Add(new StyleSungShadowChangeDto(new(StyleFollowKind.Set)));
-                else AddShadowLeaves(values, shadow, sung: true);
+                else AddShadowLeaves(values, shadow, sung: true, budget);
             }
             if (sung.Glow.IsSet)
             {
@@ -217,13 +221,19 @@ public sealed partial class ProjectSession
     }
     private static MaterialSpec? FillMaterial(OptionalValue<FillSpecOverride?> fill)
         => fill.IsSet && fill.Value?.Material.IsSet == true ? fill.Value.Material.Value : null;
-    private static void AddShadowLeaves(List<StyleChangeDto> values, ShadowSpecOverride shadow, bool sung)
+    private static void AddShadowLeaves(List<StyleChangeDto> values, ShadowSpecOverride shadow, bool sung, ReadModelBudget budget)
     {
         if (shadow.Color is { } color) values.Add(sung ? new StyleSungShadowColorChangeDto(StyleColor(color)) : new StyleUnsungShadowColorChangeDto(StyleColor(color)));
+        if (shadow.Gradient.IsSet)
+        {
+            StyleGradientDto? gradient = shadow.Gradient.Value is { } g ? ProjectGradient(g, budget) : null;
+            values.Add(sung ? new StyleSungShadowGradientChangeDto(gradient) : new StyleUnsungShadowGradientChangeDto(gradient));
+        }
         if (shadow.Opacity is { } opacity) values.Add(sung ? new StyleSungShadowOpacityChangeDto(opacity) : new StyleUnsungShadowOpacityChangeDto(opacity));
         if (shadow.AngleDegrees is { } angle) values.Add(sung ? new StyleSungShadowAngleChangeDto(angle) : new StyleUnsungShadowAngleChangeDto(angle));
         if (shadow.DistancePx is { } distance) values.Add(sung ? new StyleSungShadowDistanceChangeDto(distance) : new StyleUnsungShadowDistanceChangeDto(distance));
         if (shadow.BlurRadiusPx is { } blur) values.Add(sung ? new StyleSungShadowBlurChangeDto(blur) : new StyleUnsungShadowBlurChangeDto(blur));
+        if (shadow.SpreadPx is { } spread) values.Add(sung ? new StyleSungShadowSpreadChangeDto(spread) : new StyleUnsungShadowSpreadChangeDto(spread));
     }
     private static void AddGlowLeaves(List<StyleChangeDto> values, GlowSpecOverride glow, bool sung)
     {
@@ -233,16 +243,17 @@ public sealed partial class ProjectSession
         if (glow.SpreadPx is { } spread) values.Add(sung ? new StyleSungGlowSpreadChangeDto(spread) : new StyleUnsungGlowSpreadChangeDto(spread));
     }
 
+    private static GradientSpec CoreGradient(StyleGradientDto g) => new()
+    {
+        Kind = (GradientKind)g.Kind, AngleDegrees = g.AngleDegrees, CenterX = g.CenterX, CenterY = g.CenterY,
+        RadiusX = g.RadiusX, RadiusY = g.RadiusY, CoordinateSpace = (GradientCoordinateSpace)g.CoordinateSpace,
+        ColorSpace = (GradientColorSpace)g.ColorSpace, HuePath = (GradientHuePath)g.HuePath,
+        Stops = [.. g.Stops.Select(s => new GradientStop(s.Offset, CoreColor(s.Color)))],
+    };
     private static MaterialSpec CoreMaterial(StyleMaterialDto material) => material switch
     {
         SolidStyleMaterialDto { Kind: "solid", Color: { } color } => new MaterialSpec.Solid(CoreColor(color)),
-        GradientStyleMaterialDto { Kind: "gradient", Gradient: { } g } => new MaterialSpec.Gradient(new()
-        {
-            Kind = (GradientKind)g.Kind, AngleDegrees = g.AngleDegrees, CenterX = g.CenterX, CenterY = g.CenterY,
-            RadiusX = g.RadiusX, RadiusY = g.RadiusY, CoordinateSpace = (GradientCoordinateSpace)g.CoordinateSpace,
-            ColorSpace = (GradientColorSpace)g.ColorSpace, HuePath = (GradientHuePath)g.HuePath,
-            Stops = [.. g.Stops.Select(s => new GradientStop(s.Offset, CoreColor(s.Color)))],
-        }),
+        GradientStyleMaterialDto { Kind: "gradient", Gradient: { } g } => new MaterialSpec.Gradient(CoreGradient(g)),
         _ => throw new JsonException("新材质必须是完整静态 solid 或 gradient。"),
     };
     private static StrokeLayers CoreStrokes(StyleStrokeDto[]? strokes, Func<StyleMaterialDto, MaterialSpec> material)
@@ -252,7 +263,15 @@ public sealed partial class ProjectSession
     }
     private static StrokeLayers CoreStrokes(StyleStrokeDto[]? strokes) => CoreStrokes(strokes, CoreMaterial);
     private static ShadowSpec? CoreShadow(StyleShadowDto? shadow) => shadow is null ? null : new()
-        { Color = CoreColor(shadow.Color), Opacity = shadow.Opacity, AngleDegrees = shadow.AngleDegrees, DistancePx = shadow.DistancePx, BlurRadiusPx = shadow.BlurRadiusPx };
+    {
+        Color = CoreColor(shadow.Color),
+        Gradient = shadow.Gradient is { } g ? CoreGradient(g) : null,
+        Opacity = shadow.Opacity,
+        AngleDegrees = shadow.AngleDegrees,
+        DistancePx = shadow.DistancePx,
+        BlurRadiusPx = shadow.BlurRadiusPx,
+        SpreadPx = shadow.SpreadPx,
+    };
     private static GlowSpec? CoreGlow(StyleGlowDto? glow) => glow is null ? null : new()
         { Color = CoreColor(glow.Color), Opacity = glow.Opacity, BlurRadiusPx = glow.BlurRadiusPx, SpreadPx = glow.SpreadPx };
     private static WipeHighlightSpec? CoreHighlight(StyleWipeHighlightDto? highlight) => highlight is null ? null : new()
@@ -311,16 +330,20 @@ public sealed partial class ProjectSession
             StyleSungStrokesChangeDto v => new StyleEditChange.SungStrokes(CoreSungStrokes(v.Value, CoreMaterial)),
             StyleUnsungShadowChangeDto v => new StyleEditChange.UnsungShadow(CoreShadow(v.Value)),
             StyleUnsungShadowColorChangeDto v => new StyleEditChange.EffectColor(LyricStyleProperty.UnsungShadowColor, CoreColor(v.Value)),
+            StyleUnsungShadowGradientChangeDto v => new StyleEditChange.EffectGradient(LyricStyleProperty.UnsungShadowGradient, v.Value is { } g ? CoreGradient(g) : null),
             StyleUnsungShadowOpacityChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowOpacity, v.Value),
             StyleUnsungShadowAngleChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowAngleDegrees, v.Value),
             StyleUnsungShadowDistanceChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowDistancePx, v.Value),
             StyleUnsungShadowBlurChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowBlurRadiusPx, v.Value),
+            StyleUnsungShadowSpreadChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungShadowSpreadPx, v.Value),
             StyleSungShadowChangeDto v => new StyleEditChange.SungShadow(CoreSungShadow(v.Value)),
             StyleSungShadowColorChangeDto v => new StyleEditChange.EffectColor(LyricStyleProperty.SungShadowColor, CoreColor(v.Value)),
+            StyleSungShadowGradientChangeDto v => new StyleEditChange.EffectGradient(LyricStyleProperty.SungShadowGradient, v.Value is { } g ? CoreGradient(g) : null),
             StyleSungShadowOpacityChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowOpacity, v.Value),
             StyleSungShadowAngleChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowAngleDegrees, v.Value),
             StyleSungShadowDistanceChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowDistancePx, v.Value),
             StyleSungShadowBlurChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowBlurRadiusPx, v.Value),
+            StyleSungShadowSpreadChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.SungShadowSpreadPx, v.Value),
             StyleUnsungGlowChangeDto v => new StyleEditChange.UnsungGlow(CoreGlow(v.Value)),
             StyleUnsungGlowColorChangeDto v => new StyleEditChange.EffectColor(LyricStyleProperty.UnsungGlowColor, CoreColor(v.Value)),
             StyleUnsungGlowOpacityChangeDto v => new StyleEditChange.EffectNumber(LyricStyleProperty.UnsungGlowOpacity, v.Value),

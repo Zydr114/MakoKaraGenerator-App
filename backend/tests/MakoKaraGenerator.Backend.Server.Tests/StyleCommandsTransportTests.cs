@@ -105,12 +105,13 @@ public sealed partial class PreviewTransportTests
         const string material = "{\"kind\":\"gradient\",\"gradient\":{\"kind\":\"linear\",\"angleDegrees\":123,\"centerX\":-3,\"centerY\":4,\"radiusX\":-5,\"radiusY\":-6,\"coordinateSpace\":\"glyph\",\"colorSpace\":\"oklch\",\"huePath\":\"decreasing\",\"stops\":[{\"offset\":0,\"color\":{\"red\":1,\"green\":2,\"blue\":3,\"alpha\":4}},{\"offset\":0,\"color\":{\"red\":5,\"green\":6,\"blue\":7,\"alpha\":8}},{\"offset\":1,\"color\":{\"red\":9,\"green\":10,\"blue\":11,\"alpha\":12}}]}}";
         const string color = "{\"red\":20,\"green\":30,\"blue\":40,\"alpha\":50}";
         string strokes = "[{\"material\":" + material + ",\"widthPx\":3.25,\"join\":\"bevel\"},{\"material\":{\"kind\":\"solid\",\"color\":" + color + "},\"widthPx\":2,\"join\":\"miter\"}]";
+        const string shadowGradient = "{\"kind\":\"linear\",\"angleDegrees\":90,\"centerX\":0.5,\"centerY\":0.5,\"radiusX\":0.5,\"radiusY\":0.5,\"coordinateSpace\":\"line\",\"colorSpace\":\"linearRgb\",\"huePath\":\"shorter\",\"stops\":[{\"offset\":0,\"color\":{\"red\":255,\"green\":0,\"blue\":0,\"alpha\":255}},{\"offset\":1,\"color\":{\"red\":0,\"green\":0,\"blue\":255,\"alpha\":255}}]}";
         (string Property, string Value)[] pairs = [
             ("typography.fontFamilyName", "\"   \""), ("typography.fallbackFamilyNames", "[\"A\",\"B\"]"), ("typography.fontSizePx", "88.5"), ("typography.fontWeight", "425"),
             ("typography.isBold", "true"), ("typography.isItalic", "true"), ("typography.letterSpacingPx", "-1.5"), ("unsung.fill", material), ("sung.fill", material),
             ("unsung.strokes", strokes), ("sung.strokes", "{\"kind\":\"set\",\"value\":" + strokes + "}"),
-            ("unsung.shadow.color", color), ("unsung.shadow.opacity", "0.75"), ("unsung.shadow.angleDegrees", "321.5"), ("unsung.shadow.distancePx", "4.5"), ("unsung.shadow.blurRadiusPx", "9.25"),
-            ("sung.shadow.color", color), ("sung.shadow.opacity", "0.5"), ("sung.shadow.angleDegrees", "21.5"), ("sung.shadow.distancePx", "1.5"), ("sung.shadow.blurRadiusPx", "2.25"),
+            ("unsung.shadow.color", color), ("unsung.shadow.gradient", shadowGradient), ("unsung.shadow.opacity", "0.75"), ("unsung.shadow.angleDegrees", "321.5"), ("unsung.shadow.distancePx", "4.5"), ("unsung.shadow.blurRadiusPx", "0"), ("unsung.shadow.spreadPx", "2.5"),
+            ("sung.shadow.color", color), ("sung.shadow.gradient", "null"), ("sung.shadow.opacity", "0.5"), ("sung.shadow.angleDegrees", "21.5"), ("sung.shadow.distancePx", "1.5"), ("sung.shadow.blurRadiusPx", "2.25"), ("sung.shadow.spreadPx", "1.5"),
             ("unsung.glow.color", color), ("unsung.glow.opacity", "0.25"), ("unsung.glow.blurRadiusPx", "6"), ("unsung.glow.spreadPx", "2"),
             ("sung.glow.color", color), ("sung.glow.opacity", "0.35"), ("sung.glow.blurRadiusPx", "7"), ("sung.glow.spreadPx", "3"),
             ("wipe.featherRatio", "0.2"), ("wipe.highlight.color", color), ("wipe.highlight.widthRatio", "0.25"), ("wipe.highlight.opacity", "0.8"), ("wipe.highlight.blend", "\"screen\""),
@@ -122,7 +123,7 @@ public sealed partial class PreviewTransportTests
         using var leaves = await f.Http.GetAsync($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/style?kind=line&branchId=primary&lineId={line.Id}&expectedRevision=1");
         var local = (await leaves.Content.ReadFromJsonAsync<ProjectStyleResponse>(Json))!.Local;
         Assert.Equal(pairs.Select(pair => pair.Property), local.Select(value => value.Property));
-        string whole = $$$"""{"type":"styles.patch","targets":[{{{target}}}],"changes":[{"property":"unsung.strokes","value":[{"material":{{{material}}},"widthPx":7,"join":"round"}]},{"property":"unsung.shadow","value":{"color":{"red":1,"green":2,"blue":3,"alpha":4},"opacity":0.5,"angleDegrees":45,"distancePx":2,"blurRadiusPx":3}}]}""";
+        string whole = $$$"""{"type":"styles.patch","targets":[{{{target}}}],"changes":[{"property":"unsung.strokes","value":[{"material":{{{material}}},"widthPx":7,"join":"round"}]},{"property":"unsung.shadow","value":{"color":{"red":1,"green":2,"blue":3,"alpha":4},"gradient":{{{shadowGradient}}},"opacity":0.5,"angleDegrees":45,"distancePx":2,"blurRadiusPx":0,"spreadPx":3.5}}]}""";
         using var full = await PostRawEditing(f, "1", whole); Assert.Equal(HttpStatusCode.OK, full.StatusCode);
         using var read = await f.Http.GetAsync($"/api/v1/project-sessions/{f.Project.ProjectSessionId}/style?kind=line&branchId=primary&lineId={line.Id}&expectedRevision=2");
         Assert.Equal(HttpStatusCode.OK, read.StatusCode); var style = (await read.Content.ReadFromJsonAsync<ProjectStyleResponse>(Json))!;
@@ -130,6 +131,8 @@ public sealed partial class PreviewTransportTests
         Assert.Equal(-5, gradient.RadiusX); Assert.Equal(-3, gradient.CenterX); Assert.Equal(0, gradient.Stops[1].Offset); Assert.Equal(StyleGradientColorSpace.Oklch, gradient.ColorSpace);
         Assert.Equal(425, style.StaticHierarchy.Typography.FontWeight); Assert.Equal("   ", style.StaticHierarchy.Typography.FontFamilyName);
         Assert.DoesNotContain(style.Local, value => value.Property == "unsung.shadow"); Assert.Contains(style.Local, value => value.Property == "unsung.shadow.blurRadiusPx");
+        Assert.Equal(3.5f, style.StaticHierarchy.Unsung.Shadow!.SpreadPx);
+        Assert.NotNull(style.StaticHierarchy.Unsung.Shadow.Gradient);
         Assert.Equal(7, Assert.Single(style.StaticHierarchy.Unsung.Strokes).WidthPx);
         Assert.Equal(StyleStrokeJoin.Miter, style.StaticHierarchy.Sung.Strokes.Value![1].Join); Assert.Equal(StyleWipeHighlightBlend.Screen, style.StaticHierarchy.Wipe.Highlight!.Blend);
         Assert.Equal(3, style.StaticHierarchy.Sung.Glow.Value!.SpreadPx);

@@ -114,13 +114,14 @@ internal static class LeadInEditingCommandJson
         return new(StyleCommandJson.Typography(value.GetProperty("typography")), StyleCommandJson.Appearance(value.GetProperty("pending")),
             StyleCommandJson.SungAppearance(value.GetProperty("elapsed")), StyleCommandJson.Float(value.GetProperty("opacity")));
     }
-    // 文字标记外观可写的属性：除扫字样式与 verticalCenterRatio、horizontalAlignment、scale 之外的 34 条路径。
+    // 文字标记外观可写的属性：除扫字样式与 verticalCenterRatio、horizontalAlignment、scale、ruby.* 之外的路径。
     internal static readonly int MarkPropertyCount = StyleCommandJson.Properties.Count(IsMarkProperty);
     internal static bool IsMarkProperty(string property) => !property.StartsWith("wipe.", StringComparison.Ordinal)
+        && !property.StartsWith("ruby.", StringComparison.Ordinal)
         && property is not ("verticalCenterRatio" or "horizontalAlignment" or "scale");
     private static StyleChangeDto[] Changes(JsonElement value, JsonSerializerOptions options)
     {
-        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MarkPropertyCount) throw new JsonException("changes必须是最多34项的完整覆盖列表。");
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MarkPropertyCount) throw new JsonException($"changes必须是最多{MarkPropertyCount}项的完整覆盖列表。");
         return value.Deserialize<StyleChangeDto[]>(options) ?? throw new JsonException();
     }
     private static string[] Strings(JsonElement value)

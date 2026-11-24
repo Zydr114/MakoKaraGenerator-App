@@ -114,7 +114,7 @@ public sealed class TemplateLibraryWireTests
         var gradient = Assert.IsType<GradientStyleMaterialDto>(Assert.IsType<CreateTemplateCommandDto>(command).Definition.Style.Unsung.Strokes[0].Material).Gradient;
         Assert.Equal(256, gradient.Stops.Length); Assert.Equal(-5, gradient.RadiusX); Assert.Equal(StyleGradientColorSpace.Oklch, gradient.ColorSpace);
         string properties = JsonSerializer.Serialize(MakoKaraGenerator.Core.Projects.LyricStylePropertyExtensions.All.Select(MakoKaraGenerator.Core.Projects.LyricStylePropertyExtensions.ToJsonName), Json);
-        Assert.Equal(45, JsonSerializer.Deserialize<StaticTemplateDefinitionDto>(Definition().Replace("[\"typography.fontSizePx\"]",properties,StringComparison.Ordinal),Json)!.Properties.Length);
+        Assert.Equal(49, JsonSerializer.Deserialize<StaticTemplateDefinitionDto>(Definition().Replace("[\"typography.fontSizePx\"]",properties,StringComparison.Ordinal),Json)!.Properties.Length);
         Assert.Throws<TemplateLibraryBudgetExceededException>(() => JsonSerializer.Deserialize<TemplateLibraryCommandDto>("{\"type\":\"create\",\"definition\":" + definition.Replace(string.Join(',',Enumerable.Repeat(stop,256)),string.Join(',',Enumerable.Repeat(stop,257)),StringComparison.Ordinal) + "}",Json));
     }
     [Fact]

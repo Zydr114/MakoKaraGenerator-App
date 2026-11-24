@@ -97,16 +97,20 @@ public sealed class StyleChangeJsonConverter : JsonConverter<StyleChangeDto>
             case StyleSungStrokesChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowGradientChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleUnsungShadowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowGradientChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowAngleChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowDistanceChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleSungShadowBlurChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
+            case StyleSungShadowSpreadChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungGlowChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungGlowColorChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
             case StyleUnsungGlowOpacityChangeDto item: JsonSerializer.Serialize(writer, item.Value, options); break;
@@ -199,16 +203,20 @@ internal static class StyleCommandJson
         "sung.strokes",
         "unsung.shadow",
         "unsung.shadow.color",
+        "unsung.shadow.gradient",
         "unsung.shadow.opacity",
         "unsung.shadow.angleDegrees",
         "unsung.shadow.distancePx",
         "unsung.shadow.blurRadiusPx",
+        "unsung.shadow.spreadPx",
         "sung.shadow",
         "sung.shadow.color",
+        "sung.shadow.gradient",
         "sung.shadow.opacity",
         "sung.shadow.angleDegrees",
         "sung.shadow.distancePx",
         "sung.shadow.blurRadiusPx",
+        "sung.shadow.spreadPx",
         "unsung.glow",
         "unsung.glow.color",
         "unsung.glow.opacity",
@@ -339,16 +347,20 @@ internal static class StyleCommandJson
             "sung.strokes" => new StyleSungStrokesChangeDto(SungStrokes(v)),
             "unsung.shadow" => new StyleUnsungShadowChangeDto(NullOr(v, Shadow)),
             "unsung.shadow.color" => new StyleUnsungShadowColorChangeDto(Color(v)),
+            "unsung.shadow.gradient" => new StyleUnsungShadowGradientChangeDto(NullOr(v, Gradient)),
             "unsung.shadow.opacity" => new StyleUnsungShadowOpacityChangeDto(Float(v)),
             "unsung.shadow.angleDegrees" => new StyleUnsungShadowAngleChangeDto(Number(v)),
             "unsung.shadow.distancePx" => new StyleUnsungShadowDistanceChangeDto(Float(v)),
             "unsung.shadow.blurRadiusPx" => new StyleUnsungShadowBlurChangeDto(Float(v)),
+            "unsung.shadow.spreadPx" => new StyleUnsungShadowSpreadChangeDto(Float(v)),
             "sung.shadow" => new StyleSungShadowChangeDto(SungShadow(v)),
             "sung.shadow.color" => new StyleSungShadowColorChangeDto(Color(v)),
+            "sung.shadow.gradient" => new StyleSungShadowGradientChangeDto(NullOr(v, Gradient)),
             "sung.shadow.opacity" => new StyleSungShadowOpacityChangeDto(Float(v)),
             "sung.shadow.angleDegrees" => new StyleSungShadowAngleChangeDto(Number(v)),
             "sung.shadow.distancePx" => new StyleSungShadowDistanceChangeDto(Float(v)),
             "sung.shadow.blurRadiusPx" => new StyleSungShadowBlurChangeDto(Float(v)),
+            "sung.shadow.spreadPx" => new StyleSungShadowSpreadChangeDto(Float(v)),
             "unsung.glow" => new StyleUnsungGlowChangeDto(NullOr(v, Glow)),
             "unsung.glow.color" => new StyleUnsungGlowColorChangeDto(Color(v)),
             "unsung.glow.opacity" => new StyleUnsungGlowOpacityChangeDto(Float(v)),
@@ -412,7 +424,9 @@ internal static class StyleCommandJson
     }
     internal static StyleShadowDto Shadow(JsonElement root)
     {
-        var f = Fields(root, "color", "opacity", "angleDegrees", "distancePx", "blurRadiusPx"); return new(Color(f["color"]), Float(f["opacity"]), Number(f["angleDegrees"]), Float(f["distancePx"]), Float(f["blurRadiusPx"]));
+        var f = Fields(root, "color", "gradient", "opacity", "angleDegrees", "distancePx", "blurRadiusPx", "spreadPx");
+        return new(Color(f["color"]), Float(f["opacity"]), Number(f["angleDegrees"]), Float(f["distancePx"]), Float(f["blurRadiusPx"]),
+            Float(f["spreadPx"]), NullOr(f["gradient"], Gradient));
     }
     internal static StyleGlowDto Glow(JsonElement root)
     {
@@ -471,6 +485,17 @@ internal static class StyleCommandJson
         if (property is "unsung.fill" or "sung.fill") MaterialInput(value);
         if (property == "unsung.strokes") StrokesInput(value);
         if (property == "sung.strokes" && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("value", out var strokes)) StrokesInput(strokes);
+        if (property == "unsung.shadow") ShadowInput(value);
+        if (property == "sung.shadow" && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("value", out var shadow)) ShadowInput(shadow);
+        if (property is "unsung.shadow.gradient" or "sung.shadow.gradient") GradientInput(value);
+    }
+    private static void ShadowInput(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object && value.TryGetProperty("gradient", out var gradient)) GradientInput(gradient);
+    }
+    private static void GradientInput(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object && value.TryGetProperty("stops", out var stops) && stops.ValueKind == JsonValueKind.Array && stops.GetArrayLength() > StyleEditingLimits.MaxStops) throw new StyleCommandBudgetExceededException();
     }
     private static void StrokesInput(JsonElement value)
     {
@@ -482,7 +507,7 @@ internal static class StyleCommandJson
     {
         if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty("kind", out var kind)) return;
         if (kind.ValueKind == JsonValueKind.String && kind.GetString() == "package") throw new JsonException("包材质描述仅供读取。");
-        if (value.TryGetProperty("gradient", out var gradient) && gradient.ValueKind == JsonValueKind.Object && gradient.TryGetProperty("stops", out var stops) && stops.ValueKind == JsonValueKind.Array && stops.GetArrayLength() > StyleEditingLimits.MaxStops) throw new StyleCommandBudgetExceededException();
+        if (value.TryGetProperty("gradient", out var gradient)) GradientInput(gradient);
     }
     internal static void Write(Utf8JsonWriter writer, ProjectCommandDto value, JsonSerializerOptions options)
     {

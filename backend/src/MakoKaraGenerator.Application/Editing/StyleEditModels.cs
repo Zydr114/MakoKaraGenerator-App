@@ -23,7 +23,7 @@ public enum StyleEditTargetKind
 /// <param name="TokenId">行内的元素标识。</param>
 public sealed record StyleEditTarget(StyleEditTargetKind Kind, string? BranchId = null, string? LineId = null, string? TokenId = null);
 
-/// <summary>有类型的规范样式成员值；<see cref="Property"/> 是 Core 的 45 项属性之一，与 HTTP 属性路径一一对应。</summary>
+/// <summary>有类型的规范样式成员值；<see cref="Property"/> 是 Core 的 49 项属性之一，与 HTTP 属性路径一一对应。</summary>
 /// <param name="Property">写入的属性。</param>
 public abstract record StyleEditChange(LyricStyleProperty Property)
 {
@@ -63,6 +63,10 @@ public abstract record StyleEditChange(LyricStyleProperty Property)
     /// <param name="Leaf">颜色分量属性。</param>
     /// <param name="Value">颜色。</param>
     public sealed record EffectColor(LyricStyleProperty Leaf, RgbaColor Value) : StyleEditChange(Leaf);
+    /// <summary>阴影的渐变分量；null 表示清除渐变回退到纯色。</summary>
+    /// <param name="Leaf">渐变分量属性。</param>
+    /// <param name="Value">渐变或 null。</param>
+    public sealed record EffectGradient(LyricStyleProperty Leaf, GradientSpec? Value) : StyleEditChange(Leaf);
     /// <summary>阴影、辉光或扫字线高亮的数值分量（不透明度、角度、距离、模糊、扩散、宽度比例）。</summary>
     /// <param name="Leaf">数值分量属性。</param>
     /// <param name="Value">数值；单精度分量按单精度保存。</param>

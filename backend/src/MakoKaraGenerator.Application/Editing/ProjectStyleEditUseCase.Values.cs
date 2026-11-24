@@ -26,6 +26,7 @@ public static partial class ProjectStyleEditUseCase
             StyleEditChange.UnsungGlow => LyricStyleProperty.UnsungGlow,
             StyleEditChange.SungGlow => LyricStyleProperty.SungGlow,
             StyleEditChange.EffectColor c when LyricStylePropertyExtensions.Component(c.Leaf) == LyricStyleEffectComponent.Color => c.Leaf,
+            StyleEditChange.EffectGradient c when LyricStylePropertyExtensions.Component(c.Leaf) == LyricStyleEffectComponent.Gradient => c.Leaf,
             StyleEditChange.EffectNumber c when LyricStylePropertyExtensions.Component(c.Leaf) is LyricStyleEffectComponent.Opacity
                 or LyricStyleEffectComponent.AngleDegrees or LyricStyleEffectComponent.DistancePx or LyricStyleEffectComponent.BlurRadiusPx
                 or LyricStyleEffectComponent.SpreadPx or LyricStyleEffectComponent.WidthRatio => c.Leaf,
@@ -45,6 +46,9 @@ public static partial class ProjectStyleEditUseCase
             StyleEditChange.Fill c => IsWritableMaterial(c.Value),
             StyleEditChange.UnsungStrokes c => IsWritableStrokes(c.Value),
             StyleEditChange.SungStrokes c => c.Value.FollowsUnsung || IsWritableStrokes(c.Value.Value),
+            StyleEditChange.UnsungShadow c => IsWritableGradient(c.Value?.Gradient),
+            StyleEditChange.SungShadow c => c.Value.FollowsUnsung || IsWritableGradient(c.Value.Value?.Gradient),
+            StyleEditChange.EffectGradient c => IsWritableGradient(c.Value),
             StyleEditChange.FallbackFamilyNames c => !c.Value.IsDefault,
             _ => true,
         };
@@ -59,6 +63,8 @@ public static partial class ProjectStyleEditUseCase
         { return new(ProjectStyleEditErrorCode.InvalidValue, Property: change.Property, Detail: error.Message); }
         return null;
     }
+
+    private static bool IsWritableGradient(GradientSpec? gradient) => gradient is null || gradient.IsValid && GradientSupport.IsSupported(gradient);
 
     private static bool IsWritableMaterial(MaterialSpec? material) => material is MaterialSpec.Solid
         || material is MaterialSpec.Gradient { Value.IsValid: true };
@@ -123,7 +129,7 @@ public static partial class ProjectStyleEditUseCase
         {
             Glow = OptionalValue.Set(c.Value.FollowsUnsung ? Followable.Follow<GlowSpecOverride?>() : Followable.Set<GlowSpecOverride?>(Whole(c.Value.Value, GlowSpecOverride.FromSpec))),
         }),
-        StyleEditChange.EffectColor or StyleEditChange.EffectNumber or StyleEditChange.HighlightBlend => SetLeaf(overlay, change),
+        StyleEditChange.EffectColor or StyleEditChange.EffectGradient or StyleEditChange.EffectNumber or StyleEditChange.HighlightBlend => SetLeaf(overlay, change),
         StyleEditChange.WipeFeather c => WithWipe(overlay, value => value with { FeatherRatio = c.Value }),
         StyleEditChange.WipeHighlight c => WithWipe(overlay, value => value with { Highlight = OptionalValue.Set<WipeHighlightOverride?>(Whole(c.Value, WipeHighlightOverride.FromSpec)) }),
         StyleEditChange.VerticalCenter c => overlay with { VerticalCenterRatio = c.Value },
@@ -177,10 +183,12 @@ public static partial class ProjectStyleEditUseCase
         return (component, change) switch
         {
             (LyricStyleEffectComponent.Color, StyleEditChange.EffectColor c) => value with { Color = c.Value },
+            (LyricStyleEffectComponent.Gradient, StyleEditChange.EffectGradient g) => value with { Gradient = OptionalValue.Set<GradientSpec?>(g.Value) },
             (LyricStyleEffectComponent.Opacity, StyleEditChange.EffectNumber n) => value with { Opacity = (float)n.Value },
             (LyricStyleEffectComponent.AngleDegrees, StyleEditChange.EffectNumber n) => value with { AngleDegrees = n.Value },
             (LyricStyleEffectComponent.DistancePx, StyleEditChange.EffectNumber n) => value with { DistancePx = (float)n.Value },
             (LyricStyleEffectComponent.BlurRadiusPx, StyleEditChange.EffectNumber n) => value with { BlurRadiusPx = (float)n.Value },
+            (LyricStyleEffectComponent.SpreadPx, StyleEditChange.EffectNumber n) => value with { SpreadPx = (float)n.Value },
             _ => throw new ArgumentException("阴影分量与值类型不一致。", nameof(change)),
         };
     }

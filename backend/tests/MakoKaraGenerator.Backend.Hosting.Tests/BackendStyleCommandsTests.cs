@@ -329,7 +329,7 @@ public sealed class BackendStyleCommandsTests
         using var f = await Fixture.Create(); var source = f.Workspace.Project;
         var gradient = new StyleGradientDto(StyleGradientKind.Linear, value, .5, .5, .5, .5, StyleGradientCoordinateSpace.Line,
             StyleGradientColorSpace.LinearRgb, StyleGradientHuePath.Shorter, [new(0, new(1,2,3,4)), new(1, new(5,6,7,8))]);
-        foreach (StyleChangeDto change in new StyleChangeDto[] { new StyleScaleChangeDto(value), new StyleUnsungShadowChangeDto(new(new(1,2,3,4), value, 0, 1, 2)), new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient)) })
+        foreach (StyleChangeDto change in new StyleChangeDto[] { new StyleScaleChangeDto(value), new StyleUnsungShadowChangeDto(new(new(1,2,3,4), value, 0, 1, 2, 0, null)), new StyleUnsungFillChangeDto(new GradientStyleMaterialDto(gradient)) })
         {
             var request = f.Request("0", Patch(new ProjectStyleTargetDto(), change));
             Assert.Equal(BackendErrorCode.InvalidRequest, (await f.Execute(request)).Error!.Code);

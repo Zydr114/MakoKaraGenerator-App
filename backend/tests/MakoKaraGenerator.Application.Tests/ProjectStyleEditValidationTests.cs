@@ -277,6 +277,7 @@ public sealed class ProjectStyleEditValidationTests
         _ => LyricStylePropertyExtensions.Component(property) switch
         {
             LyricStyleEffectComponent.Color => new StyleEditChange.EffectColor(property, RgbaColor.Black),
+            LyricStyleEffectComponent.Gradient => new StyleEditChange.EffectGradient(property, Gradient()),
             LyricStyleEffectComponent.Opacity => new StyleEditChange.EffectNumber(property, .3),
             LyricStyleEffectComponent.AngleDegrees => new StyleEditChange.EffectNumber(property, 27),
             LyricStyleEffectComponent.WidthRatio => new StyleEditChange.EffectNumber(property, .3),

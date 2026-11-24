@@ -20,7 +20,7 @@ public static class StyleEditingLimits
     /// <summary>一态描边层数上限。</summary>
     public const int MaxStrokes = 4;
     /// <summary>属性路径总数，即单次 patch／restore 的条目上限。</summary>
-    public const int PropertyCount = 45;
+    public const int PropertyCount = 49;
 }
 /// <summary>稳定样式目标，派生类定义唯一合法 ID 组合。</summary>
 [JsonConverter(typeof(StyleTargetJsonConverter))]
@@ -54,7 +54,8 @@ public sealed record PackageStyleMaterialDto(string PackageId, string Revision, 
 /// <summary>完整描边层；由内向外排列，层序决定位置。</summary>
 public sealed record StyleStrokeDto(StyleMaterialDto Material, float WidthPx, StyleStrokeJoin Join);
 /// <summary>完整阴影。</summary>
-public sealed record StyleShadowDto(StyleColorDto Color, float Opacity, double AngleDegrees, float DistancePx, float BlurRadiusPx);
+public sealed record StyleShadowDto(StyleColorDto Color, float Opacity, double AngleDegrees, float DistancePx, float BlurRadiusPx,
+    float SpreadPx, [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] StyleGradientDto? Gradient);
 /// <summary>完整辉光。</summary>
 public sealed record StyleGlowDto(StyleColorDto Color, float Opacity, float BlurRadiusPx, float SpreadPx);
 /// <summary>一态的完整外观（未唱或待唱）；空描边表为无描边，null 阴影／辉光为关闭。</summary>
@@ -130,6 +131,8 @@ public sealed record StyleSungStrokesChangeDto(StyleSungStrokesDto Value) : Styl
 public sealed record StyleUnsungShadowChangeDto(StyleShadowDto? Value) : StyleChangeDto("unsung.shadow");
 /// <summary>修改 unsung.shadow.color。</summary>
 public sealed record StyleUnsungShadowColorChangeDto(StyleColorDto Value) : StyleChangeDto("unsung.shadow.color");
+/// <summary>修改 unsung.shadow.gradient；null 为清除渐变。</summary>
+public sealed record StyleUnsungShadowGradientChangeDto(StyleGradientDto? Value) : StyleChangeDto("unsung.shadow.gradient");
 /// <summary>修改 unsung.shadow.opacity。</summary>
 public sealed record StyleUnsungShadowOpacityChangeDto(float Value) : StyleChangeDto("unsung.shadow.opacity");
 /// <summary>修改 unsung.shadow.angleDegrees。</summary>
@@ -138,10 +141,14 @@ public sealed record StyleUnsungShadowAngleChangeDto(double Value) : StyleChange
 public sealed record StyleUnsungShadowDistanceChangeDto(float Value) : StyleChangeDto("unsung.shadow.distancePx");
 /// <summary>修改 unsung.shadow.blurRadiusPx。</summary>
 public sealed record StyleUnsungShadowBlurChangeDto(float Value) : StyleChangeDto("unsung.shadow.blurRadiusPx");
+/// <summary>修改 unsung.shadow.spreadPx。</summary>
+public sealed record StyleUnsungShadowSpreadChangeDto(float Value) : StyleChangeDto("unsung.shadow.spreadPx");
 /// <summary>修改完整 sung.shadow：跟随、关闭或显式阴影。</summary>
 public sealed record StyleSungShadowChangeDto(StyleSungShadowDto Value) : StyleChangeDto("sung.shadow");
 /// <summary>修改 sung.shadow.color。</summary>
 public sealed record StyleSungShadowColorChangeDto(StyleColorDto Value) : StyleChangeDto("sung.shadow.color");
+/// <summary>修改 sung.shadow.gradient；null 为清除渐变。</summary>
+public sealed record StyleSungShadowGradientChangeDto(StyleGradientDto? Value) : StyleChangeDto("sung.shadow.gradient");
 /// <summary>修改 sung.shadow.opacity。</summary>
 public sealed record StyleSungShadowOpacityChangeDto(float Value) : StyleChangeDto("sung.shadow.opacity");
 /// <summary>修改 sung.shadow.angleDegrees。</summary>
@@ -150,6 +157,8 @@ public sealed record StyleSungShadowAngleChangeDto(double Value) : StyleChangeDt
 public sealed record StyleSungShadowDistanceChangeDto(float Value) : StyleChangeDto("sung.shadow.distancePx");
 /// <summary>修改 sung.shadow.blurRadiusPx。</summary>
 public sealed record StyleSungShadowBlurChangeDto(float Value) : StyleChangeDto("sung.shadow.blurRadiusPx");
+/// <summary>修改 sung.shadow.spreadPx。</summary>
+public sealed record StyleSungShadowSpreadChangeDto(float Value) : StyleChangeDto("sung.shadow.spreadPx");
 /// <summary>修改完整 unsung.glow；null 为关闭。</summary>
 public sealed record StyleUnsungGlowChangeDto(StyleGlowDto? Value) : StyleChangeDto("unsung.glow");
 /// <summary>修改 unsung.glow.color。</summary>

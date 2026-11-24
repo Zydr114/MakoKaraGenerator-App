@@ -4,8 +4,10 @@ import copy
 from static_style_schema import MARK_PROPERTIES, PROPERTIES as CURRENT_PROPERTIES, TOKEN_PROPERTIES as CURRENT_TOKEN_PROPERTIES
 
 # Ruby layout properties were added in 1.56 and upgraded in ruby_style_fixtures.
-PROPERTIES = [p for p in CURRENT_PROPERTIES if not p.startswith("ruby.")]
-TOKEN_PROPERTIES = [p for p in CURRENT_TOKEN_PROPERTIES if not p.startswith("ruby.")]
+# Extended shadow properties (gradient, spreadPx) were added in 1.62 and upgraded in shadow_style_fixtures.
+SHADOW_EXT_PATHS = ("unsung.shadow.gradient", "unsung.shadow.spreadPx", "sung.shadow.gradient", "sung.shadow.spreadPx")
+PROPERTIES = [p for p in CURRENT_PROPERTIES if not p.startswith("ruby.") and p not in SHADOW_EXT_PATHS]
+TOKEN_PROPERTIES = [p for p in CURRENT_TOKEN_PROPERTIES if not p.startswith("ruby.") and p not in SHADOW_EXT_PATHS]
 
 PREFIX = "style-v2-"
 FOLLOW = {"kind": "follow"}

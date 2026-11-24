@@ -1,9 +1,11 @@
 """Contract 1.56+ Ruby layout additions and forward style upgrades."""
 import copy
 
-from static_style_schema import PROPERTIES
+from static_style_schema import PROPERTIES as CURRENT_PROPERTIES
 
 PREFIX = "ruby-style-"
+SHADOW_EXT_PATHS = ("unsung.shadow.gradient", "unsung.shadow.spreadPx", "sung.shadow.gradient", "sung.shadow.spreadPx")
+PROPERTIES = [path for path in CURRENT_PROPERTIES if path not in SHADOW_EXT_PATHS]
 RUBY_PATHS = ("ruby.relativeScale", "ruby.gapPx")
 OLD_PATHS = [path for path in PROPERTIES if path not in RUBY_PATHS]
 RUBY_DEFAULT = {"relativeScale": None, "gapPx": None}

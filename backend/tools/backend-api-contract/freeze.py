@@ -31,7 +31,7 @@ from static_style_schema import extend_static_style_schemas, style_query_paramet
 from template_library_schema import extend_template_library_schemas, query_parameters as template_query_parameters, LIMITS as TEMPLATE_LIMITS
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = "1.61.0"
+CONTRACT = "1.62.0"
 BASELINE = "b5d4d71464a142cbc0e49806870526a5adb77e77"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
 FREEZE_DATE = "2026-11-23"
@@ -1895,13 +1895,14 @@ def refresh_examples(existing_examples):
     from preview_transport_fixtures import migrate_cases as migrate_preview_transport, fixtures as preview_transport_fixtures, PREFIX as PREVIEW_TRANSPORT_PREFIX
     from gpu_stream_recovery_fixtures import fixtures as gpu_stream_recovery_fixtures, PREFIX as GPU_STREAM_RECOVERY_PREFIX
     from lyrics_refactor_fixtures import fixtures as lyrics_refactor_fixtures, PREFIX as LYRICS_REFACTOR_PREFIX
+    from shadow_style_fixtures import migrate_cases as migrate_shadow_style, fixtures as shadow_style_fixtures, PREFIX as SHADOW_STYLE_PREFIX
 
     refresh_prefixes = (
         "editing-completion-", "p1p2-", "p3-workshop-", "p4-author-", RENDER_PREFIX, W8_PREFIX, "gpu-stream-", "glow-",
         AUTHOR_METADATA_PREFIX, PREVIEW_INSPECTION_PREFIX, AUTHOR_REPLACEMENT_PREFIX,
         STYLE_V2_PREFIX, FALLBACK_PREFIX, SOURCE_MATERIAL_FAILURE_PREFIX, SDK_V1_REMOVAL_PREFIX,
         LEAD_IN_PRESENTATION_PREFIX, TTML_IMPORT_PREFIX, RUBY_STYLE_PREFIX, PREVIEW_TRANSPORT_PREFIX,
-        GPU_STREAM_RECOVERY_PREFIX, LYRICS_REFACTOR_PREFIX,
+        GPU_STREAM_RECOVERY_PREFIX, LYRICS_REFACTOR_PREFIX, SHADOW_STYLE_PREFIX,
     )
     base_cases = [
         strip_removed_layout_animation_fields(copy.deepcopy(case)) for case in existing_examples["cases"]
@@ -1927,6 +1928,8 @@ def refresh_examples(existing_examples):
     modular = migrate_ruby_style(modular) + ruby_style_fixtures()
     modular = migrate_preview_transport(modular) + preview_transport_fixtures()
     modular += gpu_stream_recovery_fixtures() + lyrics_refactor_fixtures()
+    base_cases = migrate_shadow_style(base_cases)
+    modular = migrate_shadow_style(modular) + shadow_style_fixtures()
 
     return {**existing_examples, "contractVersion": CONTRACT, "cases": base_cases + modular}
 

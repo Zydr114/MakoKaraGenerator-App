@@ -7546,7 +7546,9 @@
           "opacity": 0.75,
           "angleDegrees": 123.5,
           "distancePx": 4.25,
-          "blurRadiusPx": 8.5
+          "blurRadiusPx": 8.5,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -7576,7 +7578,9 @@
               "opacity": 0.75,
               "angleDegrees": 123.5,
               "distancePx": 4.25,
-              "blurRadiusPx": 8.5
+              "blurRadiusPx": 8.5,
+              "spreadPx": 0,
+              "gradient": null
             }
           }
         ]
@@ -7607,7 +7611,9 @@
           "opacity": 0.75,
           "angleDegrees": 123.5,
           "distancePx": 4.25,
-          "blurRadiusPx": 8.5
+          "blurRadiusPx": 8.5,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -7635,7 +7641,9 @@
           "opacity": 0.75,
           "angleDegrees": 123.5,
           "distancePx": 4.25,
-          "blurRadiusPx": 8.5
+          "blurRadiusPx": 8.5,
+          "spreadPx": 0,
+          "gradient": null
         },
         "extra": true
       }
@@ -7656,7 +7664,9 @@
           "opacity": 0.75,
           "angleDegrees": 123.5,
           "distancePx": 4.25,
-          "blurRadiusPx": 8.5
+          "blurRadiusPx": 8.5,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -7696,7 +7706,9 @@
               "opacity": 0.75,
               "angleDegrees": 123.5,
               "distancePx": 4.25,
-              "blurRadiusPx": 8.5
+              "blurRadiusPx": 8.5,
+              "spreadPx": 0,
+              "gradient": null
             }
           }
         ]
@@ -16729,7 +16741,9 @@
         "opacity": 0.75,
         "angleDegrees": 123.5,
         "distancePx": 4.25,
-        "blurRadiusPx": 8.5
+        "blurRadiusPx": 8.5,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -16762,7 +16776,9 @@
         "opacity": null,
         "angleDegrees": 123.5,
         "distancePx": 4.25,
-        "blurRadiusPx": 8.5
+        "blurRadiusPx": 8.5,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -16795,7 +16811,9 @@
         "opacity": 0.75,
         "angleDegrees": null,
         "distancePx": 4.25,
-        "blurRadiusPx": 8.5
+        "blurRadiusPx": 8.5,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -16828,7 +16846,9 @@
         "opacity": 0.75,
         "angleDegrees": 123.5,
         "distancePx": null,
-        "blurRadiusPx": 8.5
+        "blurRadiusPx": 8.5,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -16861,7 +16881,9 @@
         "opacity": 0.75,
         "angleDegrees": 123.5,
         "distancePx": 4.25,
-        "blurRadiusPx": null
+        "blurRadiusPx": null,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -16879,7 +16901,9 @@
         "angleDegrees": 123.5,
         "distancePx": 4.25,
         "blurRadiusPx": 8.5,
-        "extra": 1
+        "extra": 1,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -21876,7 +21900,9 @@
             "opacity": 0.75,
             "angleDegrees": 123.5,
             "distancePx": 4.25,
-            "blurRadiusPx": 8.5
+            "blurRadiusPx": 8.5,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -57768,6 +57794,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -57784,11 +57814,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -57805,6 +57843,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -58072,6 +58114,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -58088,11 +58134,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -58109,6 +58163,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59024,6 +59082,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -59040,11 +59102,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59061,6 +59131,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59292,6 +59366,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -59308,11 +59386,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59329,6 +59415,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59559,6 +59649,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -59575,11 +59669,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59596,6 +59698,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59827,6 +59933,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -59843,11 +59953,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -59864,6 +59982,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60081,6 +60203,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -60097,11 +60223,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60118,6 +60252,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60336,6 +60474,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -60352,11 +60494,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60373,6 +60523,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60544,6 +60698,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -60560,11 +60718,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60581,6 +60747,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60753,6 +60923,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -60769,11 +60943,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -60790,6 +60972,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -61537,6 +61723,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -61553,11 +61743,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -61574,6 +61772,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -61804,6 +62006,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -61820,11 +62026,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -61841,6 +62055,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -62072,6 +62290,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -62088,11 +62310,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -62109,6 +62339,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -62339,6 +62573,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -62355,11 +62593,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -62376,6 +62622,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -131380,7 +131630,9 @@
           "opacity": 0.6,
           "angleDegrees": 45,
           "distancePx": 3,
-          "blurRadiusPx": 2
+          "blurRadiusPx": 2,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -131411,7 +131663,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             }
           }
         ]
@@ -131446,7 +131700,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             }
           }
         ]
@@ -131760,7 +132016,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           }
         }
       }
@@ -131794,7 +132052,9 @@
                 "opacity": 0.6,
                 "angleDegrees": 45,
                 "distancePx": 3,
-                "blurRadiusPx": 2
+                "blurRadiusPx": 2,
+                "spreadPx": 0,
+                "gradient": null
               }
             }
           }
@@ -131832,7 +132092,9 @@
                 "opacity": 0.6,
                 "angleDegrees": 45,
                 "distancePx": 3,
-                "blurRadiusPx": 2
+                "blurRadiusPx": 2,
+                "spreadPx": 0,
+                "gradient": null
               }
             }
           }
@@ -133554,7 +133816,9 @@
           "opacity": 0.6,
           "angleDegrees": 45,
           "distancePx": 3,
-          "blurRadiusPx": 2
+          "blurRadiusPx": 2,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -133655,7 +133919,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           }
         }
       }
@@ -133945,7 +134211,9 @@
           "opacity": 0.6,
           "angleDegrees": 45,
           "distancePx": 3,
-          "blurRadiusPx": 2
+          "blurRadiusPx": 2,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -133974,7 +134242,9 @@
           "opacity": 0.6,
           "angleDegrees": 45,
           "distancePx": 3,
-          "blurRadiusPx": 2
+          "blurRadiusPx": 2,
+          "spreadPx": 0,
+          "gradient": null
         }
       }
     },
@@ -134008,7 +134278,9 @@
         "opacity": 0.6,
         "angleDegrees": 45,
         "distancePx": 3,
-        "blurRadiusPx": 2
+        "blurRadiusPx": 2,
+        "spreadPx": 0,
+        "gradient": null
       }
     },
     {
@@ -135298,7 +135570,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             }
           },
           {
@@ -135360,7 +135634,9 @@
                 "opacity": 0.6,
                 "angleDegrees": 45,
                 "distancePx": 3,
-                "blurRadiusPx": 2
+                "blurRadiusPx": 2,
+                "spreadPx": 0,
+                "gradient": null
               }
             }
           },
@@ -135683,7 +135959,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -135856,7 +136134,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136023,7 +136303,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136298,7 +136580,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136413,7 +136697,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136575,7 +136861,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136750,7 +137038,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -136925,7 +137215,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137100,7 +137392,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137275,7 +137569,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137452,7 +137748,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137629,7 +137927,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137806,7 +138106,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -137983,7 +138285,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -138160,7 +138464,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -138313,7 +138619,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -138518,7 +138826,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -138706,7 +139016,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -138883,7 +139195,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -139080,7 +139394,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -139230,6 +139546,10 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.gradient",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "unsung.shadow.opacity",
             "sourcePath": "project.baseStyle"
           },
@@ -139246,11 +139566,19 @@
             "sourcePath": "project.baseStyle"
           },
           {
+            "property": "unsung.shadow.spreadPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
             "property": "sung.shadow",
             "sourcePath": "project.baseStyle"
           },
           {
             "property": "sung.shadow.color",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.gradient",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -139267,6 +139595,10 @@
           },
           {
             "property": "sung.shadow.blurRadiusPx",
+            "sourcePath": "project.baseStyle"
+          },
+          {
+            "property": "sung.shadow.spreadPx",
             "sourcePath": "project.baseStyle"
           },
           {
@@ -139459,7 +139791,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -139826,7 +140160,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -140197,7 +140533,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -140551,7 +140889,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -140706,7 +141046,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -140876,7 +141218,9 @@
             "opacity": 0.6,
             "angleDegrees": 45,
             "distancePx": 3,
-            "blurRadiusPx": 2
+            "blurRadiusPx": 2,
+            "spreadPx": 0,
+            "gradient": null
           },
           "glow": null
         },
@@ -141370,7 +141714,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -141540,7 +141886,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -141750,7 +142098,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -141961,7 +142311,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142129,7 +142481,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142297,7 +142651,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142466,7 +142822,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142634,7 +142992,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142761,7 +143121,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -142929,7 +143291,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -143074,7 +143438,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -143246,7 +143612,9 @@
               "opacity": 0.6,
               "angleDegrees": 45,
               "distancePx": 3,
-              "blurRadiusPx": 2
+              "blurRadiusPx": 2,
+              "spreadPx": 0,
+              "gradient": null
             },
             "glow": null
           },
@@ -164572,7 +164940,759 @@
         "closeGuardApplied": "yes"
       },
       "valid": false
+    },
+    {
+      "name": "shadow-style-whole-hard-gradient",
+      "schema": "StyleShadowDtoInput",
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 32,
+          "blue": 32,
+          "alpha": 255
+        },
+        "gradient": {
+          "kind": "linear",
+          "angleDegrees": 90,
+          "centerX": 0.5,
+          "centerY": 0.5,
+          "radiusX": 0.5,
+          "radiusY": 0.5,
+          "coordinateSpace": "line",
+          "colorSpace": "linearRgb",
+          "huePath": "shorter",
+          "stops": [
+            {
+              "offset": 0,
+              "color": {
+                "red": 255,
+                "green": 32,
+                "blue": 32,
+                "alpha": 255
+              }
+            },
+            {
+              "offset": 1,
+              "color": {
+                "red": 32,
+                "green": 80,
+                "blue": 255,
+                "alpha": 255
+              }
+            }
+          ]
+        },
+        "opacity": 1,
+        "angleDegrees": 45,
+        "distancePx": 6,
+        "blurRadiusPx": 0,
+        "spreadPx": 2.5
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-whole-negative-spread",
+      "schema": "StyleShadowDtoInput",
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 32,
+          "blue": 32,
+          "alpha": 255
+        },
+        "gradient": {
+          "kind": "linear",
+          "angleDegrees": 90,
+          "centerX": 0.5,
+          "centerY": 0.5,
+          "radiusX": 0.5,
+          "radiusY": 0.5,
+          "coordinateSpace": "line",
+          "colorSpace": "linearRgb",
+          "huePath": "shorter",
+          "stops": [
+            {
+              "offset": 0,
+              "color": {
+                "red": 255,
+                "green": 32,
+                "blue": 32,
+                "alpha": 255
+              }
+            },
+            {
+              "offset": 1,
+              "color": {
+                "red": 32,
+                "green": 80,
+                "blue": 255,
+                "alpha": 255
+              }
+            }
+          ]
+        },
+        "opacity": 1,
+        "angleDegrees": 45,
+        "distancePx": 6,
+        "blurRadiusPx": 0,
+        "spreadPx": -1
+      },
+      "valid": false
+    },
+    {
+      "name": "shadow-style-whole-missing-gradient",
+      "schema": "StyleShadowDtoInput",
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 32,
+          "blue": 32,
+          "alpha": 255
+        },
+        "opacity": 1,
+        "angleDegrees": 45,
+        "distancePx": 6,
+        "blurRadiusPx": 0,
+        "spreadPx": 2.5
+      },
+      "valid": false
+    },
+    {
+      "name": "shadow-style-whole-missing-spread",
+      "schema": "StyleShadowDtoInput",
+      "value": {
+        "color": {
+          "red": 255,
+          "green": 32,
+          "blue": 32,
+          "alpha": 255
+        },
+        "gradient": {
+          "kind": "linear",
+          "angleDegrees": 90,
+          "centerX": 0.5,
+          "centerY": 0.5,
+          "radiusX": 0.5,
+          "radiusY": 0.5,
+          "coordinateSpace": "line",
+          "colorSpace": "linearRgb",
+          "huePath": "shorter",
+          "stops": [
+            {
+              "offset": 0,
+              "color": {
+                "red": 255,
+                "green": 32,
+                "blue": 32,
+                "alpha": 255
+              }
+            },
+            {
+              "offset": 1,
+              "color": {
+                "red": 32,
+                "green": 80,
+                "blue": 255,
+                "alpha": 255
+              }
+            }
+          ]
+        },
+        "opacity": 1,
+        "angleDegrees": 45,
+        "distancePx": 6,
+        "blurRadiusPx": 0
+      },
+      "valid": false
+    },
+    {
+      "name": "shadow-style-line-unsung.shadow.gradient-set",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-line-unsung.shadow.gradient-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.gradient",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-line-unsung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.spreadPx",
+            "value": 2.5
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-unsung.shadow.gradient-set",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-unsung.shadow.gradient-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.gradient",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-unsung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "unsung.shadow.spreadPx",
+            "value": 2.5
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-restore-unsung.shadow.gradient",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "unsung.shadow.gradient"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-restore-unsung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "unsung.shadow.spreadPx"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-negative-unsung.shadow.spreadPx",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "unsung.shadow.spreadPx",
+        "value": -0.5
+      },
+      "valid": false
+    },
+    {
+      "name": "shadow-style-mark-unsung.shadow.gradient",
+      "schema": "SetMarkAppearanceCommandDtoInput",
+      "value": {
+        "type": "orchestration.setMarkAppearance",
+        "nodeId": "mark",
+        "changes": [
+          {
+            "property": "unsung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-mark-unsung.shadow.spreadPx",
+      "schema": "SetMarkAppearanceCommandDtoInput",
+      "value": {
+        "type": "orchestration.setMarkAppearance",
+        "nodeId": "mark",
+        "changes": [
+          {
+            "property": "unsung.shadow.spreadPx",
+            "value": 2
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-line-sung.shadow.gradient-set",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-line-sung.shadow.gradient-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.gradient",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-line-sung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.spreadPx",
+            "value": 2.5
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-sung.shadow.gradient-set",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-sung.shadow.gradient-null",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.gradient",
+            "value": null
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-token-sung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.patch",
+        "targets": [
+          {
+            "kind": "token",
+            "branchId": "b",
+            "lineId": "l",
+            "tokenId": "t"
+          }
+        ],
+        "changes": [
+          {
+            "property": "sung.shadow.spreadPx",
+            "value": 2.5
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-restore-sung.shadow.gradient",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "sung.shadow.gradient"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-restore-sung.shadow.spreadPx",
+      "schema": "ProjectCommandDtoInput",
+      "value": {
+        "type": "styles.restore",
+        "targets": [
+          {
+            "kind": "line",
+            "branchId": "b",
+            "lineId": "l"
+          }
+        ],
+        "properties": [
+          "sung.shadow.spreadPx"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-negative-sung.shadow.spreadPx",
+      "schema": "StyleChangeDtoInput",
+      "value": {
+        "property": "sung.shadow.spreadPx",
+        "value": -0.5
+      },
+      "valid": false
+    },
+    {
+      "name": "shadow-style-mark-sung.shadow.gradient",
+      "schema": "SetMarkAppearanceCommandDtoInput",
+      "value": {
+        "type": "orchestration.setMarkAppearance",
+        "nodeId": "mark",
+        "changes": [
+          {
+            "property": "sung.shadow.gradient",
+            "value": {
+              "kind": "linear",
+              "angleDegrees": 90,
+              "centerX": 0.5,
+              "centerY": 0.5,
+              "radiusX": 0.5,
+              "radiusY": 0.5,
+              "coordinateSpace": "line",
+              "colorSpace": "linearRgb",
+              "huePath": "shorter",
+              "stops": [
+                {
+                  "offset": 0,
+                  "color": {
+                    "red": 255,
+                    "green": 32,
+                    "blue": 32,
+                    "alpha": 255
+                  }
+                },
+                {
+                  "offset": 1,
+                  "color": {
+                    "red": 32,
+                    "green": 80,
+                    "blue": 255,
+                    "alpha": 255
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "shadow-style-mark-sung.shadow.spreadPx",
+      "schema": "SetMarkAppearanceCommandDtoInput",
+      "value": {
+        "type": "orchestration.setMarkAppearance",
+        "nodeId": "mark",
+        "changes": [
+          {
+            "property": "sung.shadow.spreadPx",
+            "value": 2
+          }
+        ]
+      },
+      "valid": true
     }
   ],
-  "contractVersion": "1.61.0"
+  "contractVersion": "1.62.0"
 }

@@ -30,16 +30,20 @@ CHANGES = [
     ("sung.strokes", "StyleSungStrokesChangeDto", "StyleSungStrokesDto", False),
     ("unsung.shadow", "StyleUnsungShadowChangeDto", "StyleShadowDto", True),
     ("unsung.shadow.color", "StyleUnsungShadowColorChangeDto", "StyleColorDto", False),
+    ("unsung.shadow.gradient", "StyleUnsungShadowGradientChangeDto", "StyleGradientDto", True),
     ("unsung.shadow.opacity", "StyleUnsungShadowOpacityChangeDto", "Single", False),
     ("unsung.shadow.angleDegrees", "StyleUnsungShadowAngleChangeDto", "Double", False),
     ("unsung.shadow.distancePx", "StyleUnsungShadowDistanceChangeDto", "Single", False),
     ("unsung.shadow.blurRadiusPx", "StyleUnsungShadowBlurChangeDto", "Single", False),
+    ("unsung.shadow.spreadPx", "StyleUnsungShadowSpreadChangeDto", "Single", False),
     ("sung.shadow", "StyleSungShadowChangeDto", "StyleSungShadowDto", False),
     ("sung.shadow.color", "StyleSungShadowColorChangeDto", "StyleColorDto", False),
+    ("sung.shadow.gradient", "StyleSungShadowGradientChangeDto", "StyleGradientDto", True),
     ("sung.shadow.opacity", "StyleSungShadowOpacityChangeDto", "Single", False),
     ("sung.shadow.angleDegrees", "StyleSungShadowAngleChangeDto", "Double", False),
     ("sung.shadow.distancePx", "StyleSungShadowDistanceChangeDto", "Single", False),
     ("sung.shadow.blurRadiusPx", "StyleSungShadowBlurChangeDto", "Single", False),
+    ("sung.shadow.spreadPx", "StyleSungShadowSpreadChangeDto", "Single", False),
     ("unsung.glow", "StyleUnsungGlowChangeDto", "StyleGlowDto", True),
     ("unsung.glow.color", "StyleUnsungGlowColorChangeDto", "StyleColorDto", False),
     ("unsung.glow.opacity", "StyleUnsungGlowOpacityChangeDto", "Single", False),
@@ -80,7 +84,7 @@ ENUMS = {
     "StyleFollowKind": ["follow", "set"],
     "StyleWipeHighlightBlend": ["normal", "screen", "add"],
 }
-assert len(CHANGES) == 45 and len(TOKEN_PROPERTIES) == 35 and len(MARK_PROPERTIES) == 34
+assert len(CHANGES) == 49 and len(TOKEN_PROPERTIES) == 39 and len(MARK_PROPERTIES) == 38
 TARGETS = [("project", "ProjectStyleTargetDto", []), ("branch", "BranchStyleTargetDto", ["branchId"]),
            ("line", "LineStyleTargetDto", ["branchId", "lineId"]),
            ("token", "TokenStyleTargetDto", ["branchId", "lineId", "tokenId"])]
@@ -159,7 +163,9 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
           "radiusX": "Double", "radiusY": "Double", "coordinateSpace": "StyleGradientCoordinateSpace",
           "colorSpace": "StyleGradientColorSpace", "huePath": "StyleGradientHuePath", "stops": "StyleGradientStopDto[]"})
     typed("StyleStrokeDto", {"material": "StyleMaterialDto", "widthPx": "Single", "join": "StyleStrokeJoin"})
-    typed("StyleShadowDto", {"color": "StyleColorDto", "opacity": "Single", "angleDegrees": "Double", "distancePx": "Single", "blurRadiusPx": "Single"})
+    typed("StyleShadowDto", {"color": "StyleColorDto", "opacity": "Single", "angleDegrees": "Double",
+          "distancePx": "Single", "blurRadiusPx": "Single", "spreadPx": "Single", "gradient": "StyleGradientDto"},
+          nullable=("gradient",))
     typed("StyleGlowDto", {"color": "StyleColorDto", "opacity": "Single", "blurRadiusPx": "Single", "spreadPx": "Single"})
     typed("StyleWipeHighlightDto", {"color": "StyleColorDto", "widthRatio": "Double", "opacity": "Single", "blend": "StyleWipeHighlightBlend"})
     typed("StyleWipeDto", {"featherRatio": "Double", "highlight": "StyleWipeHighlightDto"}, nullable=("highlight",))
@@ -229,7 +235,7 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
         gradient["description"] = "完整十字段渐变；色标可相等offset，须非降序且首0尾1，关系由Core校验；不排序或归一化。所有数值必须有限。坐标系canvas/line/glyph（glyph按单字）。"
         for name, bounds in (("StyleTypographyDto", {"fontSizePx": {"exclusiveMinimum": 0}, "fontWeight": {"minimum": 100, "maximum": 900}}),
                              ("StyleStrokeDto", {"widthPx": {"minimum": 0}}),
-                             ("StyleShadowDto", {"opacity": {"minimum": 0, "maximum": 1}, "distancePx": {"minimum": 0}, "blurRadiusPx": {"minimum": 0}}),
+                             ("StyleShadowDto", {"opacity": {"minimum": 0, "maximum": 1}, "distancePx": {"minimum": 0}, "blurRadiusPx": {"minimum": 0}, "spreadPx": {"minimum": 0}}),
                              ("StyleGlowDto", {"opacity": {"minimum": 0, "maximum": 1}, "blurRadiusPx": {"minimum": 0}, "spreadPx": {"minimum": 0}}),
                              ("StyleWipeHighlightDto", {"widthRatio": {"exclusiveMinimum": 0, "maximum": 2}, "opacity": {"minimum": 0, "maximum": 1}}),
                              ("StyleWipeDto", {"featherRatio": {"minimum": 0, "maximum": 2}}),
@@ -250,7 +256,8 @@ def extend_static_style_schemas(schemas, metadata, schema_for, command_variants)
               "verticalCenterRatio": {"minimum": 0, "maximum": 1}, "opacity": {"minimum": 0, "maximum": 1}, "scale": {"exclusiveMinimum": 0}}
     for side in ("unsung", "sung"):
         limits.update({side + ".shadow.opacity": {"minimum": 0, "maximum": 1}, side + ".shadow.distancePx": {"minimum": 0},
-                       side + ".shadow.blurRadiusPx": {"minimum": 0}, side + ".glow.opacity": {"minimum": 0, "maximum": 1},
+                       side + ".shadow.blurRadiusPx": {"minimum": 0}, side + ".shadow.spreadPx": {"minimum": 0},
+                       side + ".glow.opacity": {"minimum": 0, "maximum": 1},
                        side + ".glow.blurRadiusPx": {"minimum": 0}, side + ".glow.spreadPx": {"minimum": 0}})
     audit(metadata, "StyleChangeDto", {"property": "String"})
     for property_name, name, clr, nullable in CHANGES:

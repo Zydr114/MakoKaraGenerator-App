@@ -28,13 +28,13 @@
 </p>
 
 <p align="center">
-  <strong><a href="https://mako.talium.site/">📖 在线文档中心（mako.talium.site）</a></strong>
+  <strong><a href="https://mako.talium.site/">在线文档中心（mako.talium.site）</a></strong>
   &nbsp;·&nbsp;
-  <strong><a href="https://mako.talium.site/getting-started/overview/">🚀 10 分钟快速上手</a></strong>
+  <strong><a href="https://mako.talium.site/getting-started/overview/">10 分钟快速上手</a></strong>
   &nbsp;·&nbsp;
-  <strong><a href="https://github.com/Zydr114/MakoKaraGenerator-OfficialMkfxSamples">✨ 官方 .mkfx 特效示例库</a></strong>
+  <strong><a href="https://github.com/Zydr114/MakoKaraGenerator-OfficialMkfxSamples">官方 .mkfx 特效示例库</a></strong>
   &nbsp;·&nbsp;
-  <strong><a href="https://github.com/Zydr114/MakoKaraGenerator-App/releases">📦 Releases 下载</a></strong>
+  <strong><a href="https://github.com/Zydr114/MakoKaraGenerator-App/releases">Releases 下载</a></strong>
 </p>
 
 ---

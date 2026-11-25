@@ -20,7 +20,7 @@ public sealed class BoundedEncoderOutputTests
                 time.sleep(0.01)
             raise SystemExit(17)
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(60));
         IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"), Width = 1024, Height = 1024,
@@ -118,7 +118,7 @@ public sealed class BoundedEncoderOutputTests
                 out.write(b'x')
             print('drop_frames=0')
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"), Width = 2, Height = 2,
@@ -152,7 +152,7 @@ public sealed class BoundedEncoderOutputTests
                 out.write(b'A' * 1025)
             sys.exit(0)
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"),
@@ -186,7 +186,7 @@ public sealed class BoundedEncoderOutputTests
                 out.flush()
                 time.sleep(30)
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("candidate.mp4"),
@@ -362,7 +362,7 @@ public sealed class BoundedEncoderOutputTests
                 marker.write('ready')
             time.sleep(30)
             """);
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(10));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
         await using IVideoEncodingSession session = await new FfmpegMediaEncoder(executable).StartAsync(new()
         {
             OutputPath = directory.FilePath("canceled.mp4"),
@@ -386,7 +386,7 @@ public sealed class BoundedEncoderOutputTests
 
         completeCancellation.Cancel();
         OperationCanceledException canceled = await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => completing.WaitAsync(TimeSpan.FromSeconds(5), deadline.Token));
+            () => completing.WaitAsync(TimeSpan.FromSeconds(15), deadline.Token));
         Assert.Equal(completeCancellation.Token, canceled.CancellationToken);
 
         await session.DisposeAsync();

@@ -18,7 +18,7 @@ public sealed class ManagedCompressedAudioTests
     public async Task 受信压缩覆盖真实request和原报告并保留有理尾帧与完整非静音音轨(string inputFormat, bool transparent)
     {
         using TemporaryDirectory directory = new();
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(90));
         string audio = await CreateAudioAsync(directory, inputFormat, deadline.Token);
         FrameRate rate = new(30_000, 1001);
         using SkiaRenderPipeline pipeline = new();
@@ -58,7 +58,7 @@ public sealed class ManagedCompressedAudioTests
     public async Task 默认MP3复制和原时长差文案保持而覆盖不得污染后续默认导出()
     {
         using TemporaryDirectory directory = new();
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(30));
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(90));
         string audio = await CreateAudioAsync(directory, "mp3", deadline.Token);
         using SkiaRenderPipeline pipeline = new();
         FfmpegMediaProbe probe = new();

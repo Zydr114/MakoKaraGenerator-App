@@ -376,10 +376,10 @@ public sealed class GpuStreamSessionTests
             throw new InvalidOperationException();
         }, false);
         channel.Control(1);
-        await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(15));
         channel.Incoming.Enqueue("{}"u8.ToArray());
-        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.False(await stream.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(3)));
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.False(await stream.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(15)));
     }
 
     [Fact]

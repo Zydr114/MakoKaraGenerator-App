@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using MakoKaraGenerator.Application;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Hosting;
+using MakoKaraGenerator.Core.Effects;
+using MakoKaraGenerator.Core.Projects;
 
 namespace MakoKaraGenerator.Backend.Server.Tests;
 
@@ -173,5 +176,91 @@ public sealed partial class PreviewTransportTests
         await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "FixedParent"));
         var fixedNode = (await http.Read()).Nodes.Single(n => n.Id == indicator);
         Assert.Equal("FixedParent", fixedNode.Content!.AttachmentMode);
+    }
+
+    [Fact]
+    public async Task 真实HTTP前奏目标无有效区间时附着切换干净拒绝并释放名额()
+    {
+        await using Fixture f = await Fixture.Create();
+        f.Projects.ConfigureSceneMeasurements(new(FindWorkerApphost()));
+        ProjectSession project = await f.OpenNoAudioProject();
+        NodeHttpHarness http = new(f, project.ProjectSessionId);
+        await http.Send(new SetOutputDurationCommandDto("8000000"));
+        await http.Send(new AddLineCommandDto("primary", null));
+        var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(
+            http.Path + "/lyrics/window?branchId=primary&expectedRevision=" + http.Revision, Json))!;
+        var line = Assert.Single(lyrics.Lines);
+        await http.Send(new SetLineTextCommandDto(new("primary", line.Id), "Too early"));
+        // 起唱点 1 秒小于前奏时长 2 秒；停用前奏以保留配置，再切换附着应干净拒绝且不卡住测量名额。
+        await http.Send(new ProjectCommandDto("lyrics.setTimeRange", new("primary", line.Id), "1000000", "3000000"));
+        foreach (var token in line.Tokens) await http.Send(new ClearTokenTimeCommandDto(new("primary", line.Id, token.Id)));
+        string root = (await http.Read()).Programs.Single(p => p.BranchId == "primary").RootContainerId;
+        var countdown = await http.Send(new CreateOrchestrationCountdownCommandDto(root, "短前奏", 3));
+        string indicator = countdown.LeadInResult!.IndicatorContainerId!;
+        var leadIn = await http.Send(new CreateOrchestrationLeadInCommandDto("primary", "cue/too-early", null, line.Id, indicator, "2000000", false));
+        string cueId = leadIn.LeadInResult!.LeadInId!;
+
+        using HttpResponseMessage rejected = await http.Post(
+            new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetAboveStart"),
+            http.Revision, f.Metadata());
+        var error = await Error(rejected, HttpStatusCode.UnprocessableEntity, BackendErrorCode.CommandRejected);
+        Assert.Equal("SceneAttachmentReferenceUnavailable", error.FailureCode);
+
+        // 验证名额已释放：后续同模式 no-op 正常成功。
+        var noop = await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetText"));
+        Assert.False(noop.Changed);
+    }
+
+    [Fact]
+    [Trait("Category", "RequiresVulkan")]
+    public async Task 真实Worker启用SDK2效果包时默认CPU后端也能完成非零时刻前奏附着切换()
+    {
+        WorkerProcessOptions workerOptions = new(FindWorkerApphost());
+        using BackendRenderBackendConfiguration defaultCpuBackends = new(workerOptions, "cpu");
+        await using Fixture f = await Fixture.Create(
+            injectedFactory: new WorkerRenderFrameSessionFactory(workerOptions),
+            packageProfile: true,
+            renderBackends: defaultCpuBackends);
+        f.Projects.ConfigureRenderBackends(defaultCpuBackends);
+        f.Projects.ConfigureSceneMeasurements(workerOptions);
+
+        EffectPackageContents package = SdkV2PreviewPackage();
+        Project seeded = ProjectWorkspace.CreateNew("sdk2-lead-in-attachment").Project with
+        {
+            Effects = new([package], [ScriptConfiguration.Create("config", "sdk2", package, "scale")
+                .CreateInstance("sdk2-effect", new(ProjectEffectBindingKind.Project), 1)]),
+        };
+        ProjectSession project = await f.OpenNoAudioProject(seeded, "sdk2-lead-in-attachment");
+        NodeHttpHarness http = new(f, project.ProjectSessionId);
+        await http.Send(new SetOutputDurationCommandDto("8000000"));
+        await http.Send(new AddLineCommandDto("primary", null));
+        var lyrics = (await f.Http.GetFromJsonAsync<ProjectLyricsWindowResponse>(
+            http.Path + "/lyrics/window?branchId=primary&expectedRevision=" + http.Revision, Json))!;
+        var line = Assert.Single(lyrics.Lines);
+        await http.Send(new SetLineTextCommandDto(new("primary", line.Id), "踊れ"));
+        await http.Send(new ProjectCommandDto("lyrics.setTimeRange", new("primary", line.Id), "5000000", "7000000"));
+        foreach (var token in line.Tokens) await http.Send(new ClearTokenTimeCommandDto(new("primary", line.Id, token.Id)));
+
+        // 模拟前端自动创建提示组（现代圆点 + 闪烁填充动画）并自动生成前奏（起点 2s != 0）。
+        string root = (await http.Read()).Programs.Single(p => p.BranchId == "primary").RootContainerId;
+        var countdown = await http.Send(new CreateOrchestrationCountdownCommandDto(root, "前奏提示", 3));
+        string indicator = countdown.LeadInResult!.IndicatorContainerId!;
+        await http.Send(new SetCountdownPresentationCommandDto(
+            indicator,
+            new("Circle", 0.45, null, "SilhouetteStyle"),
+            new("BlinkThenWipeFill", 0.35, 2, 0.06)));
+        var settings = new LeadInGenerationSettingsDto(true, true, "8000000", "3000000", indicator, []);
+        var applied = await http.Send(new ApplyLeadInGenerationCommandDto("primary", settings, [line.Id]));
+        Assert.True(applied.Changed);
+        string cueId = Assert.Single((await http.Read()).Programs.Single(p => p.BranchId == "primary").LeadIns!).Id;
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetAboveStart"));
+        Assert.Equal("CueTargetAboveStart", (await http.Read()).Nodes.Single(n => n.Id == indicator).Content!.AttachmentMode);
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "FixedParent"));
+        Assert.Equal("FixedParent", (await http.Read()).Nodes.Single(n => n.Id == indicator).Content!.AttachmentMode);
+
+        await http.Send(new SetLeadInAttachmentCommandDto("primary", cueId, indicator, "CueTargetText"));
+        Assert.Equal("CueTargetText", (await http.Read()).Nodes.Single(n => n.Id == indicator).Content!.AttachmentMode);
     }
 }

@@ -1,14 +1,14 @@
 {
   "contractVersion": "1.62.0",
   "httpProtocolVersion": "1",
-  "productVersion": "0.120.0",
+  "productVersion": "0.120.1",
   "sourceBaselineCommit": "b5d4d71464a142cbc0e49806870526a5adb77e77",
-  "frozenOn": "2026-11-24",
+  "frozenOn": "2026-11-25",
   "status": "frozen",
   "behaviorSource": "docs/architecture/backend-api.md",
-  "scope": "Implemented public HTTP API. Product 0.120.0 / Contract 1.62.0 removes 12 decommissioned routes (5 unversioned aliases, 5 recovery-jobs routes, POST /api/v1/project-sessions/{id}/edit-previews, POST /api/v1/project-sessions/{id}/resources/package-asset) and retired standalone project-image-* profiles (project-image-preview-v1, project-image-validation-v1, project-image-export-v1), consolidates frozen contract artifacts under backend/web/ as the single source of truth, and validates the current 1.62.0 contract directly without historical rollback gates. Retains all 106 project commands, two-state static styles with ruby layout, explicit CPU/GPU selection, continuous preview streams with transport negotiation and quarantine listing, SDK v2 authoring, template libraries, and runtime-project-input-v1 media/package closures.",
+  "scope": "Implemented public HTTP API. Product 0.120.1 / Contract 1.62.0 removes 12 decommissioned routes (5 unversioned aliases, 5 recovery-jobs routes, POST /api/v1/project-sessions/{id}/edit-previews, POST /api/v1/project-sessions/{id}/resources/package-asset) and retired standalone project-image-* profiles (project-image-preview-v1, project-image-validation-v1, project-image-export-v1), consolidates frozen contract artifacts under backend/web/ as the single source of truth, and validates the current 1.62.0 contract directly without historical rollback gates. Retains all 106 project commands, two-state static styles with ruby layout, explicit CPU/GPU selection, continuous preview streams with transport negotiation and quarantine listing, SDK v2 authoring, template libraries, and runtime-project-input-v1 media/package closures.",
   "files": {
-    "Directory.Build.props": "1866f4dd269a58a6a969dd31bab3d66e155756e8a8f74a055bc834293b1f2b90",
+    "Directory.Build.props": "7b3618f1cda5a785844e30a6512640172570b9cda2e0548d56e4435b211632e4",
     "Directory.Packages.props": "90f016ba693bd9528952a9b08bcfce831dd19bb1289a55ebeb2c88953ee56eb2",
     "docs/architecture/backend-api.md": "f6b6609460369622ca8e3d1d7dee94a1156551b59962073fba35563f8898190b",
     "docs/runtime-validation-and-layout-contract.md": "013e717a43550a7a0472273dda180fdd77f32ae38fb57b68700d0259c1625117",
@@ -790,7 +790,7 @@
     "src/MakoKaraGenerator.Text/ShapedLine.cs": "26e27be9b816c4b877f0cb2e4c2e8ff020427887b3bc509dc0c86b43f030ca9f",
     "tools/backend-api-contract/ContractMetadata.csproj": "f1b0c2924cd2f9a979deffada49a2096d6345ffe6e53f06dc0954c781c92cc0e",
     "tools/backend-api-contract/Program.cs": "97bb06e2252c936456c137927b79095ee0a8abde7cbf6408525135d88ad447b6",
-    "tools/backend-api-contract/README.md": "2c7ff4164759439041b6f5f8ab280996d576f4af1f1c26414100734ee78792ee",
+    "tools/backend-api-contract/README.md": "bc556043272d48c3c4f6f99c32c9980070298f94edbd2405059c9239cdc44379",
     "tools/backend-api-contract/author_metadata_fixtures.py": "c764a8e7a01da7019da73ad0442e405de3542f8bfc283423cc3cff1cbe1b1896",
     "tools/backend-api-contract/author_metadata_schema.py": "e7b14e47d3f4ffee9d919f0494622ddc80edd933eed5e37947831455f2139efe",
     "tools/backend-api-contract/author_replacement_fixtures.py": "a97631f957dc485ed6a0c0579c6737af0fe30031da67b565f1419b9ed9945d88",
@@ -801,7 +801,7 @@
     "tools/backend-api-contract/editing_completion_schema.py": "c2a2eda629faab6498b65a59c2c2cd86515c5ac080509ab582e235db986b15b8",
     "tools/backend-api-contract/export_fallback_fixtures.py": "fe6160e65c9faa93fcb39a471f3bf4830f2fce7bb8a818311eafe5ab1e8d6aaa",
     "tools/backend-api-contract/export_fallback_schema.py": "e1b21f068cce7ba1807a88ad8c503066ed120e6293e1eb4a524af41736f24c15",
-    "tools/backend-api-contract/freeze.py": "2fecd5e54e7531b27485b7ea729ccc9d674c243a02bc504bd3e161f5b5bb1457",
+    "tools/backend-api-contract/freeze.py": "e8386530db0428ff36deb4524d522f28a0f41332c2a52a239ee2e0cff1a49ff5",
     "tools/backend-api-contract/glow_style_fixtures.py": "5b5129df74194da6fbc853d62f27976c3a1ce937f74664a568460dbe298d9e77",
     "tools/backend-api-contract/gpu_stream_fixtures.py": "8b7b832aa4e1efbd5ce97434ee5e6ed45865016552e08d92cdf0f79bc804fda0",
     "tools/backend-api-contract/gpu_stream_recovery_fixtures.py": "4fc21398ca056f313e291275b7c70ffc20d38892a330b02c92330658a04f4f41",
@@ -842,10 +842,10 @@
   },
   "artifacts": {
     "web/api-contract.md": "dac4853c9e12a39400a1ed869bb9e761ba6ea01dfb4629c14dcb9698ee4c914b",
-    "web/api-index.md": "6c58ff44fd7258f25d232590f8ee49d04eb778b6f78a1a0ca4dc3ef9774ebc4f",
+    "web/api-index.md": "a3c5f0fb475bc0805777151e31992e33b55b4b7efdba384ba98ee4f78d5c13b9",
     "web/examples.json": "cc1682624c55b25617933c155b91868636d51a109f2badecd8ea54dde654c745",
-    "web/frontend-workflows.md": "42657a3a34de0b8d4d18af7b72ab2e12d51f825b500685f5a1e04599bc427db6",
-    "web/openapi.json": "8eaa83dd3df7a77fb15af19d8327dd0f35a2163b0e9ed120831dee96032a931d"
+    "web/frontend-workflows.md": "36b429a051aea257c44af48239a3bff768bc624a6e8b6d68a09db0760662d87e",
+    "web/openapi.json": "53c82fd30178e794c11f3e96935e8af7090dd347623b846fa726e4657c7bbc20"
   },
   "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."
 }

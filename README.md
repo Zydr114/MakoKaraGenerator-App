@@ -17,7 +17,7 @@
     <img src="https://img.shields.io/badge/.mkfx_Samples-24_官方特效包-7C5CFF?style=flat-square&logo=sparkles&logoColor=white" alt="官方 MKFX 示例仓库" />
   </a>
   <a href="https://github.com/Zydr114/MakoKaraGenerator-App/releases">
-    <img src="https://img.shields.io/badge/Version-v0.120.0-1F6FEB?style=flat-square" alt="当前版本 v0.120.0" />
+    <img src="https://img.shields.io/badge/Version-v0.120.1-1F6FEB?style=flat-square" alt="当前版本 v0.120.1" />
   </a>
   <img src="https://img.shields.io/badge/Platform-Windows_x64_%7C_Linux_x64_%7C_Web-2DA44E?style=flat-square" alt="支持平台" />
   <a href="LICENSE">

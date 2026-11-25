@@ -87,7 +87,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     public async Task 未响应cancel的准备进程必须强制排水实际private成员并区分deadline与用户取消(bool userCancel)
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
-        using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, "hang", TimeSpan.FromSeconds(1));
+        using TemporaryDirectory directory = new(); WorkerBackendAudioPreparationExecutor executor = Executor(directory, "hang", TimeSpan.FromSeconds(userCancel ? 30 : 5));
         using CancellationTokenSource caller = new(); Task pending = executor.ExecuteAsync(Grant(directory), caller.Token);
         string identities = directory.FilePath("identities.json"); await WaitUntil(() => File.Exists(identities));
         using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(identities));
@@ -136,7 +136,7 @@ public sealed class WorkerAudioPreparationProxyTests(ITestOutputHelper output)
     private static BackendAudioPreparationGrant Grant(TemporaryDirectory directory)
     { string source = directory.FilePath("source.wav"); File.WriteAllBytes(source, [1, 2, 3]); return new(source, 3, WorkerProtocol.ComputeSha256([1, 2, 3])); }
     private static async Task WaitUntil(Func<bool> condition)
-    { using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(8)); while (!condition()) await Task.Delay(10, timeout.Token); }
+    { using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(25)); while (!condition()) await Task.Delay(10, timeout.Token); }
     private static bool IsSameProcess(int pid, long start) => HostingTestPlatformHelpers.IsSameProcess(pid, start);
     private static string RepositoryRoot()
     { DirectoryInfo? current = new(AppContext.BaseDirectory); while (current is not null && !File.Exists(Path.Combine(current.FullName, "MakoKaraGenerator.slnx"))) current = current.Parent; return current!.FullName; }

@@ -33,7 +33,9 @@ while True:
   b=open(sys.argv[2],'rb').read();r={'kind':'result','requestId':m['requestId'],'inputSha256':m['inputSha256'],'payload':base64.b64encode(b).decode(),'outputSha256':hashlib.sha256(b).hexdigest()}
  elif m['kind']=='scene-measurement-v1':
   child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'])
-  open(sys.argv[1],'w').write(str(os.getpid())+' '+str(child.pid))
+  tmp=sys.argv[1]+'.tmp'
+  with open(tmp,'w') as f: f.write(str(os.getpid())+' '+str(child.pid))
+  os.replace(tmp,sys.argv[1])
   time.sleep(60)
   continue
  elif m['kind']=='shutdown': break
@@ -73,9 +75,15 @@ while True:
         {
             if (File.Exists(marker))
             {
-                string value = await File.ReadAllTextAsync(marker);
-                if (value.Split(' ',StringSplitOptions.RemoveEmptyEntries) is { Length: 2 } parts)
-                    return parts.Select(part => int.Parse(part,CultureInfo.InvariantCulture)).ToArray();
+                try
+                {
+                    string value = await File.ReadAllTextAsync(marker);
+                    if (value.Split(' ',StringSplitOptions.RemoveEmptyEntries) is { Length: 2 } parts)
+                        return parts.Select(part => int.Parse(part,CultureInfo.InvariantCulture)).ToArray();
+                }
+                catch (IOException)
+                {
+                }
             }
             await Task.Delay(25);
         }

@@ -260,8 +260,10 @@ export function OrchestrationPage(props: {
               : '提示组已改为跟着目标句的文字',
           undo,
         );
+        return undefined;
       }
-      return result;
+      if (result === 'failed') return session.state.notice?.message ?? '附着方式没有修改成功。';
+      return undefined;
     },
     onSelect: (branchId, id) => {
       if (branchId !== view.branchId) store.setBranch(branchId);

@@ -19,12 +19,15 @@
   font-size: var(--fs-sm);
 }
 .pane-note {
+  flex: none;
   margin: 0 16px 6px;
 }
 .pane-progress {
+  flex: none;
   margin: 8px 16px;
 }
 .read-error {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -50,6 +53,7 @@
   max-height: 55%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   margin: 0 8px 8px;
   border-radius: 12px;
   background: var(--surface-low);

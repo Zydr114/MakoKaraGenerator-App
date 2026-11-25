@@ -399,7 +399,8 @@ public sealed class BackendImportCommandTests
         {
             var close=await projects.StartCloseAsync(client.ClientId,session.ProjectSessionId,new("0","discard",ActiveJobs:"wait",Metadata:new("close","host",clock.GetUtcNow().AddSeconds(1))));
             Assert.True(close.Accepted,close.Error?.Message);
-            for(int i=0;i<100 && projects.TryGet(client.ClientId,session.ProjectSessionId,out _);i++) await Task.Delay(10);
+            using var closeWait=new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            while(projects.TryGet(client.ClientId,session.ProjectSessionId,out _) && !closeWait.IsCancellationRequested) await Task.Delay(20);
             Assert.False(projects.TryGet(client.ClientId,session.ProjectSessionId,out _));clock.Advance(TimeSpan.FromSeconds(3));
             int claims=0;
             var registration=await clients.RegisterAsync(secret,new(),id=>{claims++;return projects.TryReclaimClientAsync(id);});

@@ -1,6 +1,9 @@
+using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Projects;
+using MakoKaraGenerator.Rendering;
 
 namespace MakoKaraGenerator.Backend.Hosting;
 
@@ -75,7 +78,8 @@ public sealed partial class ProjectSessionRegistry
                 if (captured.Error is { } error) return BackendOperationResult<SceneMeasurementResponse>.Rejected(error);
                 capture = captured.Capture!;
                 runtimeLease = capture.RuntimeLease;
-                var preparation = await runtimeLease!.PrepareAsync(deadline.Token).ConfigureAwait(false);
+                runtimeLease!.TransparentOutput = request.AlphaMode == "transparent";
+                var preparation = await runtimeLease.PrepareAsync(deadline.Token).ConfigureAwait(false);
                 if (!preparation.Accepted) return BackendOperationResult<SceneMeasurementResponse>.Rejected(preparation.Error!);
                 preparedInput = preparation.Response!;
                 byte[] source = preparedInput.SourceBytes.ToArray();
@@ -147,6 +151,10 @@ public sealed partial class ProjectSessionRegistry
             if ((group.Attachment?.Mode ?? SceneAttachmentMode.FixedParent).ToString() == command.Mode)
                 return await session.CommitAttachmentAsync(capture, command, null, deadline.Token).ConfigureAwait(false);
             if (_sceneMeasurementWorker is null) return ProjectCommandExecutionResult.Rejected(MeasurementUnavailable());
+            var branch = capture.Project.Lyrics.Branches.FirstOrDefault(item => item.Id == command.BranchId);
+            var targetLine = branch?.Lines.FirstOrDefault(line => line.Id == cue.TargetLineId);
+            if (targetLine is null || LeadInTiming.Range(targetLine, cue.DurationUs) is not { } range)
+                return ProjectCommandExecutionResult.Rejected(new(BackendErrorCode.CommandRejected, "真实目标文字参考不可用。", FailureCode: "SceneAttachmentReferenceUnavailable"));
             if (sourceSession is not null)
             {
                 // Detached edits borrow authorization from the live source session;
@@ -158,13 +166,23 @@ public sealed partial class ProjectSessionRegistry
                 if (pinned.Error is not null) return ProjectCommandExecutionResult.Rejected(pinned.Error);
                 runtimeLease = pinned.Lease;
             }
-            var preparation = await runtimeLease!.PrepareAsync(deadline.Token).ConfigureAwait(false);
+            runtimeLease!.TransparentOutput = true;
+            var preparation = await runtimeLease.PrepareAsync(deadline.Token).ConfigureAwait(false);
             if (!preparation.Accepted) return ProjectCommandExecutionResult.Rejected(preparation.Error!);
             preparedInput = preparation.Response!;
             byte[] source = preparedInput.SourceBytes.ToArray();
             capture = capture with { Source = source, SourceSha256 = WorkerProtocol.ComputeSha256(source) };
-            var input = new SceneMeasurementRequest(capture.Revision, "time", "0", 64, 64, "transparent");
-            var selection = await SelectMeasurementRenderBackendAsync(null, null, deadline.Token).ConfigureAwait(false);
+            var input = new SceneMeasurementRequest(capture.Revision, "time", range.StartUs.ToString(CultureInfo.InvariantCulture), 64, 64, "transparent");
+            string? requiredBackend = null;
+            try
+            {
+                if (ScriptBackendRequirement.RequiresVulkan(capture.Snapshot)) requiredBackend = "gpu";
+            }
+            catch (Exception ex) when (ex is EffectPackageException or KeyNotFoundException)
+            {
+                requiredBackend = null;
+            }
+            var selection = await SelectMeasurementRenderBackendAsync(null, requiredBackend, deadline.Token).ConfigureAwait(false);
             if (!selection.Accepted) return ProjectCommandExecutionResult.Rejected(selection.Error!);
             WorkerProcessOptions workerOptions = selection.Response!.Executor;
             input = input with { RenderBackend = selection.Response.RenderBackend };

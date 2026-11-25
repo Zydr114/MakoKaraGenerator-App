@@ -253,8 +253,16 @@ internal static class Program
             { await ReplyAsync(new("result", request.RequestId, request.InputSha256, cancelled: true)).ConfigureAwait(false); }
             catch (Exception error)
             {
-                string code = error switch { WorkerProtocolException failure => failure.Code, SnapshotContractException failure => failure.Code,
-                    PreparedFrameException failure => failure.Code, _ => "SceneMeasurementWorkerFailed" };
+                string code = error switch
+                {
+                    WorkerProtocolException failure => failure.Code,
+                    SnapshotContractException failure => failure.Code,
+                    PreparedFrameException failure => failure.Code,
+                    EffectPackageException failure => failure.Code,
+                    EffectOutputException failure => failure.Code,
+                    EffectFailureException failure => failure.Code,
+                    _ => "SceneMeasurementWorkerFailed",
+                };
                 await ReplyAsync(new("error", request.RequestId, request.InputSha256, error: "静态同帧测量失败。", errorCode: code)).ConfigureAwait(false);
             }
         }

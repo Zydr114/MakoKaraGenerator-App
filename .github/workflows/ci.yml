@@ -41,10 +41,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
           cache: true
@@ -68,7 +68,7 @@ jobs:
 
       - name: Cache Noto Sans CJK SC font (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .local/ci-fonts/NotoSansCJKsc-Regular.otf
           key: noto-sans-cjk-sc-2.004
@@ -136,18 +136,25 @@ jobs:
 
       # Exclude PublishedServer (needs pre-published self-contained artifacts) and RequiresVulkan
       # (GitHub-hosted runners have no Vulkan GPU driver). Run test projects sequentially (-m:1)
-      # to avoid oversubscribing 2-core runners with concurrent child process trees.
+      # and cap xUnit collection parallelism to avoid oversubscribing hosted runners with concurrent
+      # FFmpeg/Python/Worker child process trees.
       - name: Test
         working-directory: backend
-        run: >-
-          dotnet test MakoKaraGenerator.slnx
-          --configuration Release
-          --no-build
-          --no-restore
-          -m:1
-          --filter "Category!=PublishedServer&Category!=RequiresVulkan"
-          --blame-hang-timeout 90s
-          --blame-hang-dump-type none
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $runSettings = Join-Path $env:RUNNER_TEMP 'ci.runsettings'
+          Set-Content -LiteralPath $runSettings -Encoding utf8 -Value '<RunSettings><xUnit><MaxParallelThreads>2</MaxParallelThreads></xUnit></RunSettings>'
+          dotnet test MakoKaraGenerator.slnx `
+            --configuration Release `
+            --no-build `
+            --no-restore `
+            -m:1 `
+            --settings $runSettings `
+            --filter "Category!=PublishedServer&Category!=RequiresVulkan" `
+            --blame-hang-timeout 90s `
+            --blame-hang-dump-type none
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   frontend:
     name: Frontend (${{ matrix.os }})
@@ -161,15 +168,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
@@ -197,20 +204,20 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -233,17 +240,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
-          cache: true
-          cache-dependency-path: backend/Directory.Packages.props
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -270,29 +275,29 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
           cache: true
           cache-dependency-path: backend/Directory.Packages.props
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 

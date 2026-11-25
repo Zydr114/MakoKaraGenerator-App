@@ -43,6 +43,7 @@ import {
   MAX_MARKS,
   newLeadInBlock,
   originText,
+  preferredAttachmentLeadIn,
   secondsText,
   type LeadInPatch,
 } from '../model/orchestration-lead-ins';
@@ -82,8 +83,8 @@ export interface LeadInActions {
   onGenerate: () => void;
   onUpdate: (leadIn: OrchestrationLeadIn, patch: LeadInPatch, done: string) => Promise<OrchestrationResult>;
   onDelete: (leadIn: OrchestrationLeadIn, exclude: boolean) => Promise<void>;
-  /** 改提示组的附着方式：带一个用它的前奏（可以在别的来源）。 */
-  onAttachment: (branchId: string, leadIn: OrchestrationLeadIn, mode: LeadInAttachmentMode) => Promise<OrchestrationResult>;
+  /** 改提示组的附着方式：带一个用它的前奏（可以在别的来源）；失败时返回原因，由附着区就地显示。 */
+  onAttachment: (branchId: string, leadIn: OrchestrationLeadIn, mode: LeadInAttachmentMode) => Promise<string | undefined>;
   /** 选中某个来源里的前奏（分配条跟着换来源）。 */
   onSelect: (branchId: string, leadInId: string) => void;
   onSelectNode: (id: string) => void;
@@ -283,8 +284,15 @@ function AttachmentField(props: {
   onShow?: (() => void) | undefined;
 }) {
   const { model, indicator, leadIn } = props;
+  const mode = (indicator?.content?.attachmentMode ?? 'CueTargetText') as LeadInAttachmentMode;
+  const currentKey = `${indicator?.id ?? ''}|${leadIn?.id ?? ''}|${mode}`;
+  const [error, setError] = useState<string | undefined>();
+  const [trackedKey, setTrackedKey] = useState(currentKey);
+  if (currentKey !== trackedKey) {
+    setTrackedKey(currentKey);
+    setError(undefined);
+  }
   if (!indicator) return null;
-  const mode = (indicator.content?.attachmentMode ?? 'CueTargetText') as LeadInAttachmentMode;
   const users = leadInsUsing(model, indicator.id).length;
   const options = ATTACHMENT_OPTIONS.some((o) => o.value === mode) ? ATTACHMENT_OPTIONS : [...ATTACHMENT_OPTIONS, { value: mode, label: mode }];
   return (
@@ -305,7 +313,11 @@ function AttachmentField(props: {
         options={options}
         disabled={!!props.block || props.busy || !leadIn}
         onChange={(next) => {
-          if (leadIn && props.branchId) void props.onAttachment(props.branchId, leadIn, next);
+          if (!leadIn || !props.branchId) return;
+          setError(undefined);
+          void props.onAttachment(props.branchId, leadIn, next).then((failure) => {
+            if (failure) setError(failure);
+          });
         }}
       />
       <Note>
@@ -313,6 +325,7 @@ function AttachmentField(props: {
           ? '还没有前奏用这个提示组，添加前奏后才能切换附着方式。'
           : `附着方式属于提示组“${nodeName(model, indicator)}”，用它的 ${users} 个前奏都跟着变。切换为跟着文字或放在首字上方时自动对齐到目标句对应位置；切换为固定在父级时保持当前画面位置。`}
       </Note>
+      {error && <Note error>{error}</Note>}
     </Group>
   );
 }
@@ -518,7 +531,7 @@ export function CountdownSections(props: {
 }) {
   const { model, node, actions, marks } = props;
   const users = leadInsUsing(model, node.id);
-  const first = users[0];
+  const reference = preferredAttachmentLeadIn(users);
   const markIds = node.content?.markNodeIds ?? [];
   const markDisabled = !!marks.block || marks.busy;
   const shapeKind = countdownShapeOf(node.content).kind;
@@ -542,9 +555,9 @@ export function CountdownSections(props: {
       </Group>
       <AttachmentField
         model={model}
-        branchId={first?.program.branchId}
+        branchId={reference?.program.branchId}
         indicator={node}
-        leadIn={first?.leadIn}
+        leadIn={reference?.leadIn}
         block={props.attachmentBlock}
         busy={actions.busy}
         onAttachment={actions.onAttachment}

@@ -67,6 +67,11 @@ export function leadInsUsing(model: OrchestrationModel, containerId: string): { 
   return model.programs.flatMap((program) => (program.leadIns ?? []).filter((l) => l.indicatorContainerId === containerId).map((leadIn) => ({ program, leadIn })));
 }
 
+/** 为提示组切换附着方式挑选最可靠的参考前奏：优先启用且有有效区间，其次有有效区间，最后退回首条。 */
+export function preferredAttachmentLeadIn<T extends { leadIn: OrchestrationLeadIn }>(users: readonly T[]): T | undefined {
+  return users.find((u) => u.leadIn.enabled && leadInSpan(u.leadIn)) ?? users.find((u) => leadInSpan(u.leadIn)) ?? users[0];
+}
+
 /** 前奏的时间（微秒）；后端算不出时（目标句没有时间、起唱前不够一个时长）是 undefined。 */
 export function leadInSpan(leadIn: OrchestrationLeadIn): { startUs: number; endUs: number } | undefined {
   if (leadIn.startUs === undefined || leadIn.endUs === undefined) return undefined;
@@ -106,6 +111,15 @@ const LEAD_IN_FAILURE_TEXT: Record<string, string> = {
   ContainerInvalid: '提示组必须是这个来源根下的前奏提示组。',
   LeadInTimeConflict: '前奏放不下：起唱前的时间不够这么长，或和别的句子、前奏的时间重叠。缩短时长，或换一句。',
   SceneAttachmentReferenceUnavailable: '目标句的文字测不到（例如没有时间或在画面外），不能切换附着方式。',
+  SceneMeasurementUnavailable: '后端没有启用画面测量组件，不能切换附着方式。',
+  SceneMeasurementWorkerFailed: '画面测量没有完成，不能切换附着方式。',
+  SceneMeasurementDeadlineExceeded: '画面测量超时，请稍后再试。',
+  SceneMeasurementBudgetExceeded: '当前画面元素过多，超出测量预算，不能切换附着方式。',
+  PackageBackendUnsupported: '当前工程启用了需要 GPU 的效果包，无法在 CPU 后端测量附着位置。',
+  RenderBackendUnavailable: '当前渲染设备不可用，不能测量附着位置。',
+  RenderBackendUnsupported: '当前渲染设备不支持工程中的效果包，不能测量附着位置。',
+  PreparedTimeMismatch: '前奏测量时刻与场景帧不一致，请重试。',
+  MediaFeatureOutputMismatch: '前奏测量输出模式与背景媒体特征输入不匹配。',
   PresentationInvalid: '结果没有通过画面结构校验，没有修改。',
   PackageSvgBudgetExceeded: 'SVG 内容或复杂度超过后端预算限制。',
   PackageSvgXmlUnsafe: 'SVG 包含不安全的 XML 声明或禁止的标签/属性。',

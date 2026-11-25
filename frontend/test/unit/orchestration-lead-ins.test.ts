@@ -18,6 +18,7 @@ import {
   initialGenerationSettings,
   inlineSvgBlock,
   leadInEditBlock,
+  leadInFailureText,
   leadInsOf,
   leadInSpan,
   leadInsUsing,
@@ -30,6 +31,7 @@ import {
   MAX_COUNTDOWN_SVG_BYTES,
   markTextBlock,
   newLeadInBlock,
+  preferredAttachmentLeadIn,
   updateLeadInCommand,
 } from '../../src/editor/model/orchestration-lead-ins';
 import type { GeometryReference, LeadInGenerationCandidate, OrchestrationLeadIn, OrchestrationNode, OrchestrationProgram, ProjectOrchestrationResponse } from '../../src/protocol';
@@ -131,6 +133,21 @@ describe('前奏（W4 设计 §14.2～§14.4）', () => {
       newLeadInBlock(program, 'l2', 'node/cd', 2),
     ]).toEqual(['请选择目标句。', '这一句已经有前奏。', '请选择提示组，或新建一个。', '时长要大于 0 秒。', undefined]);
     expect([markTextBlock(' '), markTextBlock('３')]).toEqual(['标记不能是空白。', undefined]);
+  });
+
+  it('preferredAttachmentLeadIn 优先挑选启用且时间有效的前奏，并补全附着测量失败文案', () => {
+    const untimed = { leadIn: leadIn('a', 'l3', { enabled: true }) };
+    const disabledTimed = { leadIn: leadIn('b', 'l1', { enabled: false, startUs: '2000000', endUs: '4000000' }) };
+    const enabledTimed = { leadIn: leadIn('c', 'l2', { enabled: true, startUs: '4000000', endUs: '6000000' }) };
+    expect(preferredAttachmentLeadIn([])).toBeUndefined();
+    expect(preferredAttachmentLeadIn([untimed, disabledTimed, enabledTimed])).toBe(enabledTimed);
+    expect(preferredAttachmentLeadIn([untimed, disabledTimed])).toBe(disabledTimed);
+    expect(preferredAttachmentLeadIn([untimed])).toBe(untimed);
+    expect(leadInFailureText('PackageBackendUnsupported')).toContain('GPU');
+    expect(leadInFailureText('PreparedTimeMismatch')).toBeTruthy();
+    expect(leadInFailureText('MediaFeatureOutputMismatch')).toBeTruthy();
+    expect(leadInFailureText('SceneMeasurementWorkerFailed')).toBeTruthy();
+    expect(leadInFailureText('RenderBackendUnavailable')).toBeTruthy();
   });
 });
 

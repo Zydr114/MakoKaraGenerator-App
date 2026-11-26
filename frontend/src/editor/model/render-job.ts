@@ -15,6 +15,7 @@ import { formatBytes } from './media';
 import { recordedBackendText } from './render-device';
 import { formatFrameRate } from './settings';
 import { formatTime } from './time';
+import { knownRenderFailureText } from './render-failure-text';
 
 const STAGE_TEXT: Record<string, string> = {
   validating: '验证输入',
@@ -78,22 +79,65 @@ export function exportFooterMode(input: { hasTrack: boolean; running: boolean; h
 
 const FAILURE_TEXT: Record<string, string> = {
   exportInputRejected: '工程里还有不满足导出要求的地方（例如某句或某个字没有时间、文本为空，或输出时长没有确定）。后端没有指出是哪一处（G29），请看上面的准备检查。',
+  ExportInputRejected: '工程里还有不满足导出要求的地方（例如某句或某个字没有时间、文本为空，或输出时长没有确定）。请检查准备检查与工程设置。',
+  WorkerExportInputRejected: '导出参数、画布尺寸、帧率或时长超出后端导出边界，请检查工程设置。',
   exportAudioUnsupported: '音频格式不受支持或文件不可用。请检查音频资源，或取消“含音轨”。',
+  ExportAudioUnsupported: '音频格式不受支持或文件不可用。请检查音频资源，或取消“含音轨”。',
   WorkerExportAudioUnsupported: '音频格式或声道不受支持，或音频文件已损坏。请检查或替换音频。',
   WorkerExportAudioDecodeFailed: '音频文件无法解码，可能已损坏。请检查或替换音频。',
   WorkerExportAudioMismatch: '音频文件已变化或校验失败，请重新添加音频后再导出。',
   WorkerExportAudioTooShort: '此任务因音轨长度不足失败，请重新开始导出。',
+  WorkerExportRenderFailed: '导出渲染帧时发生异常，未公开新的成片。建议先运行正式验证排查问题效果（WorkerExportRenderFailed）。',
+  WorkerExportReportBudgetExceeded: '导出诊断报告超出预算限制，未公开新的成片（WorkerExportReportBudgetExceeded）。',
+  WorkerExportArtifactBudgetExceeded: '导出的成片体积超出后端允许的上限，请降低画质、分辨率或时长后重试（WorkerExportArtifactBudgetExceeded）。',
+  WorkerExportTimedOut: '导出执行超时，未公开新的成片（WorkerExportTimedOut）。',
+  WorkerExportMediaVerificationFailed: '导出生成的视频未通过成片完整性或音画同步校验，未公开新的成片（WorkerExportMediaVerificationFailed）。',
+  WorkerExportCompilationFailed: '工程中的效果脚本未能编译通过，无法导出。请检查效果包或先运行正式验证（WorkerExportCompilationFailed）。',
+  WorkerExportFailed: '独立导出执行器异常退出或编码失败，未公开新的成片（WorkerExportFailed）。',
+  WorkerSessionConflict: '导出执行器会话冲突，请稍后重试（WorkerSessionConflict）。',
+  WorkerExportToolUnavailable: '后端缺少可用的 FFmpeg / FFprobe 导出工具（WorkerExportToolUnavailable）。',
+  WorkerExportUnavailable: '后端当前未启用受保护的独立导出执行器（WorkerExportUnavailable）。',
+  GroupCompositionBudgetExceeded: '画面编排的分组合成或隔离层级超出渲染预算，请精简分组嵌套或图像效果（GroupCompositionBudgetExceeded）。',
+  GroupIsolationFailed: '画面编排的分组隔离渲染失败，请检查分组透明度或图像效果配置（GroupIsolationFailed）。',
+  CaptureBudgetExceeded: '分组隔离或图像效果捕获尺寸超出预算限制，请检查分辨率与效果配置（CaptureBudgetExceeded）。',
+  ShaderProgramFailed: '效果着色器编译或执行失败，请检查效果包或切换渲染设备后重试（ShaderProgramFailed）。',
+  ImageEffectDescendantCompositionPending: '图像效果与子节点分组合成存在顺序冲突，请调整画面编排或效果绑定（ImageEffectDescendantCompositionPending）。',
+  ProjectRuntimeSourceUnavailable: '工程引用的背景媒体或资源文件不可用，请检查资源状态后重试（ProjectRuntimeSourceUnavailable）。',
+  ProjectRuntimeSourceChanged: '导出准备期间工程引用的媒体文件发生变化，请重新开始导出（ProjectRuntimeSourceChanged）。',
+  ExportDiskBudgetExceeded: '导出临时目录或可用磁盘空间不足，请清理空间后重试（ExportDiskBudgetExceeded）。',
   validationInputRejected: '工程里还有不满足要求的地方，后端没有指出是哪一处（G29），请看上面的准备检查。',
   revisionConflict: '工程在开始前又改了，请再点一次。',
   quotaExceeded: '后端同时能跑的任务已满，请等前一个任务结束。',
   resourceTooLarge: '工程的渲染输入太大，后端拒绝了。',
+  ResourceTooLarge: '工程的渲染输入太大，后端拒绝了。',
   serviceUnavailable: '后端暂时不能执行这个任务。',
   jobCancelled: '任务已取消。',
 };
 
-/** 失败原因：已知代码查表，其余用后端的 message。 */
+/** 失败原因：先查导出与渲染已知失败码表，其余用后端的 message。 */
 export function failureText(code: string | undefined, message: string | undefined): string {
-  return (code && FAILURE_TEXT[code]) || message || (code ? `失败（${code}）` : '失败。');
+  return (code && (FAILURE_TEXT[code] ?? knownRenderFailureText(code))) || message || (code ? `失败（${code}）` : '失败。');
+}
+
+/** 终态任务失败原因：命中已知表返回中文说明；未知但有具体 failureCode 时附加到泛化说明后，避免吞掉根因代码。 */
+export function jobFailureText(
+  job: Pick<JobResponse, 'failureCode' | 'error'>,
+  explicitFailureCode?: string,
+): string {
+  const specificCode = explicitFailureCode ?? job.failureCode ?? job.error?.failureCode;
+  const code = specificCode ?? job.error?.code;
+  const text = failureText(code, job.error?.message);
+  if (
+    specificCode &&
+    specificCode !== 'TaskExecutionFailed' &&
+    specificCode !== 'taskExecutionFailed' &&
+    !text.includes(specificCode) &&
+    !FAILURE_TEXT[specificCode] &&
+    !knownRenderFailureText(specificCode)
+  ) {
+    return `${text}（${specificCode}）`;
+  }
+  return text;
 }
 
 /** 导出报告的摘要：尺寸、帧率、帧数、时长、音轨、编码、大小。 */

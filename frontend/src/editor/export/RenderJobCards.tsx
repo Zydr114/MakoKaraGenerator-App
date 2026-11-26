@@ -25,7 +25,8 @@ export function ValidationCard(props: { store: ExportStore; exportState: ExportS
   const { store, exportState } = props;
   const caps = exportState.validationCapabilities;
   const track = exportState.validation;
-  const running = jobRunning(track);
+  const submitting = exportState.submitting?.validation;
+  const running = jobRunning(track) || !!submitting;
   const max = caps && props.frames !== undefined ? Math.min(props.frames, caps.maxFramesPerOutput) : undefined;
   const frames = max !== undefined ? Math.min(exportState.validationFrames ?? defaultValidationFrames(props.frames!, caps!.maxFramesPerOutput), max) : undefined;
   const unavailable = caps === null ? '读取验证能力失败。' : caps && !caps.enabled ? (caps.disabledReason?.message ?? '后端的正式验证不可用。') : undefined;
@@ -53,12 +54,23 @@ export function ValidationCard(props: { store: ExportStore; exportState: ExportS
             helper={`每种画面最多 ${max} 帧`}
             onCommit={(v) => store.setValidationFrames(v)}
           />
-          <Button variant="tonal" icon="fact_check" isDisabled={running} onPress={() => void store.startValidation(frames)}>
-            {track && !running ? '重新验证' : '开始验证'}
+          <Button variant="tonal" icon="fact_check" isPending={!!submitting} isDisabled={running} onPress={() => void store.startValidation(frames)}>
+            {submitting === 'reconciling'
+              ? '正在核对状态……'
+              : submitting === 'submitting'
+                ? '正在提交……'
+                : track && !running
+                  ? '重新验证'
+                  : '开始验证'}
           </Button>
         </div>
       ) : (
         <Note>输出时长确定后才能验证。</Note>
+      )}
+      {submitting && (
+        <Note>
+          {submitting === 'reconciling' ? '提交结果未知，正在向后端核对验证任务状态……' : '正在提交验证任务……'}
+        </Note>
       )}
       {submitError && <Note error>{submitError}</Note>}
       {track && (
@@ -106,10 +118,16 @@ function ValidationResult(props: { track: JobTrack; revision: string; onCancel: 
 export function ExportJobCard(props: { store: ExportStore; exportState: ExportState; revision: string }) {
   const { store, exportState } = props;
   const track = exportState.exportJob;
+  const submitting = exportState.submitting?.export;
   const submitError = exportState.submitError?.kind === 'export' ? exportState.submitError.text : undefined;
-  if (!track && !submitError) return null;
+  if (!track && !submitError && !submitting) return null;
   return (
     <Group title="导出任务">
+      {submitting && (
+        <Note>
+          {submitting === 'reconciling' ? '提交结果未知，正在向后端核对导出任务状态……' : '正在提交导出任务，准备工程与媒体输入……'}
+        </Note>
+      )}
       {submitError && <Note error>{submitError}</Note>}
       {track && (
         <div className="job">

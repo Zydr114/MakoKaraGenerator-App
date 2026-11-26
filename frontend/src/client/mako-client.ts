@@ -1890,6 +1890,31 @@ export class MakoClient extends Emitter<MakoClientEvents> {
         input.signal,
       ),
 
+    /**
+     * 静态预览多帧（如导出页首帧与末帧缩略图）：复用同一个一次性预览会话顺序取帧，
+     * 避免并发创建多个会话导致背景视频被重复拷贝和重复编译。
+     */
+    renderStills: (input: {
+      projectSessionId: string;
+      sourceRevision: Revision;
+      timesUs: readonly Micros[];
+      size: PreviewSize;
+      alphaMode?: PreviewAlphaMode;
+      renderBackend?: RenderBackend | null;
+      signal?: AbortSignal;
+    }): Promise<StillFrameResult[]> =>
+      this.transientStills(
+        () =>
+          this.preview.create({
+            source: { kind: 'project', sourceId: input.projectSessionId, sourceRevision: input.sourceRevision },
+            size: input.size,
+            alphaMode: input.alphaMode ?? 'opaque',
+            ...(input.renderBackend ? { renderBackend: input.renderBackend } : {}),
+          }, input.signal),
+        input.timesUs,
+        input.signal,
+      ),
+
     /** 模板候选试看一帧（G16）：创建候选 → 请求一帧 → 等待就绪 → 读取 PNG → 关闭。工程和模板库都不变。 */
     renderCandidateStill: async (
       projectSessionId: string,
@@ -1908,10 +1933,17 @@ export class MakoClient extends Emitter<MakoClientEvents> {
 
   /** 一次性静态帧：先排队占一个名额，再创建会话、取一帧、关闭；名额在关闭请求返回后才让出。 */
   private async transientStill(create: () => Promise<PreviewSessionResponse>, timeUs: Micros, signal?: AbortSignal): Promise<StillFrameResult> {
+    const [result] = await this.transientStills(create, [timeUs], signal);
+    return result!;
+  }
+
+  /** 一次性静态多帧：只占一个名额并复用同一个预览会话顺序取帧，关闭后再释放名额。 */
+  private async transientStills(create: () => Promise<PreviewSessionResponse>, timesUs: readonly Micros[], signal?: AbortSignal): Promise<StillFrameResult[]> {
+    if (timesUs.length === 0) return [];
     await this.acquireTransientPreview(signal);
     try {
       if (signal?.aborted) throw abortError();
-      return await this.stillOf(await create(), timeUs, signal);
+      return await this.stillsOf(await create(), timesUs, signal);
     } finally {
       this.releaseTransientPreview();
     }
@@ -1959,25 +1991,31 @@ export class MakoClient extends Emitter<MakoClientEvents> {
     }
   }
 
-  /** 在刚建好的预览会话上取一帧，读完字节后关闭会话（关闭后帧可能 404）。 */
-  private async stillOf(preview: PreviewSessionResponse, timeUs: Micros, signal?: AbortSignal): Promise<StillFrameResult> {
+  /** 在刚建好的预览会话上顺序取一帧或多帧，读完字节后关闭会话（关闭后帧可能 404）。 */
+  private async stillsOf(preview: PreviewSessionResponse, timesUs: readonly Micros[], signal?: AbortSignal): Promise<StillFrameResult[]> {
     const sourceRevision = preview.source.sourceRevision;
+    let requestSeq: Sequence | undefined;
+    const results: StillFrameResult[] = [];
     try {
-      const requestSeq = nextSequence(undefined);
-      const accepted = await this.preview.requestFrame(preview.previewId, {
-        expectedSourceRevision: sourceRevision,
-        previewGeneration: preview.previewGeneration,
-        requestSeq,
-        timeUs,
-        intent: 'playback',
-      });
-      const frame = await this.preview.waitForFrame(
-        preview.previewId,
-        { generation: accepted.previewGeneration, sourceRevision, requestSeq },
-        signal ? { signal } : {},
-      );
-      const content = await this.preview.fetchFrame(frame, signal);
-      return { frame, preview, ...content };
+      for (const timeUs of timesUs) {
+        if (signal?.aborted) throw abortError();
+        requestSeq = nextSequence(requestSeq);
+        const accepted = await this.preview.requestFrame(preview.previewId, {
+          expectedSourceRevision: sourceRevision,
+          previewGeneration: preview.previewGeneration,
+          requestSeq,
+          timeUs,
+          intent: 'playback',
+        });
+        const frame = await this.preview.waitForFrame(
+          preview.previewId,
+          { generation: accepted.previewGeneration, sourceRevision, requestSeq },
+          signal ? { signal } : {},
+        );
+        const content = await this.preview.fetchFrame(frame, signal);
+        results.push({ frame, preview, ...content });
+      }
+      return results;
     } finally {
       await this.preview.closeBestEffort(preview.previewId, { expectedPreviewGeneration: preview.previewGeneration, expectedSourceRevision: sourceRevision });
     }

@@ -95,7 +95,8 @@ internal static class StaticExportTask
             _ => null,
         };
         BackendFallbackDiagnosticCollector fallback = new();
-        var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput, fallback);
+        ExportRuntimeDiagnosticCollector runtimeDiagnostics = new();
+        var strict = new StrictFactory(factory, metadata, snapshot.MediaFeatureInput, fallback, runtimeDiagnostics);
         var probe = new StrictProbe(new FfmpegMediaProbe(metadata.FfprobePath), metadata, plan, snapshot.Composition, decodedAudio);
         var encoder = new StrictEncoder(new FfmpegMediaEncoder(metadata.FfmpegPath), metadata, plan, effectiveMaxMediaBytes);
         var channel = Channel.CreateBounded<(long Sequence, ExportProgress Progress)>(new BoundedChannelOptions(1)
@@ -126,7 +127,7 @@ internal static class StaticExportTask
                 snapshot.Composition.FrameRate.Numerator, snapshot.Composition.FrameRate.Denominator, Text(plan.VideoDurationUs),
                 Text(video.DurationUs > 0 ? video.DurationUs : produced.DurationUs), sourceAudioDuration is { } duration ? Text(duration) : null,
                 video.CodecName, produced.Audio?.CodecName, video.PixelFormat!, video.HasAlpha, actualLength, sha,
-                [.. original.Warnings.Select(Sanitize)], [.. original.DiagnosticOccurrences.Select(MapDiagnostic)], original.IsVerified,
+                [.. original.Warnings.Take(WorkerExportContract.MaximumWarnings).Select(Sanitize)], runtimeDiagnostics.ToArray(), original.IsVerified,
                 produced.Audio is { } outputAudio ? Text(outputAudio.DurationUs) : null, true, metadata.Quality,
                 original.Quality?.ToString().ToLowerInvariant() ?? throw Fail("WorkerExportQualityMismatch"),
                 FallbackDiagnostics: fallback.ToArray(), FallbackFrameCount: fallback.FrameCount, FallbackDiagnosticsTruncated: fallback.Truncated);
@@ -187,18 +188,96 @@ internal static class StaticExportTask
         }
     }
 
-    /// <summary>兜底诊断让完整报告超出预算时从末尾丢弃并标记截断；兜底不让导出失败。</summary>
+    /// <summary>兜底诊断、告警或非错误运行时诊断让完整报告超出预算时从末尾裁剪；非错误诊断不让导出失败。</summary>
     internal static ExportReportDto FitReportBudget(ExportReportDto report)
     {
-        int size = WorkerExportContract.EncodeJson(report, int.MaxValue).Length;
-        int count = report.FallbackDiagnostics.Length;
-        while (size > WorkerExportContract.MaximumReportBytes && count > 0)
+        ExportReportDto current = report;
+        int size = WorkerExportContract.EncodeJson(current, int.MaxValue).Length;
+        if (size <= WorkerExportContract.MaximumReportBytes) return current;
+        if (current.FallbackDiagnostics.Length > 0)
         {
-            count--;
-            size -= WorkerExportContract.EncodeJson(report.FallbackDiagnostics[count], int.MaxValue).Length + (count > 0 ? 1 : 0);
+            int count = current.FallbackDiagnostics.Length;
+            while (size > WorkerExportContract.MaximumReportBytes && count > 0)
+            {
+                count--;
+                size -= WorkerExportContract.EncodeJson(current.FallbackDiagnostics[count], int.MaxValue).Length + (count > 0 ? 1 : 0);
+            }
+            current = current with { FallbackDiagnostics = current.FallbackDiagnostics[..count], FallbackDiagnosticsTruncated = true };
+            while (current.FallbackDiagnostics.Length > 0
+                && WorkerExportContract.EncodeJson(current, int.MaxValue).Length > WorkerExportContract.MaximumReportBytes)
+                current = current with { FallbackDiagnostics = current.FallbackDiagnostics[..^1], FallbackDiagnosticsTruncated = true };
+            size = WorkerExportContract.EncodeJson(current, int.MaxValue).Length;
+            if (size <= WorkerExportContract.MaximumReportBytes) return current;
         }
-        return count == report.FallbackDiagnostics.Length ? report
-            : report with { FallbackDiagnostics = report.FallbackDiagnostics[..count], FallbackDiagnosticsTruncated = true };
+        if (current.Warnings.Length > 0)
+        {
+            int count = current.Warnings.Length;
+            while (size > WorkerExportContract.MaximumReportBytes && count > 0)
+            {
+                count--;
+                size -= WorkerExportContract.EncodeJson(current.Warnings[count], int.MaxValue).Length + (count > 0 ? 1 : 0);
+            }
+            current = current with { Warnings = current.Warnings[..count] };
+            while (current.Warnings.Length > 0
+                && WorkerExportContract.EncodeJson(current, int.MaxValue).Length > WorkerExportContract.MaximumReportBytes)
+                current = current with { Warnings = current.Warnings[..^1] };
+            size = WorkerExportContract.EncodeJson(current, int.MaxValue).Length;
+            if (size <= WorkerExportContract.MaximumReportBytes) return current;
+        }
+        if (current.Diagnostics.Length > 0)
+        {
+            // 从末尾裁剪仅移除各自代次的最高序号，保留其余每代次 1..k 连续性。
+            int count = current.Diagnostics.Length;
+            while (size > WorkerExportContract.MaximumReportBytes && count > 0)
+            {
+                count--;
+                size -= WorkerExportContract.EncodeJson(current.Diagnostics[count], int.MaxValue).Length + (count > 0 ? 1 : 0);
+            }
+            current = current with { Diagnostics = current.Diagnostics[..count] };
+            while (current.Diagnostics.Length > 0
+                && WorkerExportContract.EncodeJson(current, int.MaxValue).Length > WorkerExportContract.MaximumReportBytes)
+                current = current with { Diagnostics = current.Diagnostics[..^1] };
+        }
+        return current;
+    }
+
+    internal static (string Code, RuntimeDiagnosticSnapshot? Diagnostics, RenderSourceMaterialFailure? SourceMaterial) ClassifyFailure(
+        Exception failure, string fallbackCode)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        if (failure is RenderSessionFailureException session)
+            return (session.Code, session.DiagnosticSnapshot is { Count: > 0 } snap ? snap : null, session.SourceMaterialFailure);
+        if (RenderFailureDiagnostics.ExtractSourceMaterial(failure) is { } source)
+            return (source.Code, null, source);
+        for (Exception? current = failure; current is not null; current = current.InnerException)
+        {
+            if (current is EffectFailureException effect)
+                return (effect.Code, effect.DiagnosticSnapshot is { Count: > 0 } snap ? snap : null, null);
+        }
+        for (Exception? current = failure; current is not null; current = current.InnerException)
+        {
+            string? code = current switch
+            {
+                WorkerProtocolException protocol => protocol.Code,
+                SnapshotContractException snapshot => snapshot.Code,
+                RenderSessionFailureException nested => nested.Code,
+                PreparedFrameException prepared => prepared.Code,
+                ImageGraphException graph => graph.Code,
+                ImageSurfaceBudgetException budget => budget.Code,
+                ShaderProgramException shader => shader.Code,
+                EffectPackageException package => package.Code,
+                ImageBackgroundDecodeException bg => bg.Code,
+                EffectOutputException output => output.Code,
+                GpuPreviewException gpu => gpu.Code,
+                WorkerResourceMediaException media => media.Code,
+                ProjectEffectCompilationException => "WorkerExportCompilationFailed",
+                OutputSizeLimitExceededException => "WorkerExportArtifactBudgetExceeded",
+                TimeoutException => "WorkerExportTimedOut",
+                _ => null,
+            };
+            if (!string.IsNullOrWhiteSpace(code)) return (code, null, null);
+        }
+        return (fallbackCode, null, null);
     }
 
     private static ExportQuality Quality(string quality) => quality switch
@@ -393,8 +472,49 @@ internal static class StaticExportTask
             Produced = value; return value;
         }
     }
+    private sealed class ExportRuntimeDiagnosticCollector
+    {
+        private const int MaximumRemembered = 2048;
+        private const int MaximumDiagnosticsBytes = WorkerExportContract.MaximumReportBytes - 16 * 1024;
+        private readonly RuntimeDiagnosticCursor _cursor = new();
+        private readonly HashSet<DiagnosticKey> _seen = [];
+        private readonly Dictionary<Guid, long> _epochSequences = [];
+        private readonly List<BackendDiagnosticDto> _items = [];
+        private int _bytes = 2;
+
+        public void Add(RuntimeDiagnosticSnapshot snapshot)
+        {
+            foreach (var occurrence in _cursor.ReadNew(snapshot))
+            {
+                if (occurrence.Diagnostic.Diagnostic.Severity == DiagnosticSeverity.Error) continue;
+                if (_items.Count >= WorkerExportContract.MaximumOccurrences) continue;
+                DiagnosticKey key = DiagnosticKey.From(occurrence.Diagnostic);
+                if (_seen.Contains(key)) continue;
+                if (_seen.Count >= MaximumRemembered) continue;
+                _seen.Add(key);
+                long nextSequence = _epochSequences.TryGetValue(occurrence.Epoch, out long previous) ? previous + 1 : 1;
+                BackendDiagnosticDto dto = MapDiagnostic(occurrence with { Sequence = nextSequence });
+                int itemBytes = WorkerExportContract.EncodeJson(dto, int.MaxValue).Length + (_items.Count == 0 ? 0 : 1);
+                if (_bytes + itemBytes > MaximumDiagnosticsBytes) continue;
+                _epochSequences[occurrence.Epoch] = nextSequence;
+                _items.Add(dto);
+                _bytes += itemBytes;
+            }
+        }
+
+        public BackendDiagnosticDto[] ToArray() => [.. _items];
+
+        private readonly record struct DiagnosticKey(EffectInstanceId InstanceId, string ArtifactHash, string Stage,
+            DiagnosticSeverity Severity, string Code, string Message, SourceLocation? Location, EffectPackageIdentity? PackageIdentity)
+        {
+            public static DiagnosticKey From(RuntimeDiagnostic value) => new(value.InstanceId, value.ArtifactHash, value.Stage,
+                value.Diagnostic.Severity, value.Diagnostic.Code, value.Diagnostic.Message, value.Diagnostic.Location, value.PackageIdentity);
+        }
+    }
+
     private sealed class StrictFactory(IRenderFrameSessionFactory inner, WorkerExportMetadata metadata,
-        MakoKaraGenerator.Core.Media.MediaFeatureInput? media, BackendFallbackDiagnosticCollector fallback) : IRenderFrameSessionFactory
+        MakoKaraGenerator.Core.Media.MediaFeatureInput? media, BackendFallbackDiagnosticCollector fallback,
+        ExportRuntimeDiagnosticCollector runtimeDiagnostics) : IRenderFrameSessionFactory
     {
         public async ValueTask<IRenderFrameSession> CreateAsync(ProjectSnapshot snapshot, CancellationToken cancellationToken = default)
         {
@@ -402,12 +522,22 @@ internal static class StaticExportTask
             // 不同输入仍由会话准入按宿主绑定拒绝。逐帧请求携带原导出器快照，同样换成补回后的实例。
             ProjectSnapshot exporter = snapshot;
             if (media is not null && snapshot.MediaFeatureInput is null) snapshot = snapshot with { MediaFeatureInput = media };
-            return new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata, exporter, snapshot, fallback);
+            try
+            {
+                return new Session(await inner.CreateAsync(snapshot, cancellationToken).ConfigureAwait(false), metadata, exporter, snapshot, fallback, runtimeDiagnostics);
+            }
+            catch (Exception failure) when (failure is not OperationCanceledException and not RenderSessionFailureException)
+            {
+                var (code, diagnostics, source) = ClassifyFailure(failure, "WorkerExportRenderFailed");
+                throw new RenderSessionFailureException(code, source is not null ? "固定源材质未能完成导出。" : "固定静态导出渲染会话初始化失败。",
+                    diagnostics, failure)
+                { SourceMaterialFailure = source };
+            }
         }
         private sealed class Session(IRenderFrameSession inner, WorkerExportMetadata metadata,
-            ProjectSnapshot exporter, ProjectSnapshot fixedInput, BackendFallbackDiagnosticCollector fallback) : IRenderFrameSession
+            ProjectSnapshot exporter, ProjectSnapshot fixedInput, BackendFallbackDiagnosticCollector fallback,
+            ExportRuntimeDiagnosticCollector runtimeDiagnostics) : IRenderFrameSession
         {
-            private readonly RuntimeDiagnosticCursor _cursor = new(); private int _occurrences, _bytes;
             public async ValueTask<RenderFrame> RenderAsync(RenderRequest request, CancellationToken cancellationToken = default)
             {
                 RenderFrame? frame = null;
@@ -416,12 +546,8 @@ internal static class StaticExportTask
                     if (!ReferenceEquals(exporter, fixedInput) && ReferenceEquals(request.Project, exporter)) request = request with { Project = fixedInput };
                     frame = await inner.RenderAsync(request, cancellationToken).ConfigureAwait(false);
                     if (frame.DiagnosticSnapshot.HasError) throw new RenderSessionFailureException("WorkerRuntimeDiagnosticError", "实际Error禁止导出。", frame.DiagnosticSnapshot);
-                    foreach (var occurrence in _cursor.ReadNew(frame.DiagnosticSnapshot))
-                    {
-                        if (++_occurrences > WorkerExportContract.MaximumOccurrences) throw Fail("WorkerExportReportBudgetExceeded");
-                        _bytes += WorkerExportContract.EncodeJson(MapDiagnostic(occurrence), WorkerExportContract.MaximumReportBytes).Length + 1;
-                        if (_bytes > WorkerExportContract.MaximumReportBytes - 4096) throw Fail("WorkerExportReportBudgetExceeded");
-                    }
+                    // 非 Error 诊断（Info/Warning，如逐帧编排提示）跨帧去重并封顶，不因长视频帧数超过 512 而中断导出。
+                    runtimeDiagnostics.Add(frame.DiagnosticSnapshot);
                     if (frame.Format != PixelFormat.Bgra8888Premultiplied || frame.Width != request.ResolveTarget().PixelWidth
                         || frame.Height != request.ResolveTarget().PixelHeight || frame.TimeUs != request.TimeUs
                         || request.Quality != RenderQuality.Final || request.TransparentBackground != (metadata.Format == "transparentProRes4444"))
@@ -434,10 +560,10 @@ internal static class StaticExportTask
                 {
                     frame?.Dispose();
                     if (failure is OperationCanceledException or RenderSessionFailureException) throw;
-                    if (RenderFailureDiagnostics.ExtractSourceMaterial(failure) is { } source)
-                        throw new RenderSessionFailureException(source.Code, "固定源材质未能完成导出。", innerException: failure)
-                        { SourceMaterialFailure = source };
-                    throw Fail("WorkerExportRenderFailed", failure);
+                    var (code, diagnostics, source) = ClassifyFailure(failure, "WorkerExportRenderFailed");
+                    throw new RenderSessionFailureException(code, source is not null ? "固定源材质未能完成导出。" : "固定静态导出渲染失败。",
+                        diagnostics, failure)
+                    { SourceMaterialFailure = source };
                 }
             }
             public ValueTask DisposeAsync() => inner.DisposeAsync();

@@ -412,18 +412,16 @@ internal static class Program
             }
             catch (Exception failure)
             {
-                string code = failure switch
-                { RenderSessionFailureException value => value.Code, WorkerProtocolException value => value.Code,
-                    SnapshotContractException value => value.Code, _ => "WorkerExportFailed" };
+                var (code, actualDiagnostics, actualSource) = StaticExportTask.ClassifyFailure(failure, "WorkerExportFailed");
                 WorkerDiagnosticsSnapshotDto? diagnostics = null; string? diagnosticsFailure = null;
                 BackendSourceMaterialFailureDto? sourceMaterialFailure = null;
-                if (failure is RenderSessionFailureException { DiagnosticSnapshot: { } actual })
+                if (actualDiagnostics is { } actual)
                 {
                     try { diagnostics = StaticExportTask.EncodeDiagnostics(actual); }
                     catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")
                     { diagnosticsFailure = budget.Code; }
                 }
-                if (diagnosticsFailure is null && failure is RenderSessionFailureException { SourceMaterialFailure: { } source })
+                if (diagnosticsFailure is null && actualSource is { } source)
                 {
                     try { sourceMaterialFailure = BackendSourceMaterialFailures.Encode(source); }
                     catch (WorkerProtocolException budget) when (budget.Code == "WorkerExportReportBudgetExceeded")

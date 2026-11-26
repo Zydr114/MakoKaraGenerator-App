@@ -1,6 +1,6 @@
 # 冻结 API 合同生成与校验
 
-当前工具目标为 **合同 1.62.0／产品 0.120.1／HTTP 协议 1**（2026-11-25），生产源码基线 `b5d4d71464a142cbc0e49806870526a5adb77e77`，单一真值源产物位于 `backend/web/`：
+当前工具目标为 **合同 1.62.0／产品 0.120.2／HTTP 协议 1**（2026-11-26），生产源码基线 `b5d4d71464a142cbc0e49806870526a5adb77e77`，单一真值源产物位于 `backend/web/`：
 
 - 同步清理已下线的 12 条历史路由（5 条无版本兼容别名、5 条 `/api/v1/recovery-jobs*`、`POST /api/v1/project-sessions/{id}/edit-previews`、`POST /api/v1/project-sessions/{id}/resources/package-asset`）与已清退的独立 `project-image-*` 来源 profile（`project-image-preview-v1`、`project-image-validation-v1`、`project-image-export-v1`）；
 - 移除 5 个未导入孤立脚本、28,126 行历史语料归档 `style_v2_legacy_cases.json` 以及向历史版本倒推还原的 SHA-256 门禁；

@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = "1.62.0"
 BASELINE = "b5d4d71464a142cbc0e49806870526a5adb77e77"
 PRODUCT = re.search(r"<VersionPrefix>([^<]+)</VersionPrefix>", (ROOT / "Directory.Build.props").read_text(encoding="utf-8")).group(1)
-FREEZE_DATE = "2026-11-25"
+FREEZE_DATE = "2026-11-26"
 BEHAVIOR = "docs/architecture/backend-api.md"
 TOOL = Path(__file__).resolve().parent
 
@@ -1802,7 +1802,7 @@ def manifest(outputs):
     files.update(p for p in TOOL.iterdir() if p.is_file() and p.suffix not in (".pyc", ".pyo"))
     return {"contractVersion": CONTRACT, "httpProtocolVersion": "1", "productVersion": PRODUCT, "sourceBaselineCommit": BASELINE,
             "frozenOn": FREEZE_DATE, "status": "frozen", "behaviorSource": BEHAVIOR,
-            "scope": "Implemented public HTTP API. Product 0.120.1 / Contract 1.62.0 removes 12 decommissioned routes (5 unversioned aliases, 5 recovery-jobs routes, POST /api/v1/project-sessions/{id}/edit-previews, POST /api/v1/project-sessions/{id}/resources/package-asset) and retired standalone project-image-* profiles (project-image-preview-v1, project-image-validation-v1, project-image-export-v1), consolidates frozen contract artifacts under backend/web/ as the single source of truth, and validates the current 1.62.0 contract directly without historical rollback gates. Retains all 106 project commands, two-state static styles with ruby layout, explicit CPU/GPU selection, continuous preview streams with transport negotiation and quarantine listing, SDK v2 authoring, template libraries, and runtime-project-input-v1 media/package closures.",
+            "scope": "Implemented public HTTP API. Product 0.120.2 / Contract 1.62.0 removes 12 decommissioned routes (5 unversioned aliases, 5 recovery-jobs routes, POST /api/v1/project-sessions/{id}/edit-previews, POST /api/v1/project-sessions/{id}/resources/package-asset) and retired standalone project-image-* profiles (project-image-preview-v1, project-image-validation-v1, project-image-export-v1), consolidates frozen contract artifacts under backend/web/ as the single source of truth, and validates the current 1.62.0 contract directly without historical rollback gates. Retains all 106 project commands, two-state static styles with ruby layout, explicit CPU/GPU selection, continuous preview streams with transport negotiation and quarantine listing, SDK v2 authoring, template libraries, and runtime-project-input-v1 media/package closures.",
             "files": {p.relative_to(ROOT).as_posix(): sha(p.read_bytes()) for p in sorted(files, key=lambda p: p.relative_to(ROOT).parts)},
             "artifacts": {name: sha(data) for name, data in sorted(outputs.items())},
             "guards": "Source hashes require review even for behavior-preserving changes. They are drift alarms, not semantic proofs. Runtime/Media behavior still requires existing regression tests."}

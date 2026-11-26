@@ -19,10 +19,11 @@ public sealed class BackendRuntimeExportJobTests
     public async Task 固定媒体导出复用原任务与报告并保持私有副本直到执行器排水(BackgroundKind kind)
     {
         await using Fixture f = await Fixture.Create(runtime: true, kind: kind);
+        string expectedSha = ProjectRuntimeInputCodec.ComputeFixedSourceSha256(ProjectSnapshot.FromProject(f.Session.Workspace.Project));
         JobResponse started = await f.Start();
         Call call = await f.Executor.Next();
         Assert.Equal(ProjectRuntimeInputCodec.Profile, started.Input!.SourceProfile);
-        Assert.Equal(WorkerProtocol.ComputeSha256(call.EncodedImage), started.Input.SourceSha256);
+        Assert.Equal(expectedSha, started.Input.SourceSha256);
         Assert.Null(started.ExportInput!.TaskProfile);
         var source = ProjectRuntimeInputCodec.Decode(call.EncodedImage);
         Assert.Equal(kind, source.Grant!.Kind);
@@ -46,11 +47,11 @@ public sealed class BackendRuntimeExportJobTests
     [InlineData("close")]
     [InlineData("identity")]
     [InlineData("owner")]
-    public async Task 固定媒体导出二次Writer复核工程变更且拒绝后释放全部租约(string mutation)
+    public async Task 固定媒体导出Writer准入复核工程变更且拒绝后释放全部租约(string mutation)
     {
         await using Fixture f = await Fixture.Create(runtime: true, kind: BackgroundKind.Video);
-        (Task<BackendOperationResult<JobResponse>> pending, Task writerWaiter) = f.StartBehindCaptureGate();
-        await writerWaiter.WaitAsync(TimeSpan.FromSeconds(5));
+        await f.Session.Writer.WaitAsync();
+        Task<BackendOperationResult<JobResponse>> pending = Task.Run(f.StartOperation);
         try
         {
             switch (mutation)
@@ -78,6 +79,58 @@ public sealed class BackendRuntimeExportJobTests
         {
             f.RestoreSessionIdentity(); SetOwner(f.Session, "client"); SetProjectRevision(f.Session, 0); f.Session.ClosePending = false;
         }
+    }
+
+    [Fact]
+    public async Task 固定媒体导出异步准备不阻塞202且支持准备期取消与完成后导出()
+    {
+        await using Fixture f = await Fixture.Create(runtime: true, kind: BackgroundKind.Video);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Session.PrepareBarrierForTests = async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+
+        // 1. 准备被长时间阻塞时，StartExportAsync 必须立刻返回 202，不得卡住 HTTP 准入；且支持准备期取消。
+        JobResponse cancelledJob = await f.StartOperation().WaitAsync(TimeSpan.FromSeconds(2)).ContinueWith(t =>
+        {
+            Assert.True(t.Result.Accepted, t.Result.Error?.Message);
+            return t.Result.Response!;
+        });
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, f.Executor.Calls);
+        Assert.True(f.Registry.CancelJob("client", cancelledJob.JobId).Accepted);
+        Assert.Equal("cancelled", (await f.Terminal(cancelledJob.JobId)).State);
+        Assert.Equal(0, f.Executor.Calls);
+        Assert.Equal(f.BaselineReferenceCount, f.ReferenceCount);
+        Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
+        Assert.Equal(0, f.ArtifactUsedBytes);
+        f.AssertScheduler(0, 0);
+
+        // 2. 再次发起导出：返回 202 后即使外部修订前进，释放准备闸门后仍按原固定快照完成导出。
+        entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Session.PrepareBarrierForTests = async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+        JobResponse accepted = await f.StartOperation().WaitAsync(TimeSpan.FromSeconds(2)).ContinueWith(t =>
+        {
+            Assert.True(t.Result.Accepted, t.Result.Error?.Message);
+            return t.Result.Response!;
+        });
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        SetProjectRevision(f.Session, 1);
+        release.TrySetResult();
+        Call call = await f.Executor.Next();
+        Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
+        call.Release.TrySetResult(Pass());
+        Assert.Equal("succeeded", (await f.Terminal(accepted.JobId)).State);
+        Assert.Equal(f.BaselineReferenceCount, f.ReferenceCount);
+        f.AssertScheduler(0, 0);
     }
 
     [Fact]
@@ -257,18 +310,6 @@ public sealed class BackendRuntimeExportJobTests
             BackendOperationResult<JobResponse> started = await StartOperation();
             Assert.True(started.Accepted, started.Error?.Message);
             return started.Response!;
-        }
-
-        internal (Task<BackendOperationResult<JobResponse>> Pending, Task Writer) StartBehindCaptureGate()
-        {
-            lock (ResourceGate)
-            {
-                Task<BackendOperationResult<JobResponse>> pending = Task.Run(StartOperation);
-                Assert.True(SpinWait.SpinUntil(() => !Session.DrainPinnedInputReadsAsync().IsCompleted, TimeSpan.FromSeconds(5)));
-                Task writer = Session.Writer.WaitAsync();
-                Assert.False(writer.IsCompleted);
-                return (pending, writer);
-            }
         }
 
         private BackendTaskScheduler Scheduler =>

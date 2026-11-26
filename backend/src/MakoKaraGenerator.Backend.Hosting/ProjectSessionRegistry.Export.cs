@@ -1,6 +1,7 @@
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Time;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Validation;
@@ -184,7 +185,10 @@ public sealed partial class ProjectSessionRegistry
         catch (Exception error) when (error is ArgumentException or OverflowException)
         { return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "画布、帧率、时长或计划超出导出边界。"); }
         catch (ResourceStoreException error) { return BackendOperationResult<JobResponse>.Rejected(new(error.Code, "固定音频资源不可用。", "audio")); }
-        catch (IOException) { return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "固定来源或受控候选存储不可用。"); }
+        catch (EffectPackageException error)
+        { return BackendOperationResult<JobResponse>.Rejected(new(BackendErrorCode.CommandNotSupported, "工程效果包不满足导出合同。", "source", FailureCode: error.Code)); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "固定来源或受控候选存储不可用。"); }
         finally { session.Writer.Release(); try { audioPin?.Dispose(); } finally { try { slot?.Dispose(); } finally { disk?.Dispose(); } } }
     }
 
@@ -192,125 +196,100 @@ public sealed partial class ProjectSessionRegistry
         ExportJobRequest request, IBackendExportExecutor executor)
     {
         BackendProjectRuntimeInputLease? inputLease = null;
-        BackendPreparedProjectRuntimeInput? prepared = null;
         IDisposable? audioPin = null;
         BackendTaskScheduler.Reservation? slot = null;
         BackendJobArtifactStore.Reservation? disk = null;
+        await session.Writer.WaitAsync().ConfigureAwait(false);
         try
         {
-            ProjectSnapshot snapshot;
+            if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
+                return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
+            if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
+                return BackendOperationResult<JobResponse>.Rejected(mutation);
+            ProjectSnapshot snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+            if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
+            string basis = ProjectSnapshotSourceProfile.Select(snapshot with { Background = BackgroundSource.Color });
+            if (!_exportSourceProfiles.Contains(basis, StringComparer.Ordinal))
+                return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "实际导出Worker未提供所选基础来源能力。");
+            if (ProjectValidator.Validate(session.Workspace.Project, ValidationContext.Export).HasErrors)
+                return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误。");
+            CompositionFramePlan plan = ValidateExportPlan(snapshot, request.Format);
+            request = NormalizeMissingExportAudio(request, snapshot, session.AudioAssetId);
             StoredAsset? capturedAudio = null;
-            CompositionFramePlan plan;
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
-                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
-                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
-                string basis = ProjectSnapshotSourceProfile.Select(snapshot with { Background = BackgroundSource.Color });
-                if (!_exportSourceProfiles.Contains(basis, StringComparer.Ordinal))
-                    return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "实际导出Worker未提供所选基础来源能力。");
-                if (ProjectValidator.Validate(session.Workspace.Project, ValidationContext.Export).HasErrors)
-                    return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "工程存在阻断导出的领域错误。");
-                plan = ValidateExportPlan(snapshot, request.Format);
-                request = NormalizeMissingExportAudio(request, snapshot, session.AudioAssetId);
-                inputLease = session.AcquireProjectRuntimeInput(snapshot);
-                inputLease.TransparentOutput = request.Format == "transparentProRes4444";
-                inputLease.WaitForMediaFeatures = true;
-                if (!string.IsNullOrEmpty(session.AudioAssetId))
-                {
-                    audioPin = _resources.AcquireReference(clientId, session.AudioAssetId);
-                    if (request.IncludeAudio) capturedAudio = _resources.GetAuthorized(clientId, session.AudioAssetId);
-                }
-                else if (request.IncludeAudio)
-                    return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "带音轨导出需要已授权的受管音轨资源。");
-            }
-            finally { session.Writer.Release(); }
-
-            BackendOperationResult<BackendPreparedProjectRuntimeInput> preparation = await inputLease.PrepareAsync().ConfigureAwait(false);
-            inputLease.Dispose(); inputLease = null;
-            if (!preparation.Accepted) return BackendOperationResult<JobResponse>.Rejected(preparation.Error!);
-            prepared = preparation.Response!;
-            if (prepared.SourceProfile != ProjectRuntimeInputCodec.Profile)
-                return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "媒体导出缺少固定授权闭包。");
             BackendExportAudioGrant? grant = null;
             BackendExportAudioReferenceDto? audioReference = null;
-            if (capturedAudio is { } audio)
+            if (!string.IsNullOrEmpty(session.AudioAssetId))
             {
-                if (new FileInfo(audio.StoragePath).LinkTarget is not null || audio.Size > _exportOptions!.MaxAudioBytes
-                    || snapshot.AudioMedia is { } media && (media.Hash != audio.Sha256 || media.ByteLength != audio.Size))
-                    return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "工程音频固定身份与授权资源不一致。");
-                VerifyFixedAudioSource(clientId, audio);
-                BackendAudioInputInfo info = ClassifyExportAudio(_resources.AcquireRead(clientId, audio.AssetId));
-                if (!_exportAudioProfiles.Contains(info.AudioProfile, StringComparer.Ordinal))
-                    return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "当前部署没有此固定音频格式的导出能力。");
-                VerifyFixedAudioSource(clientId, audio);
-                grant = new(audio.StoragePath, audio.Size, audio.Sha256, info.AudioProfile);
-                audioReference = new(audio.AssetId, audio.Size, audio.Sha256,
-                    info.AudioProfile == BackendAudioInputProfiles.Pcm16Wave ? null : info.AudioProfile);
+                audioPin = _resources.AcquireReference(clientId, session.AudioAssetId);
+                if (request.IncludeAudio)
+                {
+                    capturedAudio = _resources.GetAuthorized(clientId, session.AudioAssetId);
+                    if (new FileInfo(capturedAudio.StoragePath).LinkTarget is not null || capturedAudio.Size > _exportOptions!.MaxAudioBytes
+                        || snapshot.AudioMedia is { } media && (media.Hash != capturedAudio.Sha256 || media.ByteLength != capturedAudio.Size))
+                        return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "工程音频固定身份与授权资源不一致。");
+                    ProjectDirectoryHandles.EnsurePathHasNoLinks(capturedAudio.StoragePath);
+                    BackendAudioInputInfo info = ClassifyExportAudio(_resources.AcquireRead(clientId, capturedAudio.AssetId));
+                    if (!_exportAudioProfiles.Contains(info.AudioProfile, StringComparer.Ordinal))
+                        return Reject<JobResponse>(BackendErrorCode.TaskUnavailable, "当前部署没有此固定音频格式的导出能力。");
+                    grant = new(capturedAudio.StoragePath, capturedAudio.Size, capturedAudio.Sha256, info.AudioProfile);
+                    audioReference = new(capturedAudio.AssetId, capturedAudio.Size, capturedAudio.Sha256,
+                        info.AudioProfile == BackendAudioInputProfiles.Pcm16Wave ? null : info.AudioProfile);
+                }
             }
-            executor.ValidateInput(snapshot, new(request.Format, request.IncludeAudio,
-                Path.Combine(_persistence!.StateRoot, "export-artifacts", ".staging", new string('0', 32),
-                    request.Format == "opaqueMp4" ? "media.mp4" : "media.mov"), grant, request.Quality,
-                _exportOptions!.ResourcePolicy(operationTimeoutSeconds: _exportTimeoutSeconds), prepared.SourceBytes));
-
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                PruneExportArtifacts();
-                disk = _exportArtifacts!.TryReserve();
-                if (disk is null) return Reject<JobResponse>(BackendErrorCode.ResourceQuotaExceeded, "导出产物预留配额不足。");
-                slot = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
-                if (slot is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "正式任务排队配额已满。");
-                BackendJobInputDto input = new("project", session.ProjectSessionId, request.ExpectedRevision,
-                    prepared.SourceProfile, WorkerProtocol.ComputeSha256(prepared.SourceBytes.Span), plan.TotalFrames,
-                    snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight,
-                    snapshot.Composition.FrameRate.Numerator, snapshot.Composition.FrameRate.Denominator,
-                    snapshot.Composition.OutputDurationUs!.Value.ToString(CultureInfo.InvariantCulture), RenderBackend: request.RenderBackend);
-                ExportWork work = new(snapshot, request.Format, request.IncludeAudio, clientId, capturedAudio,
-                    audioPin, slot, disk, executor, runtimeInput: prepared);
-                BackendOperationResult<JobResponse> accepted = StartJob(clientId, "export", session.ProjectSessionId,
-                    job => RunExportAsync(work, job), input: input, failureMapper: ExportFailure, cancelOnShutdown: true, deferRunning: true,
-                    exportInput: new(request.Format, request.IncludeAudio, audioReference,
-                        grant is { } audioGrant && WorkerExportContract.GetExecutionProfile(audioGrant.AudioProfile) == WorkerExportContract.CompressedExecutionProfile
-                            ? WorkerExportContract.CompressedExecutionProfile : null, Quality: request.Quality, RenderBackend: request.RenderBackend), beforeRegistration: job =>
-                    {
-                        string candidate = _exportArtifacts.CreateCandidate(work.Disk!, job.Id, request.Format);
-                        work.Execution = new(request.Format, request.IncludeAudio, candidate, grant, request.Quality,
-                            _exportOptions!.ResourcePolicy(work.Disk!.MaximumMediaBytes, _exportTimeoutSeconds), work.RuntimeInput!.SourceBytes);
-                        try { work.Executor.ValidateInput(snapshot, work.Execution); return null; }
-                        catch (Exception error) when (error is WorkerProtocolException or SnapshotContractException or RenderSessionFailureException or ArgumentException)
-                        { return new(BackendErrorCode.ExportInputRejected, "固定运行来源与实际任务封包不满足导出合同。"); }
-                    });
-                if (accepted.Accepted) { prepared = null; audioPin = null; slot = null; disk = null; }
-                return accepted;
-            }
-            finally { session.Writer.Release(); }
+            else if (request.IncludeAudio)
+                return Reject<JobResponse>(BackendErrorCode.ExportAudioUnsupported, "带音轨导出需要已授权的受管音轨资源。");
+            // 同步准入阶段只计算固定源身份并占位，将大背景复制与媒体特征分析等待移入异步导出任务，避免阻塞 HTTP 202。
+            string sourceSha256 = ProjectRuntimeInputCodec.ComputeFixedSourceSha256(snapshot);
+            inputLease = session.AcquireProjectRuntimeInput(snapshot);
+            inputLease.TransparentOutput = request.Format == "transparentProRes4444";
+            inputLease.WaitForMediaFeatures = true;
+            PruneExportArtifacts();
+            disk = _exportArtifacts!.TryReserve();
+            if (disk is null) return Reject<JobResponse>(BackendErrorCode.ResourceQuotaExceeded, "导出产物预留配额不足。");
+            slot = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
+            if (slot is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "正式任务排队配额已满。");
+            BackendJobInputDto input = new("project", session.ProjectSessionId, request.ExpectedRevision,
+                ProjectRuntimeInputCodec.Profile, sourceSha256, plan.TotalFrames,
+                snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight,
+                snapshot.Composition.FrameRate.Numerator, snapshot.Composition.FrameRate.Denominator,
+                snapshot.Composition.OutputDurationUs!.Value.ToString(CultureInfo.InvariantCulture), RenderBackend: request.RenderBackend);
+            ExportWork work = new(snapshot, request.Format, request.IncludeAudio, clientId, capturedAudio,
+                audioPin, slot, disk, executor, runtimeInputLease: inputLease, audioGrant: grant, quality: request.Quality);
+            BackendOperationResult<JobResponse> accepted = StartJob(clientId, "export", session.ProjectSessionId,
+                job => RunExportAsync(work, job), input: input, failureMapper: ExportFailure, cancelOnShutdown: true, deferRunning: true,
+                exportInput: new(request.Format, request.IncludeAudio, audioReference,
+                    grant is { } audioGrant && WorkerExportContract.GetExecutionProfile(audioGrant.AudioProfile) == WorkerExportContract.CompressedExecutionProfile
+                        ? WorkerExportContract.CompressedExecutionProfile : null, Quality: request.Quality, RenderBackend: request.RenderBackend),
+                beforeRegistration: job =>
+                {
+                    work.CandidatePath = _exportArtifacts.CreateCandidate(work.Disk!, job.Id, request.Format);
+                    return null;
+                });
+            if (accepted.Accepted) { inputLease = null; audioPin = null; slot = null; disk = null; }
+            return accepted;
         }
         catch (SnapshotContractException error)
         { return BackendOperationResult<JobResponse>.Rejected(new(error.Code == "SnapshotSizeExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
             "工程运行输入不满足当前导出合同。", "source", FailureCode: error.Code)); }
+        catch (EffectPackageException error)
+        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code is "PackageFileCapacityExceeded" or "PackageFileBudgetExceeded"
+            or "PackageFileCountExceeded" or "PackageContentBudgetExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
+            "工程效果包不满足导出合同。", "source", FailureCode: error.Code)); }
         catch (WorkerProtocolException error)
-        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code == "WorkerSnapshotBudgetExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.ExportInputRejected,
+        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code == "WorkerSnapshotBudgetExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.ExportAudioUnsupported,
             "固定运行输入或音频格式不满足导出合同。", "source", FailureCode: error.Code)); }
         catch (Exception error) when (error is ArgumentException or OverflowException or RenderSessionFailureException)
         { return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "导出固定来源、画布、帧率或时长超出边界。"); }
         catch (ResourceStoreException error)
         { return BackendOperationResult<JobResponse>.Rejected(new(error.Code, "导出来源资源不可用。", "source")); }
-        catch (IOException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         { return Reject<JobResponse>(BackendErrorCode.ExportInputRejected, "固定来源或受控候选存储不可用。"); }
         finally
         {
+            session.Writer.Release();
             try { inputLease?.Dispose(); }
-            finally { try { prepared?.Dispose(); } finally { try { audioPin?.Dispose(); } finally { try { slot?.Dispose(); } finally { disk?.Dispose(); } } } }
+            finally { try { audioPin?.Dispose(); } finally { try { slot?.Dispose(); } finally { disk?.Dispose(); } } }
         }
     }
 
@@ -352,7 +331,44 @@ public sealed partial class ProjectSessionRegistry
         try
         {
             await work.Slot!.WaitAsync(job.Cancellation).ConfigureAwait(false);
-            lock (_jobGate) { job.Cancellation.ThrowIfCancellationRequested(); job.SetState("running", true); }
+            CompositionFramePlan plan = ValidateExportPlan(work.Snapshot!, work.Format);
+            lock (_jobGate)
+            {
+                job.Cancellation.ThrowIfCancellationRequested();
+                job.SetState("running", true);
+                if (work.RuntimeInputLease is not null)
+                    job.ReportProgress(new("validating", 0, plan.TotalFrames));
+            }
+            if (Interlocked.Exchange(ref work.RuntimeInputLease, null) is { } lease)
+            {
+                BackendOperationResult<BackendPreparedProjectRuntimeInput> preparation;
+                try { preparation = await lease.PrepareAsync(job.Cancellation).ConfigureAwait(false); }
+                finally { lease.Dispose(); }
+                job.Cancellation.ThrowIfCancellationRequested();
+                if (!preparation.Accepted)
+                    throw new RenderSessionFailureException(
+                        preparation.Error?.FailureCode ?? preparation.Error?.Code.ToString() ?? "ProjectRuntimeSourceUnavailable",
+                        preparation.Error?.Message ?? "固定媒体运行输入准备失败。");
+                BackendPreparedProjectRuntimeInput prepared = preparation.Response!;
+                work.RuntimeInput = prepared;
+                if (prepared.SourceProfile != ProjectRuntimeInputCodec.Profile)
+                    throw new RenderSessionFailureException("ExportInputRejected", "媒体导出缺少固定授权闭包。");
+                if (work.AudioAsset is { } audio) VerifyFixedAudioSource(work.ClientId, audio, job.Cancellation);
+                work.Execution = new(work.Format, work.IncludeAudio, work.CandidatePath!, work.AudioGrant, work.Quality,
+                    _exportOptions!.ResourcePolicy(work.Disk!.MaximumMediaBytes, _exportTimeoutSeconds), prepared.SourceBytes);
+                try { work.Executor.ValidateInput(work.Snapshot!, work.Execution); }
+                catch (Exception error) when (error is WorkerProtocolException or SnapshotContractException or RenderSessionFailureException or ArgumentException)
+                {
+                    string code = error switch
+                    {
+                        WorkerProtocolException protocol => protocol.Code,
+                        SnapshotContractException contract => contract.Code,
+                        RenderSessionFailureException render => render.Code,
+                        _ => "ExportInputRejected",
+                    };
+                    throw new RenderSessionFailureException(code, "固定运行来源与实际任务封包不满足导出合同。", innerException: error);
+                }
+            }
             ExportReportDto report = await work.Executor.ExecuteAsync(work.Snapshot!, work.Execution!, new InlineValidationProgress(job), job.Cancellation).ConfigureAwait(false);
             string? backend = job.Read().Input?.RenderBackend;
             if (report.RenderBackend is not null && report.RenderBackend != backend)
@@ -360,7 +376,7 @@ public sealed partial class ProjectSessionRegistry
             report = report with { RenderBackend = backend };
             if (work.AudioAsset is { } capturedAudio) VerifyFixedAudioSource(work.ClientId, capturedAudio, job.Cancellation);
             work.ReleaseAudio();
-            var composition = work.Snapshot!.Composition; CompositionFramePlan plan = ValidateExportPlan(work.Snapshot, work.Format);
+            var composition = work.Snapshot!.Composition;
             WorkerExportReportExpectation expected = new(work.Format, work.IncludeAudio, composition.CanvasWidth, composition.CanvasHeight,
                 composition.FrameRate.Numerator, composition.FrameRate.Denominator, plan.TotalFrames, plan.VideoDurationUs, work.Execution!.Audio?.AudioProfile,
                 work.Execution.Quality, work.Execution.ResourcePolicy);
@@ -525,14 +541,19 @@ public sealed partial class ProjectSessionRegistry
 
     private sealed class ExportWork(ProjectSnapshot snapshot, string format, bool includeAudio, string clientId, StoredAsset? audioAsset,
         IDisposable? audio, BackendTaskScheduler.Reservation slot, BackendJobArtifactStore.Reservation disk, IBackendExportExecutor executor,
-        BackendPreparedProjectRuntimeInput? runtimeInput = null) : IDisposable
+        BackendPreparedProjectRuntimeInput? runtimeInput = null, BackendProjectRuntimeInputLease? runtimeInputLease = null,
+        BackendExportAudioGrant? audioGrant = null, string quality = "standard") : IDisposable
     {
         internal ProjectSnapshot? Snapshot = snapshot;
         internal BackendPreparedProjectRuntimeInput? RuntimeInput = runtimeInput;
+        internal BackendProjectRuntimeInputLease? RuntimeInputLease = runtimeInputLease;
         internal string Format { get; } = format;
         internal bool IncludeAudio { get; } = includeAudio;
         internal string ClientId { get; } = clientId;
         internal StoredAsset? AudioAsset { get; } = audioAsset;
+        internal BackendExportAudioGrant? AudioGrant { get; } = audioGrant;
+        internal string Quality { get; } = quality;
+        internal string? CandidatePath;
         internal BackendExportExecutionInput? Execution;
         internal BackendTaskScheduler.Reservation? Slot = slot;
         internal BackendJobArtifactStore.Reservation? Disk = disk;
@@ -543,8 +564,9 @@ public sealed partial class ProjectSessionRegistry
         {
             try { ReleaseAudio(); }
             finally { Snapshot = null; Execution = null;
-                try { Interlocked.Exchange(ref RuntimeInput, null)?.Dispose(); }
-                finally { try { Interlocked.Exchange(ref Slot, null)?.Dispose(); } finally { Interlocked.Exchange(ref Disk, null)?.Dispose(); } } }
+                try { Interlocked.Exchange(ref RuntimeInputLease, null)?.Dispose(); }
+                finally { try { Interlocked.Exchange(ref RuntimeInput, null)?.Dispose(); }
+                    finally { try { Interlocked.Exchange(ref Slot, null)?.Dispose(); } finally { Interlocked.Exchange(ref Disk, null)?.Dispose(); } } } }
         }
     }
 }

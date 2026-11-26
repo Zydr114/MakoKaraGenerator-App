@@ -17,10 +17,11 @@ public sealed class BackendRuntimeValidationJobTests
     {
         await using Fixture f = await Fixture.Create();
         int baseline = f.ReferenceCount;
+        string expectedSha = ProjectRuntimeInputCodec.ComputeFixedSourceSha256(ProjectSnapshot.FromProject(f.Session.Workspace.Project));
         JobResponse started = await f.Start();
         Call call = await f.Executor.Next();
         Assert.Equal(ProjectRuntimeInputCodec.Profile, started.Input!.SourceProfile);
-        Assert.Equal(WorkerProtocol.ComputeSha256(call.EncodedImage), started.Input.SourceSha256);
+        Assert.Equal(expectedSha, started.Input.SourceSha256);
         Assert.Equal([1, 2, 3], File.ReadAllBytes(call.MediaPath));
         Assert.Equal(baseline + 1, f.ReferenceCount);
         call.Release.TrySetResult(Pass());
@@ -73,11 +74,11 @@ public sealed class BackendRuntimeValidationJobTests
     [InlineData("close")]
     [InlineData("identity")]
     [InlineData("owner")]
-    public async Task 统一Runtime验证二次准入在读取期间发现会话变化时拒绝且无泄漏(string mutation)
+    public async Task 统一Runtime验证Writer准入发现会话变化时拒绝且无泄漏(string mutation)
     {
         await using Fixture f = await Fixture.Create();
-        (Task<BackendOperationResult<JobResponse>> pending, Task writerWaiter) = f.StartBehindCaptureGate();
-        await writerWaiter.WaitAsync(TimeSpan.FromSeconds(5));
+        await f.Session.Writer.WaitAsync();
+        Task<BackendOperationResult<JobResponse>> pending = Task.Run(f.StartOperation);
         try
         {
             switch (mutation)
@@ -112,6 +113,29 @@ public sealed class BackendRuntimeValidationJobTests
             f.Session.ClosePending = false;
             try { await pending.WaitAsync(TimeSpan.FromSeconds(5)); } catch { }
         }
+    }
+
+    [Fact]
+    public async Task 统一Runtime验证异步准备不阻塞202且支持准备期取消()
+    {
+        await using Fixture f = await Fixture.Create();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Session.PrepareBarrierForTests = async token =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+        };
+        BackendOperationResult<JobResponse> started = await f.StartOperation().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(started.Accepted, started.Error?.Message);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, f.Executor.Calls);
+        Assert.True(f.Registry.CancelJob("client", started.Response!.JobId).Accepted);
+        Assert.Equal("cancelled", (await f.Terminal(started.Response.JobId)).State);
+        Assert.Equal(0, f.Executor.Calls);
+        Assert.Equal(f.BaselineReferenceCount, f.ReferenceCount);
+        Assert.True(f.Session.DrainPinnedInputReadsAsync().IsCompleted);
+        f.AssertScheduler(0, 0);
     }
 
     [Fact]
@@ -300,20 +324,6 @@ public sealed class BackendRuntimeValidationJobTests
             BackendOperationResult<JobResponse> started = await StartOperation();
             Assert.True(started.Accepted, started.Error?.Message);
             return started.Response!;
-        }
-
-        internal (Task<BackendOperationResult<JobResponse>> Pending, Task Writer) StartBehindCaptureGate()
-        {
-            lock (ResourceGate)
-            {
-                // AcquireReference blocks while the first capture owns Writer and the image lease.
-                // Queue this waiter before returning that Writer; it must run before re-admission.
-                Task<BackendOperationResult<JobResponse>> pending = Task.Run(StartOperation);
-                Assert.True(SpinWait.SpinUntil(() => !Session.DrainPinnedInputReadsAsync().IsCompleted, TimeSpan.FromSeconds(5)));
-                Task writer = Session.Writer.WaitAsync();
-                Assert.False(writer.IsCompleted);
-                return (pending, writer);
-            }
         }
 
         private BackendTaskScheduler Scheduler =>

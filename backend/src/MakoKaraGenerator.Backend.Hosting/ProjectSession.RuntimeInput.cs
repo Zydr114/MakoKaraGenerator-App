@@ -121,6 +121,9 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
     /// <summary>作者草稿输入要求 Worker 会话执行图／材质逐像素检查；见 <see cref="BackendPreparedProjectRuntimeInput.GraphPixelChecks"/>。</summary>
     internal bool GraphPixelChecks { get; set; }
 
+    /// <summary>测试专用准备闸门：模拟异步媒体准备耗时与取消。</summary>
+    internal Func<CancellationToken, Task>? PrepareBarrierForTests { get; set; }
+
     /// <summary>
     /// 非最终消费者最多等待背景分析完成的时长；超时后按检查结果固定为分析中输入。
     /// 默认零（只等检查）；<see cref="WaitForMediaFeatures"/>为真时不限时等待。
@@ -165,6 +168,9 @@ public sealed class BackendProjectRuntimeInputLease : IDisposable
         string? temporary = null;
         try
         {
+            token.ThrowIfCancellationRequested();
+            if (PrepareBarrierForTests is { } barrier)
+                await barrier(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             bool externalPackages = ProjectRuntimeInputCodec.RequiresPackagePreparation(_snapshot);
             ProjectRuntimePackageGrant[] packageGrants = [];
@@ -269,6 +275,9 @@ public sealed partial class ProjectSession
     /// <summary>Registry-installed background media-feature analysis; never owned by this session.</summary>
     internal BackendMediaFeatureService? MediaFeatures { get; set; }
 
+    /// <summary>测试专用准备闸门，传递给新获取的运行时输入租约。</summary>
+    internal Func<CancellationToken, Task>? PrepareBarrierForTests { get; set; }
+
     // Only under Writer after owner/revision/close checks. No IO or Worker operation.
     internal BackendProjectRuntimeInputLease AcquireProjectRuntimeInput(ProjectSnapshot snapshot)
     {
@@ -280,7 +289,8 @@ public sealed partial class ProjectSession
         {
             if (assetPath) assetReference = _backgroundHistory[snapshot.Background.Path!].AcquireReference();
             return new(snapshot, assetPath ? Path.GetDirectoryName(snapshot.Background.Path) : PinnedInputDirectory,
-                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleasePinnedInputRead(); } }) { MediaFeatures = MediaFeatures };
+                assetPath, () => { try { assetReference?.Dispose(); } finally { ReleasePinnedInputRead(); } })
+            { MediaFeatures = MediaFeatures, PrepareBarrierForTests = PrepareBarrierForTests };
         }
         catch { ReleasePinnedInputRead(); throw; }
     }

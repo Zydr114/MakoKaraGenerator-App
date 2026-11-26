@@ -1,6 +1,7 @@
 using System.Globalization;
 using MakoKaraGenerator.Backend.Contracts;
 using MakoKaraGenerator.Backend.Rendering;
+using MakoKaraGenerator.Core.Effects;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Rendering;
 using MakoKaraGenerator.Runtime.Hosting.Authoring;
@@ -127,67 +128,76 @@ public sealed partial class ProjectSessionRegistry
         BackendPreparedProjectRuntimeInput? prepared = null;
         IDisposable? audio = null;
         BackendTaskScheduler.Reservation? reservation = null;
+        await session.Writer.WaitAsync().ConfigureAwait(false);
         try
         {
-            ProjectSnapshot snapshot;
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
-                if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
-                    return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
-                ValidateValidationPlan(snapshot, request.FramesPerOutput);
-                lease = session.AcquireProjectRuntimeInput(snapshot);
-                // 正式验证与导出一样等背景分析完成，不把分析中输入当作最终结果。
-                lease.WaitForMediaFeatures = true;
-                if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);
-                reservation = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
-                if (reservation is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "验证任务排队配额已满。");
-            }
-            finally { session.Writer.Release(); }
+            if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
+                return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
+            if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
+                return BackendOperationResult<JobResponse>.Rejected(mutation);
+            ProjectSnapshot snapshot = ProjectSnapshot.FromProject(session.Workspace.Project);
+            if (ScriptBackendError(snapshot, request.RenderBackend) is { } scriptBackendError)
+                return BackendOperationResult<JobResponse>.Rejected(scriptBackendError);
+            ValidateValidationPlan(snapshot, request.FramesPerOutput);
+            lease = session.AcquireProjectRuntimeInput(snapshot);
+            // 正式验证与导出一样等背景分析完成，不把分析中输入当作最终结果。
+            lease.WaitForMediaFeatures = true;
+            if (!string.IsNullOrEmpty(session.AudioAssetId)) audio = _resources.AcquireReference(clientId, session.AudioAssetId);
+            reservation = _taskScheduler!.TryReserve(clientId, session.ProjectSessionId);
+            if (reservation is null) return Reject<JobResponse>(BackendErrorCode.RequestQuotaExceeded, "验证任务排队配额已满。");
 
-            BackendOperationResult<BackendPreparedProjectRuntimeInput> captured = await lease.PrepareAsync().ConfigureAwait(false);
-            lease.Dispose(); lease = null;
-            if (!captured.Accepted) return BackendOperationResult<JobResponse>.Rejected(captured.Error!);
-            prepared = captured.Response!;
-            if (prepared.SourceBytes.Length > RuntimeValidationWorkerContract.MaximumInputBytes)
-                return Reject<JobResponse>(BackendErrorCode.ResourceTooLarge, "固定Runtime输入超过正式验证封包预算。");
-
-            await session.Writer.WaitAsync().ConfigureAwait(false);
-            try
+            string sourceProfile;
+            string sourceSha256;
+            BackendProjectRuntimeInputLease? asyncLease = null;
+            if (ProjectRuntimeInputCodec.RequiresPreparation(snapshot))
             {
-                if (!TryGet(clientId, session.ProjectSessionId, out ProjectSession current) || !ReferenceEquals(session, current))
-                    return Reject<JobResponse>(BackendErrorCode.SessionNotFound, "工程会话不存在。");
-                if (CheckPersistenceMutation(session, request.ExpectedRevision, allowReadOnly: true) is { } mutation)
-                    return BackendOperationResult<JobResponse>.Rejected(mutation);
-                PruneValidationReports();
-                BackendJobInputDto input = new("project", session.ProjectSessionId, request.ExpectedRevision, prepared.SourceProfile,
-                    WorkerProtocol.ComputeSha256(prepared.SourceBytes.Span), request.FramesPerOutput,
-                    snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, snapshot.Composition.FrameRate.Numerator,
-                    snapshot.Composition.FrameRate.Denominator, snapshot.Composition.OutputDurationUs!.Value.ToString(CultureInfo.InvariantCulture), RenderBackend: request.RenderBackend);
-                ValidationWork work = new(snapshot, prepared.SourceProfile, request.FramesPerOutput, audio, reservation, executor,
-                    runtimeInput: prepared, runtimeExecutor: runtimeExecutor);
-                BackendOperationResult<JobResponse> accepted = StartJob(clientId, "validation", session.ProjectSessionId,
-                    job => RunValidationAsync(work, job), input: input, failureMapper: ValidationFailure,
-                    cancelOnShutdown: true, deferRunning: true);
-                if (accepted.Accepted) { audio = null; reservation = null; prepared = null; }
-                return accepted;
+                // 含外部背景媒体或二进制包资源的验证：同步准入只核验并计算固定源身份，大文件复制与媒体分析等待移入异步任务。
+                sourceProfile = ProjectRuntimeInputCodec.Profile;
+                sourceSha256 = ProjectRuntimeInputCodec.ComputeFixedSourceSha256(snapshot);
+                asyncLease = lease;
             }
-            finally { session.Writer.Release(); }
+            else
+            {
+                // 纯色无外置资源工程准备完全在内存中完成，无磁盘 IO 与媒体分析等待。
+                BackendOperationResult<BackendPreparedProjectRuntimeInput> captured = await lease.PrepareAsync().ConfigureAwait(false);
+                lease.Dispose(); lease = null;
+                if (!captured.Accepted) return BackendOperationResult<JobResponse>.Rejected(captured.Error!);
+                prepared = captured.Response!;
+                if (prepared.SourceBytes.Length > RuntimeValidationWorkerContract.MaximumInputBytes)
+                    return Reject<JobResponse>(BackendErrorCode.ResourceTooLarge, "固定Runtime输入超过正式验证封包预算。");
+                sourceProfile = prepared.SourceProfile;
+                sourceSha256 = WorkerProtocol.ComputeSha256(prepared.SourceBytes.Span);
+            }
+
+            PruneValidationReports();
+            BackendJobInputDto input = new("project", session.ProjectSessionId, request.ExpectedRevision, sourceProfile,
+                sourceSha256, request.FramesPerOutput,
+                snapshot.Composition.CanvasWidth, snapshot.Composition.CanvasHeight, snapshot.Composition.FrameRate.Numerator,
+                snapshot.Composition.FrameRate.Denominator, snapshot.Composition.OutputDurationUs!.Value.ToString(CultureInfo.InvariantCulture), RenderBackend: request.RenderBackend);
+            ValidationWork work = new(snapshot, sourceProfile, request.FramesPerOutput, audio, reservation, executor,
+                runtimeInput: prepared, runtimeExecutor: runtimeExecutor) { RuntimeInputLease = asyncLease };
+            BackendOperationResult<JobResponse> accepted = StartJob(clientId, "validation", session.ProjectSessionId,
+                job => RunValidationAsync(work, job), input: input, failureMapper: ValidationFailure,
+                cancelOnShutdown: true, deferRunning: true);
+            if (accepted.Accepted) { lease = null; audio = null; reservation = null; prepared = null; }
+            return accepted;
         }
         catch (SnapshotContractException error)
         { return BackendOperationResult<JobResponse>.Rejected(new(error.Code == "SnapshotSizeExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
             "工程固定Runtime来源不满足正式验证合同。", "source", FailureCode: error.Code)); }
+        catch (EffectPackageException error)
+        { return BackendOperationResult<JobResponse>.Rejected(new(error.Code is "PackageFileCapacityExceeded" or "PackageFileBudgetExceeded"
+            or "PackageFileCountExceeded" or "PackageContentBudgetExceeded" ? BackendErrorCode.ResourceTooLarge : BackendErrorCode.CommandNotSupported,
+            "工程效果包不满足正式验证合同。", "source", FailureCode: error.Code)); }
         catch (Exception error) when (error is WorkerProtocolException or ArgumentException or OverflowException)
         { return Reject<JobResponse>(BackendErrorCode.InvalidRequest, "正式验证帧计划、尺寸或时长不合法。"); }
         catch (ResourceStoreException error)
         { return BackendOperationResult<JobResponse>.Rejected(new(error.Code, "验证来源资源不可用。", "source")); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { return Reject<JobResponse>(BackendErrorCode.InvalidRequest, "正式验证固定来源不可用。"); }
         finally
         {
+            session.Writer.Release();
             try { lease?.Dispose(); }
             finally { try { prepared?.Dispose(); } finally { try { audio?.Dispose(); } finally { reservation?.Dispose(); } } }
         }
@@ -214,6 +224,21 @@ public sealed partial class ProjectSessionRegistry
                 job.Cancellation.ThrowIfCancellationRequested();
                 job.SetState("running", true);
                 job.ReportProgress(new("validating", 0, checked(work.FramesPerOutput * 2)));
+            }
+            if (Interlocked.Exchange(ref work.RuntimeInputLease, null) is { } lease)
+            {
+                BackendOperationResult<BackendPreparedProjectRuntimeInput> captured;
+                try { captured = await lease.PrepareAsync(job.Cancellation).ConfigureAwait(false); }
+                finally { lease.Dispose(); }
+                job.Cancellation.ThrowIfCancellationRequested();
+                if (!captured.Accepted)
+                    throw new RenderSessionFailureException(
+                        captured.Error?.FailureCode ?? captured.Error?.Code.ToString() ?? "ProjectRuntimeSourceUnavailable",
+                        captured.Error?.Message ?? "固定Runtime运行输入准备失败。");
+                BackendPreparedProjectRuntimeInput prepared = captured.Response!;
+                work.RuntimeInput = prepared;
+                if (prepared.SourceBytes.Length > RuntimeValidationWorkerContract.MaximumInputBytes)
+                    throw new ValidationTaskException("SnapshotSizeExceeded", "固定Runtime输入超过正式验证封包预算。");
             }
             ValidationReportDto report = work.RuntimeInput is { } runtimeInput
                 ? await work.RuntimeExecutor!.ExecuteRuntimeAsync(runtimeInput.SourceBytes, work.FramesPerOutput,
@@ -358,6 +383,7 @@ public sealed partial class ProjectSessionRegistry
         internal BackendTaskScheduler.Reservation? Reservation = reservation;
         internal IBackendValidationExecutor Executor { get; } = executor;
         internal BackendPreparedProjectRuntimeInput? RuntimeInput = runtimeInput;
+        internal BackendProjectRuntimeInputLease? RuntimeInputLease;
         internal IBackendRuntimeValidationExecutor? RuntimeExecutor { get; } = runtimeExecutor;
         private IDisposable? _audio = audio;
         internal void ReleaseAudio() => Interlocked.Exchange(ref _audio, null)?.Dispose();
@@ -366,8 +392,12 @@ public sealed partial class ProjectSessionRegistry
             try { ReleaseAudio(); }
             finally
             {
-                try { Interlocked.Exchange(ref RuntimeInput, null)?.Dispose(); }
-                finally { Snapshot = null; Interlocked.Exchange(ref Reservation, null)?.Dispose(); }
+                try { Interlocked.Exchange(ref RuntimeInputLease, null)?.Dispose(); }
+                finally
+                {
+                    try { Interlocked.Exchange(ref RuntimeInput, null)?.Dispose(); }
+                    finally { Snapshot = null; Interlocked.Exchange(ref Reservation, null)?.Dispose(); }
+                }
             }
         }
     }

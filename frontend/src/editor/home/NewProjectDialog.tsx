@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Composition, TokenSplitRuleName } from '../../protocol';
 import { client } from '../connection';
 import { planReady, useLyricsPlan, type PlanChoices } from '../lyrics/LyricsPlanPanel';
-import { AUTO, LYRICS_FILE_ACCEPT, chosen, encodingChoices, formatChoices, needsFormatChoice } from '../model/lyrics-import';
+import { AUTO, LYRICS_FILE_ACCEPT, chosen, encodingChoices, formatChoices, needsFormatChoice, recommendedSplitRule } from '../model/lyrics-import';
 import { formatBytes } from '../model/media';
 import { AUDIO_FILE_ACCEPT, KIND_TEXT, defaultProjectName, newProjectKind } from '../model/new-project';
 import { CANVAS_OPTIONS, FPS_OPTIONS } from '../model/settings';
@@ -51,6 +51,7 @@ export function NewProjectDialog(props: { open: boolean; onClose: () => void; on
   const [fps, setFps] = useState<FpsValue>('30/1');
   const [split, setSplit] = useState<TokenSplitRuleName>('mixed');
   const [estimate, setEstimate] = useState(false);
+  const splitEdited = useRef(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lyrics = useLyricsPlan(lyricsFile, choices);
@@ -63,12 +64,20 @@ export function NewProjectDialog(props: { open: boolean; onClose: () => void; on
     setAudio(null);
     setLyricsFile(null);
     setName('');
+    setSplit('mixed');
+    setEstimate(false);
+    splitEdited.current = false;
     setError(null);
   }, [props.open]);
 
   const chooseLyrics = (file: File | null) => {
     setLyricsFile(file);
     setChoices(NO_CHOICES);
+    splitEdited.current = false;
+    if (!file) {
+      setSplit('mixed');
+      setEstimate(false);
+    }
   };
 
   const lyricsReady = !lyricsFile || planReady(lyrics);
@@ -77,6 +86,13 @@ export function NewProjectDialog(props: { open: boolean; onClose: () => void; on
   const plan = lyrics.plan;
   const showFormats = !!plan && needsFormatChoice(plan);
   const set = (patch: Partial<PlanChoices>) => setChoices({ ...choices, ...patch });
+
+  useEffect(() => {
+    if (!plan || splitEdited.current) return;
+    const next = recommendedSplitRule(plan);
+    setSplit(next);
+    if (next === 'none') setEstimate(false);
+  }, [plan]);
 
   const submit = async () => {
     if (step === 0) {
@@ -95,7 +111,7 @@ export function NewProjectDialog(props: { open: boolean; onClose: () => void; on
           lyrics: lyricsFile && lyrics.assetId ? { file: lyricsFile, assetId: lyrics.assetId, ...pick('importerId', chosen(choices.importer)), ...pick('encodingName', chosen(choices.encoding)) } : null,
           composition: comp,
           splitRule: SPLIT_RULES.find((rule) => rule.name === split)!.code,
-          estimateSplitTimes: estimate,
+          estimateSplitTimes: split === 'none' ? false : estimate,
         },
         setBusy,
       );
@@ -160,8 +176,26 @@ export function NewProjectDialog(props: { open: boolean; onClose: () => void; on
             <Select label="画布" value={canvas} options={CANVAS_OPTIONS} onChange={setCanvas} />
             <Select label="帧率" value={fps} options={FPS_OPTIONS} onChange={setFps} />
           </div>
-          {lyricsFile && <Select label="拆分歌词元素" value={split} options={SPLIT_OPTIONS} onChange={setSplit} />}
-          {lyricsFile && <Switch label="按字数估算逐字时间（结果标记为“估算”）" checked={estimate} onChange={setEstimate} />}
+          {lyricsFile && (
+            <Select
+              label="拆分歌词元素"
+              value={split}
+              options={SPLIT_OPTIONS}
+              onChange={(value) => {
+                splitEdited.current = true;
+                setSplit(value);
+                if (value === 'none') setEstimate(false);
+              }}
+            />
+          )}
+          {lyricsFile && (
+            <Switch
+              label="按字数估算逐字时间（结果标记为“估算”）"
+              checked={estimate}
+              disabled={split === 'none'}
+              onChange={setEstimate}
+            />
+          )}
         </div>
       )}
       {busy && (

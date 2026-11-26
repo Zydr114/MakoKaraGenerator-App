@@ -151,4 +151,42 @@ public sealed class TtmlImportEditTests
         Assert.Same(snapshot.Project, workspace.Project);
         Assert.Equal(0, workspace.History.UndoCount);
     }
+
+    [Fact]
+    public void All_sources_import_with_mixed_split_avoids_cross_branch_token_id_collision()
+    {
+        LyricLine primary = LyricLine.Create("line-0001", "景色", new(20_000_000, 25_000_000), TimingStatus.Edited,
+            [LyricToken.Create("token-1022", "景色", new(22_000_000, 24_000_000), TimingStatus.Edited)]);
+        LyricLine meta = LyricLine.Create("line-1000", "Imaginary Arcadia", new(0, 264_000_000), TimingStatus.Edited,
+        [
+            LyricToken.Create("token-1023", "Imaginary"),
+            LyricToken.Create("token-1024", " "),
+            LyricToken.Create("token-1025", "Arcadia"),
+        ]);
+        LyricsDocument source = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "主歌词", LyricBranchRole.Primary, [primary]),
+                LyricBranch.Create("meta", "Meta", LyricBranchRole.Custom, [meta], timingMode: LyricBranchTimingMode.FollowPrimary),
+            ],
+        };
+        using MemoryStream output = new();
+        new TtmlProjectExporter().Export(source, output, LyricsExportOptions.Default);
+
+        LyricsImportResult prepared = LyricsImportEditUseCase.Prepare(
+            new("arcadia.ttml", output.ToArray()),
+            new() { SplitRule = TokenSplitRule.Mixed });
+
+        ProjectWorkspace workspace = ProjectWorkspace.Adopt(Project.Create("目标"));
+        var baseline = new LyricsImportEditBaseline(workspace, workspace.Generation, null, ExpectedLyrics: workspace.Project.Lyrics);
+        PreparedLyricsImportEdit candidate = LyricsImportEditUseCase.PrepareImportAllCandidate(
+            LyricsImportEditUseCase.Capture(workspace), baseline, prepared);
+
+        Assert.True(candidate.Result.Accepted, candidate.Result.Error?.Detail);
+        Assert.Equal(3, candidate.Result.Project.Lyrics.Branches.Length);
+        var validation = MakoKaraGenerator.Core.Validation.ProjectValidator.Validate(candidate.Result.Project, MakoKaraGenerator.Core.Validation.ValidationContext.Open);
+        Assert.False(validation.HasErrors, validation.ToSummary());
+    }
 }

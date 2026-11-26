@@ -251,4 +251,74 @@ public sealed class TokenSplitTests
         Assert.Equal("token-0002", summary.Document.Lines[0].Tokens[1].Id);
         Assert.Equal(2, summary.Document.Lines[0].Tokens.Select(token => token.Id).Distinct(StringComparer.Ordinal).Count());
     }
+
+    [Fact]
+    public void 标识分配器扫描全部分支与全命名空间不与次分支或非元素标识冲突()
+    {
+        TimeRange range = TimeRange.Create(0L, 2_000_000L);
+        LyricLine primaryLine = LyricLine.Create(
+            "line-0001",
+            "景色",
+            range,
+            TimingStatus.Edited,
+            [LyricToken.Create("token-1022", "景色", range, TimingStatus.Edited)]) with
+        {
+            RubyAnnotations =
+            [
+                new RubyAnnotation
+                {
+                    Id = "token-1035",
+                    BaseTokenId = "token-1022",
+                    Text = "けしき",
+                    Segments = [RubyTextSegment.Create("token-1040", "けしき")],
+                },
+            ],
+        };
+        LyricLine metaLine = LyricLine.Create(
+            "token-1030",
+            "Imaginary Arcadia",
+            range,
+            TimingStatus.Edited,
+            [
+                LyricToken.Create("token-1023", "Imaginary"),
+                LyricToken.Create("token-1024", " "),
+                LyricToken.Create("token-1025", "Arcadia"),
+            ]);
+        LyricsDocument document = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "主歌词", LyricBranchRole.Primary, [primaryLine]),
+                LyricBranch.Create("token-1032", "Meta", LyricBranchRole.Custom, [metaLine], timingMode: LyricBranchTimingMode.FollowPrimary),
+            ],
+        };
+
+        Assert.Equal(1041, LyricsTokenIds.NextNumber(document));
+        Func<string> factory = LyricsTokenIds.CreateFactory(document);
+        Assert.Equal("token-1041", factory());
+        Assert.Equal("token-1042", factory());
+
+        LyricsTokenSplitSummary summary = LyricsDocumentTokenSplitter.Apply(document, TokenSplitRule.Mixed, estimateTimes: false);
+        Assert.Equal(["token-1022", "token-1041"], summary.Document.Lines[0].Tokens.Select(token => token.Id).ToArray());
+    }
+
+    [Fact]
+    public void 标识编号达到整型上限时拒绝溢出回绕()
+    {
+        LyricsDocument document = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "主歌词", LyricBranchRole.Primary, [LyricLine.Create("line-1", "甲")]),
+                LyricBranch.Create("secondary", "次分支", LyricBranchRole.Custom,
+                    [LyricLine.Create("line-2", "乙", tokens: [LyricToken.Create($"token-{int.MaxValue}", "乙")])]),
+            ],
+        };
+
+        Assert.Throws<OverflowException>(() => LyricsTokenIds.NextNumber(document));
+        Func<string> factory = LyricsTokenIds.CreateFactory(document);
+        Assert.Throws<OverflowException>(() => factory());
+    }
 }

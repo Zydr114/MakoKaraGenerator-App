@@ -41,8 +41,12 @@ public sealed partial class SkiaRenderPipeline
         }
     }
 
-    private static void InvalidateExactLayerRanges(ImageObjectState state, ColorLayer[] changed)
-        => state.ExactRanges.RemoveAll(range => range.Members.Any(member => changed.Any(layer => ReferenceEquals(member, layer))));
+    private static ClosedLayerRange[] InvalidateExactLayerRanges(ImageObjectState state, ColorLayer[] changed)
+    {
+        var invalidated = state.ExactRanges.Where(range => range.Members.Any(member => changed.Any(layer => ReferenceEquals(member, layer)))).ToArray();
+        if (invalidated.Length > 0) state.ExactRanges.RemoveAll(range => invalidated.Contains(range));
+        return invalidated;
+    }
 
     // A true child -> parent boundary copies both partial members and the complete
     // independent payload. Neither child History nor parent same-target History

@@ -63,7 +63,7 @@ public sealed partial class CompiledImageGraph : IDisposable
     /// <summary>执行完整图；输入借用，返回产物由调用者释放，取消不返回部分画面。可传共享帧账；null 时使用本编译图的固定会话账。</summary>
     public ImageGraphResult Execute(ImageGraphFrameContext frame, IReadOnlyDictionary<string, SkiaGraphInput> inputs, CancellationToken cancellationToken = default)
         => Execute(frame, inputs, null, cancellationToken);
-    /// <summary>使用宿主共享帧账执行完整图；输入借用和产物计费保留至结果释放。</summary>
+    /// <summary>使用宿主共享帧账执行完整图；执行期间借用全部输入，返回后仅对直接借用返回的输入和自有产物保留计费至结果释放。</summary>
     public ImageGraphResult Execute(ImageGraphFrameContext frame, IReadOnlyDictionary<string, SkiaGraphInput> inputs,
         ImageSurfaceBudgetFrame? surfaceBudget, CancellationToken cancellationToken = default)
     {
@@ -117,9 +117,24 @@ public sealed partial class CompiledImageGraph : IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 var final = surfaces[Plan.Definition.Output];
                 var coverage = Plan.Definition.CompositeCoverage is { } coverageRef ? surfaces[coverageRef] : null;
-                bool ownsFinal = owned.Remove(final), ownsCoverage = coverage != null && owned.Remove(coverage);
-                var result = new ImageGraphResult(Plan, final, coverage, ownsFinal, ownsCoverage, frame, [], peaks.Surfaces, peaks.Bytes, inputReservations, AcquireDeviceLease());
-                inputReservations = null; return result;
+                bool ownsFinal = owned.Contains(final), ownsCoverage = coverage is not null && owned.Contains(coverage);
+                ImageSurfaceReservations? retainedInputs = null;
+                if (!ownsFinal || coverage is not null && !ownsCoverage)
+                {
+                    List<SkiaGraphSurface> returned = [];
+                    if (!ownsFinal) returned.Add(final);
+                    if (coverage is not null && !ownsCoverage) returned.Add(coverage);
+                    retainedInputs = resources.BorrowInputs(returned);
+                }
+                try
+                {
+                    var lease = AcquireDeviceLease();
+                    if (ownsFinal) owned.Remove(final);
+                    if (ownsCoverage) owned.Remove(coverage!);
+                    var result = new ImageGraphResult(Plan, final, coverage, ownsFinal, ownsCoverage, frame, [], peaks.Surfaces, peaks.Bytes, retainedInputs, lease);
+                    retainedInputs = null; return result;
+                }
+                finally { retainedInputs?.Dispose(); }
             }
             finally { foreach (var surface in owned) surface.Dispose(); inputReservations?.Dispose(); }
         }

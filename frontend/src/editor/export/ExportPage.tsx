@@ -172,6 +172,7 @@ function withValue<K extends string, V>(key: K, value: V | undefined): { [P in K
 
 /** 正式验证在准备检查里的状态：验证的修订不是当前修订时算“旧的”。 */
 function validationStatus(exportState: ExportState, revision: string): ReadinessInput['validation'] {
+  if (exportState.submitting?.validation) return 'running';
   const track = exportState.validation;
   if (!track) return 'none';
   const { job } = track;
@@ -240,7 +241,8 @@ function ExportActions(props: {
 }) {
   const { store, exportState } = props;
   const track = exportState.exportJob;
-  const running = jobRunning(track);
+  const submitting = exportState.submitting?.export;
+  const running = jobRunning(track) || !!submitting;
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string>();
   const jobId = track?.job.jobId;
@@ -320,10 +322,17 @@ function ExportActions(props: {
       size="lg"
       icon="movie"
       className="export-start"
+      isPending={!!submitting}
       isDisabled={!canExport}
       onPress={() => void store.startExport(props.includeAudio)}
     >
-      {mode === 'retry' ? '重新导出' : '开始导出'}
+      {submitting === 'reconciling'
+        ? '正在核对导出状态……'
+        : submitting === 'submitting'
+          ? '正在提交导出……'
+          : mode === 'retry'
+            ? '重新导出'
+            : '开始导出'}
     </Button>
   );
 }

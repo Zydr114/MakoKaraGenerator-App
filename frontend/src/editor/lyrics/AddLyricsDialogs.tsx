@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ImportLyricsDestination, LyricsImportReport, TokenSplitRuleName } from '../../protocol';
 import { BRANCH_ROLE_TEXT } from '../model/branches';
-import { AUTO, LYRICS_FILE_ACCEPT, NEW_BRANCH_ROLES, chosen, fileStem, pastedLineCount, primaryImportBlock, type NewBranchRole } from '../model/lyrics-import';
+import { AUTO, LYRICS_FILE_ACCEPT, NEW_BRANCH_ROLES, chosen, fileStem, pastedLineCount, primaryImportBlock, recommendedSplitRule, type NewBranchRole } from '../model/lyrics-import';
 import { SPLIT_RULES } from '../model/split-rules';
 import { LyricsCheck } from '../home/FileCheck';
 import { type EditorSession, type EditorState } from '../session/editor-session';
@@ -50,6 +50,7 @@ export function ImportLyricsDialog(props: {
   const [role, setRole] = useState<NewBranchRole>('translation');
   const [split, setSplit] = useState<TokenSplitRuleName>('mixed');
   const [estimate, setEstimate] = useState(false);
+  const splitEdited = useRef(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const lyrics = useLyricsPlan(props.open ? file : null, choices);
@@ -62,16 +63,30 @@ export function ImportLyricsDialog(props: {
     setTarget(session.state.branchId);
     setName('');
     nameEdited.current = false;
+    setSplit('mixed');
+    setEstimate(false);
+    splitEdited.current = false;
     setError(undefined);
-    // 只在打开时取当前来源；拆分规则与估算沿用上次的选择。
   }, [props.open, session]);
 
   const chooseFile = (next: File | null) => {
     setFile(next);
     setChoices(NO_CHOICES);
+    splitEdited.current = false;
+    if (!next) {
+      setSplit('mixed');
+      setEstimate(false);
+    }
     setError(undefined);
     if (next && !nameEdited.current) setName(fileStem(next.name));
   };
+
+  useEffect(() => {
+    if (!plan || splitEdited.current) return;
+    const next = recommendedSplitRule(plan);
+    setSplit(next);
+    if (next === 'none') setEstimate(false);
+  }, [plan]);
 
   // 多来源文件：新来源的名称和角色默认跟所选来源一致。
   const source = plan && plan.sourceBranches.length > 1 ? plan.sourceBranches.find((b) => b.id === plan.selectedSourceBranchId) : undefined;
@@ -118,7 +133,7 @@ export function ImportLyricsDialog(props: {
           importerId: chosen(choices.importer) ?? null,
           encodingName: chosen(choices.encoding) ?? null,
           splitRule: split,
-          estimateSplitTimes: estimate,
+          estimateSplitTimes: split === 'none' ? false : estimate,
           ...(!allSources && source ? { sourceBranchId: source.id } : {}),
         },
       });
@@ -217,7 +232,17 @@ export function ImportLyricsDialog(props: {
           {blocked}
         </p>
       )}
-      <Select label="拆分文本单元" value={split} options={SPLIT_RULES.map((r) => ({ value: r.name, label: r.label }))} disabled={!!progress} onChange={setSplit} />
+      <Select
+        label="拆分文本单元"
+        value={split}
+        options={SPLIT_RULES.map((r) => ({ value: r.name, label: r.label }))}
+        disabled={!!progress}
+        onChange={(value) => {
+          splitEdited.current = true;
+          setSplit(value);
+          if (value === 'none') setEstimate(false);
+        }}
+      />
       <Switch label="按字数估算新单元的时间（结果标记为“估算”）" checked={estimate} disabled={!!progress || split === 'none'} onChange={setEstimate} />
       {progress && (
         <div className="busyline">

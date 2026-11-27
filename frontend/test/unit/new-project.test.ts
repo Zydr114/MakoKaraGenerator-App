@@ -14,6 +14,7 @@ import {
   planSummary,
   previewRows,
   primaryImportBlock,
+  recommendedSplitRule,
   sourceChoices,
 } from '../../src/editor/model/lyrics-import';
 import { audioFormatName, audioProbeText, defaultProjectName, newProjectKind, wavFormat, waveBars } from '../../src/editor/model/new-project';
@@ -212,6 +213,45 @@ describe('导入文件的识别结果（W6 设计 §2.3）', () => {
       { issues: [{ kind: 'malformedTag', severity: 'error', sourceLineNumber: 0, rawText: '', message: 'TTML 无法安全映射：根元素必须为 TTML tt。' }] },
     );
     expect(planErrorText(broken)).toBe('文件解析失败：TTML 无法安全映射：根元素必须为 TTML tt。');
+  });
+
+  it('工程 TTML 及已含逐字时间或注音的文件默认不拆分，其余默认混合拆分', () => {
+    expect(recommendedSplitRule(undefined)).toBe('mixed');
+    expect(
+      recommendedSplitRule(
+        plan({ preparationError: { code: 'emptyLyrics', message: 'x', protocolVersion: '1', failureCode: 'EmptyImport' } }),
+      ),
+    ).toBe('mixed');
+    // 仅行级时间且无注音的普通 LRC / 纯文本默认混合拆分。
+    expect(recommendedSplitRule(plan({}, { sourceFormat: '普通 LRC', timedTokenCount: 0 }))).toBe('mixed');
+    expect(recommendedSplitRule(plan({ previewLines: [line('l1', '夜空')] }, { sourceFormat: 'TTML2 media 时间树 [ttml2-media]', timedTokenCount: 0 }))).toBe('mixed');
+    // ttml.project 即使尚未打逐字时间、也没有注音，也默认保持原有粒度不拆分。
+    expect(
+      recommendedSplitRule(
+        plan(
+          { previewLines: [line('l1', '景色')] },
+          { sourceFormat: 'TTML2 media 时间树／AMLL absolute／ttml.project v1 [ttml.project-v1/ttml2-media]', timedTokenCount: 0 },
+        ),
+      ),
+    ).toBe('none');
+    // 已含逐字时间的增强 LRC / TTML 等默认保持原有粒度不拆分。
+    expect(recommendedSplitRule(plan({}, { sourceFormat: '增强 LRC', timedTokenCount: 12 }))).toBe('none');
+    // 未打逐字时间但已有注音的文件默认保持原有粒度不拆分，避免拆断注音基础元素。
+    expect(
+      recommendedSplitRule(
+        plan(
+          {
+            previewLines: [
+              line('l1', '景色', {
+                tokens: [token('t1', '景色', false)],
+                rubyAnnotations: [{ id: 'r1', baseTokenId: 't1', text: 'けしき', relativeScale: 0.5, gapPx: 2, alignment: 'center', segments: [{ id: 's1', text: 'けしき', time: {}, timingStatus: 'missing' }] }],
+              }),
+            ],
+          },
+          { sourceFormat: 'TTML2 media 时间树 [ttml2-media]', timedTokenCount: 0 },
+        ),
+      ),
+    ).toBe('none');
   });
 });
 

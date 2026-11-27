@@ -2,9 +2,12 @@ using System.Collections.Immutable;
 using System.Text;
 using MakoKaraGenerator.Application.Editing;
 using MakoKaraGenerator.Core.Lyrics;
+using MakoKaraGenerator.Core.Lyrics.Export;
 using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
+using MakoKaraGenerator.Core.Validation;
 using MakoKaraGenerator.Media;
+using MakoKaraGenerator.Rendering;
 
 namespace MakoKaraGenerator.Backend.Hosting.Tests;
 
@@ -30,6 +33,81 @@ public sealed class NewProjectPreparationTests
         Assert.False(Core.Validation.PresentationValidator.Validate(project).HasErrors);
         Assert.Equal("甲 乙", project.Lyrics.Lines.Single().Text);
         Assert.Null(project.Lyrics.Lines.Single().Tokens[1].Time);
+    }
+
+    [Fact]
+    public async Task 多分支工程TTML启用混合拆分新建后无撞号且固定运行输入可准备()
+    {
+        TimeRange lineTime = new(20_000_000, 25_000_000);
+        TimeRange tokenTime = new(22_000_000, 24_000_000);
+        LyricToken compound = LyricToken.Create("token-1022", "景色", tokenTime, TimingStatus.Edited);
+        RubyAnnotation ruby = new()
+        {
+            Id = "ruby-1",
+            BaseTokenId = compound.Id,
+            Text = "けしき",
+            RelativeScale = 0.5,
+            GapPx = 2,
+            Alignment = RubyAlignment.Center,
+            Segments = [RubyTextSegment.Create("ruby-segment-1", "けしき", tokenTime, TimingStatus.Edited)],
+        };
+        LyricLine main = LyricLine.Create("line-0001", "景色", lineTime, TimingStatus.Edited, [compound]) with
+        {
+            RubyAnnotations = [ruby],
+        };
+        LyricLine meta = LyricLine.Create("line-1000", "Imaginary Arcadia", new(0, 264_000_000), TimingStatus.Edited,
+        [
+            LyricToken.Create("token-1023", "Imaginary"),
+            LyricToken.Create("token-1024", " "),
+            LyricToken.Create("token-1025", "Arcadia"),
+        ]);
+        LyricsDocument source = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "主歌词", LyricBranchRole.Primary, [main]),
+                LyricBranch.Create("meta", "Meta", LyricBranchRole.Custom, [meta], timingMode: LyricBranchTimingMode.FollowPrimary),
+            ],
+        };
+        using MemoryStream output = new();
+        new TtmlProjectExporter().Export(source, output, LyricsExportOptions.Default);
+
+        var request = Request() with
+        {
+            LyricsSource = new("arcadia.ttml", output.ToArray()),
+            LyricsOptions = new() { SplitRule = TokenSplitRule.Mixed },
+        };
+
+        NewProjectPreparationResult result = await Service().PrepareAsync(request);
+
+        Assert.True(result.Accepted, result.Error?.Detail);
+        Project project = result.Candidate!.Project;
+        Assert.False(ProjectValidator.Validate(project, ValidationContext.Open).HasErrors);
+        using BackendProjectRuntimeInputLease lease = BackendProjectRuntimeInputLease.CreateDetached(ProjectSnapshot.FromProject(project));
+        BackendOperationResult<BackendPreparedProjectRuntimeInput> prepared = await lease.PrepareAsync();
+        Assert.True(prepared.Accepted, prepared.Error?.Message);
+        prepared.Response!.Dispose();
+    }
+
+    [Fact]
+    public async Task 导入结果含领域校验错误时新建阶段直接拒绝()
+    {
+        LyricToken token = LyricToken.Create("token-1", "字", new TimeRange(-2, -3), TimingStatus.Invalid);
+        LyricLine line = LyricLine.Create("line-1", "字", new TimeRange(0, 1_000_000), TimingStatus.Edited, [token]);
+        using MemoryStream output = new();
+        new TtmlProjectExporter().Export(LyricsDocument.Create([line]), output, LyricsExportOptions.Default);
+
+        var request = Request() with
+        {
+            LyricsSource = new("invalid-time.ttml", output.ToArray()),
+            LyricsOptions = new() { SplitRule = TokenSplitRule.None },
+        };
+
+        NewProjectPreparationResult result = await Service().PrepareAsync(request);
+
+        AssertRejected(result, NewProjectPreparationErrorCode.LyricsImportFailed, nameof(NewProjectPreparationRequest.LyricsSource));
+        Assert.False(string.IsNullOrWhiteSpace(result.Error!.Detail));
     }
 
     [Fact]

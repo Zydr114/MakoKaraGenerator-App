@@ -106,10 +106,13 @@ public sealed class NewProjectPreparationService
         }
 
         Project project = Project.Create(name, composition, document);
-        var presentation = PresentationValidator.Validate(project);
-        if (presentation.HasErrors)
-            return new(Error: new(NewProjectPreparationErrorCode.LyricsImportFailed, nameof(NewProjectPreparationRequest.LyricsSource), presentation.ToSummary()));
         if (audioPath is not null) project = ProjectMediaEditor.SetAudioPath(project, audioPath);
+        var validation = ProjectValidator.Validate(project, ValidationContext.Open);
+        if (validation.HasErrors)
+            return new(Error: new(
+                lyricsSource is not null ? NewProjectPreparationErrorCode.LyricsImportFailed : NewProjectPreparationErrorCode.InvalidRequest,
+                lyricsSource is not null ? nameof(NewProjectPreparationRequest.LyricsSource) : nameof(NewProjectPreparationRequest.Composition),
+                validation.ToSummary()));
         cancellationToken.ThrowIfCancellationRequested();
         return new(project, loaded, report);
     }

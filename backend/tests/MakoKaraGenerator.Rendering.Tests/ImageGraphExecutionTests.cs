@@ -262,7 +262,7 @@ public sealed class ImageGraphExecutionTests
         using var a = graph.Execute(Frame(), Inputs(("target", target, GraphInputSource.TargetColor)), shared);
         using var b = graph.Execute(Frame(), Inputs(("target", target, GraphInputSource.TargetColor)), shared);
         Assert.Equal(3, a.PeakSurfaces); Assert.Equal(3072, a.PeakBytes); Assert.Equal(Bytes(a.Output), Bytes(b.Output));
-        Assert.Equal(4, shared.Usage.PeakSurfaces); Assert.Equal(4096, budget.Usage.PeakBytes); Assert.Equal(3, budget.Usage.ActiveSurfaces);
+        Assert.Equal(4, shared.Usage.PeakSurfaces); Assert.Equal(4096, budget.Usage.PeakBytes); Assert.Equal(2, budget.Usage.ActiveSurfaces);
         graph.Dispose(); Assert.Equal(SKColors.Red, Pixel(a.Output, 8, 8)); Assert.Equal(SKColors.Red, Pixel(target.Value, 8, 8));
     }
 

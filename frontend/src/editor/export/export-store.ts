@@ -2,7 +2,7 @@
 // 正式验证与导出任务各一个（进度、取消、终态后的报告与诊断、成片下载）。
 // 不依赖 React。每个工程一个，由 App 持有；离开导出页时任务不停，回来仍能看到。
 
-import { BackendError, ObservableValue, type MakoClient } from '../../client';
+import { BackendError, ObservableValue, OutcomeUnknownError, type MakoClient } from '../../client';
 import {
   EXPORT_QUALITIES,
   isExportFailureReport,
@@ -20,12 +20,14 @@ import {
   type ValidationReport,
 } from '../../protocol';
 import { FOLLOW_DEFAULT, renderBackendField, type RenderBackendRequest } from '../model/render-device';
-import { failureText, isTerminal } from '../model/render-job';
+import { failureText, isTerminal, jobFailureText } from '../model/render-job';
 import { toMicros } from '../model/time';
 import { renderBackendErrorText } from '../preview/render-device';
 import { errorText, type EditorSession } from '../session/editor-session';
 
 export type RenderKind = 'validation' | 'export';
+
+export type SubmitPhase = 'submitting' | 'reconciling';
 
 export interface JobTrack {
   kind: RenderKind;
@@ -65,6 +67,8 @@ export interface ExportState {
   validationFrames?: number;
   validation?: JobTrack;
   exportJob?: JobTrack;
+  /** 正在提交请求，或在结果未知后向后端核对权威状态。 */
+  submitting?: Partial<Record<RenderKind, SubmitPhase>> | undefined;
   /** 发起任务时就被拒绝（例如 422）。 */
   submitError?: { kind: RenderKind; text: string } | undefined;
 }
@@ -159,26 +163,26 @@ export class ExportStore {
     this.thumbnailAbort = abort;
     const previous = this.state.thumbnails;
     this.patch({ thumbnails: { ...(previous?.first ? { first: previous.first } : {}), ...(previous?.last ? { last: previous.last } : {}), key, loading: true } });
-    const still = (timeUs: number) =>
-      this.client.preview.renderStill({
+    void this.client.preview
+      .renderStills({
         projectSessionId: this.session.projectSessionId,
         sourceRevision: revision,
-        timeUs: toMicros(timeUs),
+        timesUs: [toMicros(0), toMicros(lastFrameUs)],
         size,
         ...backend,
         signal: abort.signal,
-      });
-    void Promise.all([still(0), still(lastFrameUs)]).then(
-      ([first, last]) => {
-        if (abort.signal.aborted) return;
-        this.revokeThumbnails(this.state.thumbnails);
-        this.patch({ thumbnails: { key, first: URL.createObjectURL(first.blob), last: URL.createObjectURL(last.blob), loading: false } });
-      },
-      (error: unknown) => {
-        if (abort.signal.aborted) return;
-        this.patch({ thumbnails: { ...this.state.thumbnails!, loading: false, error: `缩略图没有渲染出来：${errorText(error)}` } });
-      },
-    );
+      })
+      .then(
+        ([first, last]) => {
+          if (abort.signal.aborted || !first || !last) return;
+          this.revokeThumbnails(this.state.thumbnails);
+          this.patch({ thumbnails: { key, first: URL.createObjectURL(first.blob), last: URL.createObjectURL(last.blob), loading: false } });
+        },
+        (error: unknown) => {
+          if (abort.signal.aborted) return;
+          this.patch({ thumbnails: { ...this.state.thumbnails!, loading: false, error: `缩略图没有渲染出来：${errorText(error)}` } });
+        },
+      );
   }
 
   private revokeThumbnails(thumbnails: Thumbnails | undefined): void {
@@ -188,7 +192,12 @@ export class ExportStore {
 
   // ── 正式验证与导出任务 ──
 
+  submitting(kind: RenderKind): SubmitPhase | undefined {
+    return this.state.submitting?.[kind];
+  }
+
   running(kind: RenderKind): boolean {
+    if (this.submitting(kind)) return true;
     const track = kind === 'validation' ? this.state.validation : this.state.exportJob;
     return !!track && (!isTerminal(track.job.state) || !track.settled);
   }
@@ -204,20 +213,72 @@ export class ExportStore {
     );
   }
 
+  private setSubmitting(kind: RenderKind, phase: SubmitPhase | undefined): void {
+    const next: Partial<Record<RenderKind, SubmitPhase>> = { ...this.state.submitting };
+    if (phase) next[kind] = phase;
+    else delete next[kind];
+    this.patch({ submitting: Object.keys(next).length > 0 ? next : undefined });
+  }
+
   private async start(kind: RenderKind, create: () => Promise<JobResponse>): Promise<void> {
     if (this.running(kind)) return;
-    this.patch({ submitError: undefined });
-    let job: JobResponse;
+    this.setSubmitting(kind, 'submitting');
+    if (this.state.submitError?.kind === kind) this.patch({ submitError: undefined });
+    let job: JobResponse | undefined;
     try {
       job = await create();
     } catch (error) {
-      const code = error instanceof BackendError ? (error.code ?? undefined) : undefined;
-      const device = renderBackendErrorText(error);
-      this.patch({ submitError: { kind, text: device ? `${device}。可以在顶栏改用别的渲染设备后重新开始。` : failureText(code, errorText(error)) } });
-      return;
+      if (this.abort.signal.aborted) return;
+      if (error instanceof OutcomeUnknownError) {
+        job = await this.reconcileSubmittedJob(kind);
+        if (this.abort.signal.aborted) return;
+        if (!job) {
+          this.setSubmitting(kind, undefined);
+          return;
+        }
+      } else {
+        this.setSubmitting(kind, undefined);
+        const code = error instanceof BackendError ? (error.failureCode ?? error.code ?? undefined) : undefined;
+        const device = renderBackendErrorText(error);
+        this.patch({ submitError: { kind, text: device ? `${device}。可以在顶栏改用别的渲染设备后重新开始。` : failureText(code, errorText(error)) } });
+        return;
+      }
     }
+    this.setSubmitting(kind, undefined);
+    if (this.abort.signal.aborted) return;
     this.setTrack(kind, { kind, job, cancelling: false, settled: false });
     await this.watch(kind, job.jobId);
+  }
+
+  /** 提交结果未知时重新读取权威 client state：若后端已创建并运行同类任务则自动接管跟踪，否则提示可安全重试。 */
+  private async reconcileSubmittedJob(kind: RenderKind): Promise<JobResponse | undefined> {
+    this.setSubmitting(kind, 'reconciling');
+    try {
+      const state = await this.client.clientState();
+      if (this.abort.signal.aborted) return undefined;
+      const active = (state.jobs ?? []).find(
+        (item) => item.kind === kind && item.projectSessionId === this.session.projectSessionId && !isTerminal(item.state),
+      );
+      if (active) {
+        return await this.client.jobs.get(active.jobId, this.abort.signal);
+      }
+      this.patch({
+        submitError: {
+          kind,
+          text: '提交请求的结果未知，已向后端核对权威状态：当前没有进行中的任务，可以安全重试。',
+        },
+      });
+      return undefined;
+    } catch (reconcileError) {
+      if (this.abort.signal.aborted) return undefined;
+      this.patch({
+        submitError: {
+          kind,
+          text: `提交请求的结果未知，且核对后端权威状态失败：${errorText(reconcileError)}。请确认后端状态后再决定是否重试。`,
+        },
+      });
+      return undefined;
+    }
   }
 
   private track(kind: RenderKind): JobTrack | undefined {
@@ -327,8 +388,7 @@ function mergeJob(job: JobResponse, current: JobResponse | JobSummary): JobRespo
 function terminalText(job: JobResponse, failureCode?: string): string {
   if (job.state === 'cancelled') return '已取消。';
   if (job.state === 'unknown') return '结果未知：后端没能确认这个任务的结果。';
-  const code = failureCode ?? job.failureCode ?? job.error?.failureCode ?? job.error?.code;
-  return failureText(code, job.error?.message);
+  return jobFailureText(job, failureCode);
 }
 
 export type { BackendDiagnostic };

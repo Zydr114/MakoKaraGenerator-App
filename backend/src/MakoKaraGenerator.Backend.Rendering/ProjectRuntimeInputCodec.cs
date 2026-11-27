@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MakoKaraGenerator.Backend.Contracts;
@@ -41,6 +43,42 @@ public static class ProjectRuntimeInputCodec
     /// <summary>固定包图片、视频与字体沿原包闭包授权，避免将资源base64挤入消息预算。</summary>
     public static bool RequiresPackagePreparation(ProjectSnapshot snapshot)
         => snapshot.Effects.Packages.Any(package => package.Files.Any(file => file.Role is "font" or "image" or "video"));
+
+    /// <summary>
+    /// 在不执行任何磁盘复制或媒体特征等待的前提下，计算固定运行时工程源的确定性 SHA-256 身份并核验基础快照预算。
+    /// 供导出／正式验证在异步准备前登记任务唯一来源身份使用。
+    /// </summary>
+    public static string ComputeFixedSourceSha256(ProjectSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.EffectInputsFingerprint != Fingerprint(snapshot)) throw FingerprintInvalid();
+        var basis = snapshot with { Background = BackgroundSource.Color, MediaFeatureInput = null };
+        basis = basis with { EffectInputsFingerprint = Fingerprint(basis) };
+        string baseProfile = ProjectSnapshotSourceProfile.Select(basis);
+        bool externalPackages = RequiresPackagePreparation(snapshot);
+        byte[] source = externalPackages
+            ? StaticProjectSnapshotCodec.EncodeCore(basis, baseProfile, true, !basis.PresetApplications.Items.IsEmpty, externalPackages: true)
+            : ProjectSnapshotSourceProfile.Encode(basis);
+        if (source.Length + 8 > MaximumBytes) throw Size();
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData("makokara-runtime-source-v1\0"u8);
+        hash.AppendData(Encoding.UTF8.GetBytes(StaticProjectSnapshotCodec.EngineIdentity));
+        hash.AppendData("\0"u8);
+        hash.AppendData(Encoding.UTF8.GetBytes(baseProfile));
+        hash.AppendData("\0"u8);
+        hash.AppendData(source);
+        if (snapshot.Background.Kind != BackgroundKind.Color)
+        {
+            if (snapshot.Background.Media is not { } media) throw Invalid();
+            hash.AppendData(Encoding.UTF8.GetBytes(
+                $"\0bg:{snapshot.Background.Kind}:{snapshot.Background.Fit}:{snapshot.Background.Playback}:{media.Hash}:{media.ByteLength}:{media.OriginalName}:{media.RelativePath}"));
+        }
+        if (snapshot.EffectInputsFingerprint is { } fingerprint)
+            hash.AppendData(Encoding.UTF8.GetBytes("\0fp:" + fingerprint));
+        foreach (var package in snapshot.Effects.Packages)
+            hash.AppendData(Encoding.UTF8.GetBytes($"\0pkg:{package.PackageId}:{package.Revision}"));
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
 
     /// <summary>媒体字节通过固定 grant 读取，领域 snapshot 原字节直接内嵌，避免 base64 放大。</summary>
     /// <param name="snapshot">完整固定源；其媒体特征输入随私有授权传输。</param>

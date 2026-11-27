@@ -171,11 +171,33 @@ public sealed class ImageSurfaceBudgetTests
         using var alias = SkiaGraphSurface.Borrow(capture.Image, capture.Descriptor, capture.Kind); using var graph = Graph(glass: transparent, aliases: !transparent);
         var inputs = Inputs(capture); if (!transparent) inputs.Add("alias", new(alias, GraphInputSource.TargetColor));
         using var result = graph.Execute(Context(capture, transparent), inputs, secondFrame);
-        Assert.Equal(1, firstFrame.Usage.ActiveSurfaces); Assert.Equal(transparent ? 1 : 2, secondFrame.Usage.ActiveSurfaces);
+        Assert.Equal(1, firstFrame.Usage.ActiveSurfaces);
+        Assert.Equal(transparent ? 1 : 2, secondFrame.Usage.PeakSurfaces);
+        Assert.Equal(1, secondFrame.Usage.ActiveSurfaces);
         Assert.Equal(PixelBytes * (transparent ? 1 : 2), budget.Usage.EstimatedBytes);
         if (transparent) { Assert.Same(capture, result.Output); Assert.Single(result.Diagnostics); }
         result.Dispose(); Assert.Equal(0, secondFrame.Usage.ActiveSurfaces); Assert.Equal(PixelBytes, budget.Usage.EstimatedBytes);
         capture.Dispose(); Empty(budget);
+    }
+
+    [Fact]
+    public void 非借用返回产物执行后释放输入预留使调用方可立即回收临时输入()
+    {
+        using ImageSurfaceBudgetSession budget = new(new() { MaximumSurfaces = 2, MaximumBytes = PixelBytes * 2 });
+        using var frame = budget.BeginFrame();
+        using SkiaRenderPipeline renderer = new(surfaceBudget: budget);
+        using var graph = Graph();
+        var capture = Capture(renderer, Request(Snapshot()), frame);
+        using var result = graph.Execute(Context(capture), Inputs(capture), frame);
+        byte[] expected = Bytes(result.Output);
+        Assert.Equal(2, frame.Usage.ActiveSurfaces); Assert.Equal(PixelBytes * 2, budget.Usage.EstimatedBytes);
+        capture.Dispose();
+        Assert.Equal(1, frame.Usage.ActiveSurfaces); Assert.Equal(PixelBytes, budget.Usage.EstimatedBytes);
+        // 再次分配并执行（复现连续释放后复用预算与潜在原生句柄复用场景）
+        using var nextCapture = Capture(renderer, Request(Snapshot()), frame);
+        Assert.Equal(2, frame.Usage.ActiveSurfaces); Assert.Equal(PixelBytes * 2, budget.Usage.EstimatedBytes);
+        Assert.Equal(expected, Bytes(result.Output));
+        nextCapture.Dispose(); result.Dispose(); Empty(budget);
     }
 
     [Fact]

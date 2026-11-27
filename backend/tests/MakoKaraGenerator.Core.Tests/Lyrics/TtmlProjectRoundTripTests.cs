@@ -4,7 +4,9 @@ using MakoKaraGenerator.Core.Diagnostics;
 using MakoKaraGenerator.Core.Lyrics;
 using MakoKaraGenerator.Core.Lyrics.Export;
 using MakoKaraGenerator.Core.Lyrics.Import;
+using MakoKaraGenerator.Core.Projects;
 using MakoKaraGenerator.Core.Time;
+using MakoKaraGenerator.Core.Validation;
 
 namespace MakoKaraGenerator.Core.Tests.Lyrics;
 
@@ -41,6 +43,58 @@ public sealed class TtmlProjectRoundTripTests
         Assert.Equal(main.Id, result.Document.Branches[1].Lines[0].PrimaryLineId);
         string[] ids = [.. result.Document.EnumerateTokens().Select(pair => pair.Token.Id)];
         Assert.Equal(4, ids.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void Multi_branch_project_ttml_split_never_collides_with_secondary_branch_token_ids()
+    {
+        TimeRange lineTime = new(20_000_000, 25_000_000);
+        TimeRange tokenTime = new(22_000_000, 24_000_000);
+        LyricToken compound = LyricToken.Create("token-1022", "景色", tokenTime, TimingStatus.Edited);
+        RubyAnnotation ruby = new()
+        {
+            Id = "ruby-1",
+            BaseTokenId = compound.Id,
+            Text = "けしき",
+            RelativeScale = 0.5,
+            GapPx = 2,
+            Alignment = RubyAlignment.Center,
+            Segments = [RubyTextSegment.Create("ruby-segment-1", "けしき", tokenTime, TimingStatus.Edited)],
+        };
+        LyricLine main = LyricLine.Create("line-0001", "景色", lineTime, TimingStatus.Edited, [compound]) with
+        {
+            RubyAnnotations = [ruby],
+        };
+        LyricLine meta = LyricLine.Create("line-1000", "Imaginary Arcadia", new(0, 264_000_000), TimingStatus.Edited,
+        [
+            LyricToken.Create("token-1023", "Imaginary"),
+            LyricToken.Create("token-1024", " "),
+            LyricToken.Create("token-1025", "Arcadia"),
+        ]);
+        LyricsDocument source = new()
+        {
+            PrimaryBranchId = "primary",
+            Branches =
+            [
+                LyricBranch.Create("primary", "主歌词", LyricBranchRole.Primary, [main]),
+                LyricBranch.Create("meta", "Meta", LyricBranchRole.Custom, [meta], timingMode: LyricBranchTimingMode.FollowPrimary),
+            ],
+        };
+        using MemoryStream output = new();
+        new TtmlProjectExporter().Export(source, output, LyricsExportOptions.Default);
+        output.Position = 0;
+
+        LyricsImportResult result = LyricsImporterRegistry.CreateDefault().Import(output,
+            new() { FileName = "arcadia.ttml", SplitRule = TokenSplitRule.Mixed });
+
+        string[] allTokenIds = [.. result.Document.EnumerateTokens().Select(pair => pair.Token.Id)];
+        Assert.Equal(5, allTokenIds.Length);
+        Assert.Equal(allTokenIds.Length, allTokenIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(["token-1022", "token-1026"], result.Document.Branches[0].Lines[0].Tokens.Select(token => token.Id).ToArray());
+        Assert.Equal(["token-1023", "token-1024", "token-1025"], result.Document.Branches[1].Lines[0].Tokens.Select(token => token.Id).ToArray());
+
+        ValidationReport validation = ProjectValidator.Validate(Project.Create("测试工程", lyrics: result.Document), ValidationContext.Open);
+        Assert.False(validation.HasErrors, validation.ToSummary());
     }
 
     [Fact]

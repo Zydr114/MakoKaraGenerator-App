@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diagnosticText, exportFooterMode, exportReportFacts } from '../../src/editor/model/render-job';
+import { diagnosticText, exportFooterMode, exportReportFacts, failureText, jobFailureText } from '../../src/editor/model/render-job';
 import { micros, type ExportReport } from '../../src/protocol';
 
 const report = (overrides: Partial<ExportReport> = {}): ExportReport => ({
@@ -49,5 +49,25 @@ describe('导出页底部按钮模式', () => {
     expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: false, stale: false })).toBe('retry');
     expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: true, stale: false })).toBe('download');
     expect(exportFooterMode({ hasTrack: true, running: false, hasArtifact: true, stale: true })).toBe('staleDownload');
+  });
+});
+
+describe('导出失败文案', () => {
+  it('命中导出与渲染已知失败码并保留未知具体任务 failureCode', () => {
+    expect(failureText('WorkerExportReportBudgetExceeded', '独立导出执行器失败，未公开新的成片。')).toContain('WorkerExportReportBudgetExceeded');
+    expect(failureText('ImageEffectPartialFusion', '独立导出执行器失败，未公开新的成片。')).toContain('效果叠加范围冲突');
+    expect(failureText('ImageEffectPartialFusion', '独立导出执行器失败，未公开新的成片。')).toContain('ImageEffectPartialFusion');
+    expect(failureText('CaptureBudgetExceeded', '独立导出执行器失败，未公开新的成片。')).toContain('CaptureBudgetExceeded');
+    expect(
+      jobFailureText({
+        failureCode: 'AuthorCustomFail',
+        error: { code: 'taskExecutionFailed', message: '独立导出执行器失败，未公开新的成片。', protocolVersion: '1' },
+      }),
+    ).toBe('独立导出执行器失败，未公开新的成片。（AuthorCustomFail）');
+    expect(
+      jobFailureText({
+        error: { code: 'taskExecutionFailed', message: '独立导出执行器失败，未公开新的成片。', protocolVersion: '1' },
+      }),
+    ).toBe('独立导出执行器失败，未公开新的成片。');
   });
 });

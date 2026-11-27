@@ -80,26 +80,29 @@ public sealed partial class SkiaRenderPipeline
         using var capturedBelow = plan.Below == ObjectBelowSource.DestinationSnapshot ? SnapshotSceneBelow(main, request, bounds, state) : null;
         var below = capturedBelow;
         bool opacityKnown = false;
-        // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
-        WipeBandProbe? sides = null;
-        foreach (var step in plan.Parts)
+        // 先处理整行／标记自身部件（保持层准入序），再按独立元素族流式执行「部件捕获／材质 → 该元素族图执行并立即释放旧层」，
+        // 最后执行整行／标记级图；避免把所有元素族的原始部件同时留在内存里。
+        AddMemberParts(plan.Target);
+        foreach (var token in plan.TokenTargets)
         {
-            var band = step.Sung switch { false => sides = new(), true => sides, null => null };
-            switch (step.Kind)
+            var tokenGraphs = plan.Graphs.Where(graph => graph.Binding.Binding.Target == token).ToArray();
+            if (tokenGraphs.Length > 0) owner.Value = new(tokenGraphs[0].Binding);
+            else if (plan.Parts.FirstOrDefault(step => step.Member == token && step.Kind == ObjectPartKind.Material) is { Material: { } material })
+                owner.Value = new(material.Owner, "RenderMaterials", material.TextTarget);
+            AddMemberParts(token);
+            foreach (var graph in tokenGraphs)
             {
-                case ObjectPartKind.Material: AddMaterial(step, band); break;
-                case ObjectPartKind.KnownEmpty: AddEmpty(step, band); break;
-                default: AddOriginal(step, band); break;
+                owner.Value = new(graph.Binding);
+                state.ScopeBudget?.Result();
+                ApplyImageObjectBinding(request, graph.Binding, graph.Program, state, below, run.Diagnostics);
             }
-            if (step.Sung != true) continue;
-            if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
-            sides = null;
         }
         state.Backgrounds.Dispose();
 
-        // 子元素先完成，再把真实产物交给整行图；每个目标内保留工程实例顺序。
+        // 子元素全部完成后，再把真实产物交给整行／标记级图；目标内保留工程实例顺序。
         foreach (var graph in plan.Graphs)
         {
+            if (graph.Binding.Binding.Target != plan.Target) continue;
             owner.Value = new(graph.Binding);
             state.ScopeBudget?.Result();
             ApplyImageObjectBinding(request, graph.Binding, graph.Program, state, below, run.Diagnostics);
@@ -108,8 +111,34 @@ public sealed partial class SkiaRenderPipeline
         if (plan.ClosedExport) { state.SetLayerBudget(state.Layers.Count); ExportClosedImageObject(request, state, export!); return; }
 
         using var processed = AssembleImageLayers(request, state, state.Layers, below!);
+        if (state.Opacity >= 1d)
+        {
+            DrawGraphSurface(main.Canvas, processed, SKBlendMode.Src);
+            return;
+        }
         using var final = ApplyImageObjectOpacity(request, state, processed, below!);
         DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
+
+        void AddMemberParts(ImageEffectTarget member)
+        {
+            // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
+            WipeBandProbe? sides = null;
+            GraphRect? memberBounds = null;
+            foreach (var step in plan.Parts)
+            {
+                if (step.Member != member) continue;
+                var band = step.Sung switch { false => sides = new(), true => sides, null => null };
+                switch (step.Kind)
+                {
+                    case ObjectPartKind.Material: AddMaterial(step, band); break;
+                    case ObjectPartKind.KnownEmpty: AddEmpty(step, band, ref memberBounds); break;
+                    default: AddOriginal(step, band, ref memberBounds); break;
+                }
+                if (step.Sung != true) continue;
+                if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
+                sides = null;
+            }
+        }
 
         void AddMaterial(ObjectPartStep step, WipeBandProbe? band)
         {
@@ -125,15 +154,16 @@ public sealed partial class SkiaRenderPipeline
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], result.Output, [result], step.MaterialProgram!.Graph, owner.Value));
             state.Changed = true;
         }
-        bool AddOriginal(ObjectPartStep step, WipeBandProbe? band)
+        bool AddOriginal(ObjectPartStep step, WipeBandProbe? band, ref GraphRect? memberBounds)
         {
             // Empty parts are still real source layers; admission must precede capture.
             state.SetLayerBudget(checked(state.Layers.Count + 1));
             // 检查关闭时不为共享空表面同步读回：未发起任何部件绘制即可证明仍是初始透明；
             // 其余按非空保留独立表面，像素不变，只可能比开启时多占表面账。
             var probe = _graphPixelChecks ? null : new CaptureDrawProbe();
+            var captureBounds = memberBounds ??= MemberOriginalCaptureBounds(request, plan, step.Member, resources);
             // 对象成员的部件不含有自己图或材质的元素族。
-            var captured = CaptureColorPart(request, CaptureTarget(step.Member), step.Part, bounds, state.Budget, resources,
+            var captured = CaptureColorPart(request, CaptureTarget(step.Member), step.Part, captureBounds, state.Budget, resources,
                 step.Member == plan.Target ? plan.ExcludedTokens : null, step.Sung, probe, band);
             state.Own(captured);
             SetOpacity(captured.QuantizedOpacity);
@@ -156,17 +186,17 @@ public sealed partial class SkiaRenderPipeline
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], surface, [], null, null));
             return empty;
         }
-        void AddEmpty(ObjectPartStep step, WipeBandProbe? band)
+        void AddEmpty(ObjectPartStep step, WipeBandProbe? band, ref GraphRect? memberBounds)
         {
             // 检查模式按原样部件捕获（表面与读回同原来）并核对判空条件没有漏掉样式来源；注音材质同样不执行。
             if (_graphPixelChecks)
             {
-                if (!AddOriginal(step, band))
+                if (!AddOriginal(step, band, ref memberBounds))
                     throw new PreparedFrameException("SceneColorPartKnownEmptyMismatch", "预判为空的对象部件实际有像素。");
                 return;
             }
             state.SetLayerBudget(checked(state.Layers.Count + 1));
-            state.Empty ??= state.Own(RasterSceneSurface(request, bounds, state.Budget, ShaderSurfaceKind.Color, resources,
+            state.Empty ??= state.Own(RasterSceneSurface(request, EmptySurfaceBounds(request, bounds), state.Budget, ShaderSurfaceKind.Color, resources,
                 "CaptureSceneColorPart", static (_, _, _) => { }));
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], state.Empty, [], null, null));
         }

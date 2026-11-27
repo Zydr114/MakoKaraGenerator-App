@@ -1,6 +1,6 @@
 // 添加歌词（整体设计 §5.2）：导入文件与粘贴文本的选项、导入规划的识别结果、导入报告的整理。纯函数，不依赖 React。
 
-import type { LyricBranchRole, LyricsImportIssue, LyricsImportIssueKind, LyricsImportIssueSeverity, LyricsImportPlan, LyricsImportReport } from '../../protocol';
+import type { LyricBranchRole, LyricsImportIssue, LyricsImportIssueKind, LyricsImportIssueSeverity, LyricsImportPlan, LyricsImportReport, TokenSplitRuleName } from '../../protocol';
 import { BRANCH_ROLE_TEXT } from './branches';
 import { formatTime } from './time';
 
@@ -212,6 +212,19 @@ export function planStats(plan: LyricsImportPlan): PlanStats | undefined {
     else stats.untimed++;
   }
   return stats;
+}
+
+/**
+ * 根据导入规划推荐默认文本单元拆分规则：
+ * 工程 TTML（ttml.project）以及已经包含逐字时间或注音的文件默认保持原有粒度（none），
+ * 避免新建或导入时默认拆分破坏既有的多字汉字注音与逐字打轴；其余文件默认使用混合拆分（mixed）。
+ */
+export function recommendedSplitRule(plan: LyricsImportPlan | undefined): TokenSplitRuleName {
+  if (!plan || plan.preparationError || !plan.report) return 'mixed';
+  if ((plan.report.sourceFormat ?? '').includes('[ttml.project-')) return 'none';
+  if (plan.report.timedTokenCount > 0) return 'none';
+  if (plan.previewLines.some((line) => line.rubyAnnotations.length > 0)) return 'none';
+  return 'mixed';
 }
 
 // ── 导入报告 ──

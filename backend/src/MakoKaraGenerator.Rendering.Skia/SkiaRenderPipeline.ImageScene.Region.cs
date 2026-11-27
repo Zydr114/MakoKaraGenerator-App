@@ -265,4 +265,37 @@ public sealed partial class SkiaRenderPipeline
 
     private static GraphRect Intersect(GraphRect a, GraphRect b)
         => new(Math.Max(a.Left, b.Left), Math.Max(a.Top, b.Top), Math.Min(a.Right, b.Right), Math.Min(a.Bottom, b.Bottom));
+
+    /// <summary>
+    /// 单个成员的原样部件捕获框：即便对象工作框因 Transform 图退回全画布，
+    /// 成员的原样部件（辉光／阴影／描边／填充）仍可按自身墨迹与装饰范围收紧在工作框内，
+    /// 后续组装、扫字合并与组合导出均按表面自身坐标框绘制。
+    /// </summary>
+    private GraphRect MemberOriginalCaptureBounds(RenderRequest request, ObjectRenderPlan plan, ImageEffectTarget member,
+        ImageSurfaceBudgetFrame resources)
+    {
+        var bounds = plan.WorkBounds;
+        if (!TightObjectRegions) return bounds;
+        GraphRect? ink;
+        if (member is ImageEffectTarget.Token token)
+            ink = ObjectInkRegion(request, plan.Item, resources, token.Target, projectWarp: false);
+        else if (ObjectInkCoversWholeObject(request, plan.Item))
+            ink = ObjectInkRegion(request, plan.Item, resources, projectWarp: false);
+        else return bounds;
+        if (ClampObjectRegion(ink, bounds) is not { } tight) return bounds;
+        var clipped = Intersect(AlignToOutputPixels(request, tight), bounds);
+        return clipped.IsValid ? clipped : bounds;
+    }
+
+    /// <summary>共享空表面的最小像素框；收紧关闭时沿用对象工作框。</summary>
+    private GraphRect EmptySurfaceBounds(RenderRequest request, GraphRect bounds)
+    {
+        if (!TightObjectRegions) return bounds;
+        var output = request.ResolveTarget(); var composition = request.Project.Composition;
+        double dx = output.ScaleXOf(composition), dy = output.ScaleYOf(composition);
+        if (!double.IsFinite(dx) || !double.IsFinite(dy) || dx <= 0 || dy <= 0) return bounds;
+        double right = Math.Min(bounds.Left + 1d / dx, bounds.Right);
+        double bottom = Math.Min(bounds.Top + 1d / dy, bounds.Bottom);
+        return right > bounds.Left && bottom > bounds.Top ? new(bounds.Left, bounds.Top, right, bottom) : bounds;
+    }
 }

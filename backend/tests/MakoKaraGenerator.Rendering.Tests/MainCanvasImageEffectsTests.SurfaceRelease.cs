@@ -146,16 +146,24 @@ public sealed partial class MainCanvasImageEffectsTests
             .ToArray();
 
         long fullSurfaceBytes = 640L * 360 * 4;
-        // 严格卡在 28 张全屏表面预算内（原实现需 ~88 张，远超 64 张上限）。
-        using var budget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 28, MaximumBytes = fullSurfaceBytes * 28 });
-        using var renderer = new SkiaRenderPipeline(null, null, budget, resources, false, null, true, graphPixelChecks: false);
-        using var rendered = renderer.Render(Bindings(request, bindings));
+        // 严格卡在 24 张表面、20 张全屏字节预算内（原实现需 ~88 张，远超 64 张上限）。
+        using var tightBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 24, MaximumBytes = fullSurfaceBytes * 20 });
+        using var tightRenderer = new SkiaRenderPipeline(null, null, tightBudget, resources, false, null, true, graphPixelChecks: false);
+        using var tightRendered = tightRenderer.Render(Bindings(request, bindings));
 
-        Assert.Empty(rendered.ImageEffectDiagnostics);
-        Assert.True(budget.Usage.PeakSurfaces <= 24, $"预期流式执行峰值 <= 24，实际 {budget.Usage.PeakSurfaces}");
-        Assert.Equal(0, budget.Usage.ActiveSurfaces);
-        Assert.Equal(0, budget.Usage.EstimatedBytes);
-        Assert.Contains(rendered.Pixels.ToArray(), value => value != 0);
+        using var fullBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 28, MaximumBytes = fullSurfaceBytes * 28 });
+        using var fullRenderer = new SkiaRenderPipeline(null, null, fullBudget, resources, false, null, true, graphPixelChecks: false) { TightObjectRegions = false };
+        using var fullRendered = fullRenderer.Render(Bindings(request, bindings));
+
+        Assert.Empty(tightRendered.ImageEffectDiagnostics);
+        Assert.Equal(fullRendered.Pixels.ToArray(), tightRendered.Pixels.ToArray());
+        Assert.True(tightBudget.Usage.PeakSurfaces <= 24, $"预期流式执行峰值表面 <= 24，实际 {tightBudget.Usage.PeakSurfaces}");
+        // 单字原样部件紧致捕获＋空表面最小化后，峰值字节比整屏原样捕获显著更低（节省 4 张原样部件＋1 张空表面 ≈ 5 屏）。
+        Assert.True(fullBudget.Usage.PeakBytes - tightBudget.Usage.PeakBytes >= fullSurfaceBytes * 4,
+            $"预期单字紧致捕获显著降低峰值字节：{fullBudget.Usage.PeakBytes} → {tightBudget.Usage.PeakBytes}");
+        Assert.Equal(0, tightBudget.Usage.ActiveSurfaces);
+        Assert.Equal(0, tightBudget.Usage.EstimatedBytes);
+        Assert.Contains(tightRendered.Pixels.ToArray(), value => value != 0);
     }
 
     [Fact]

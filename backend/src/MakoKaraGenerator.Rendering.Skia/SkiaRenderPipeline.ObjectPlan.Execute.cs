@@ -111,6 +111,11 @@ public sealed partial class SkiaRenderPipeline
         if (plan.ClosedExport) { state.SetLayerBudget(state.Layers.Count); ExportClosedImageObject(request, state, export!); return; }
 
         using var processed = AssembleImageLayers(request, state, state.Layers, below!);
+        if (state.Opacity >= 1d)
+        {
+            DrawGraphSurface(main.Canvas, processed, SKBlendMode.Src);
+            return;
+        }
         using var final = ApplyImageObjectOpacity(request, state, processed, below!);
         DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
 
@@ -118,6 +123,7 @@ public sealed partial class SkiaRenderPipeline
         {
             // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
             WipeBandProbe? sides = null;
+            GraphRect? memberBounds = null;
             foreach (var step in plan.Parts)
             {
                 if (step.Member != member) continue;
@@ -125,8 +131,8 @@ public sealed partial class SkiaRenderPipeline
                 switch (step.Kind)
                 {
                     case ObjectPartKind.Material: AddMaterial(step, band); break;
-                    case ObjectPartKind.KnownEmpty: AddEmpty(step, band); break;
-                    default: AddOriginal(step, band); break;
+                    case ObjectPartKind.KnownEmpty: AddEmpty(step, band, ref memberBounds); break;
+                    default: AddOriginal(step, band, ref memberBounds); break;
                 }
                 if (step.Sung != true) continue;
                 if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
@@ -148,15 +154,16 @@ public sealed partial class SkiaRenderPipeline
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], result.Output, [result], step.MaterialProgram!.Graph, owner.Value));
             state.Changed = true;
         }
-        bool AddOriginal(ObjectPartStep step, WipeBandProbe? band)
+        bool AddOriginal(ObjectPartStep step, WipeBandProbe? band, ref GraphRect? memberBounds)
         {
             // Empty parts are still real source layers; admission must precede capture.
             state.SetLayerBudget(checked(state.Layers.Count + 1));
             // 检查关闭时不为共享空表面同步读回：未发起任何部件绘制即可证明仍是初始透明；
             // 其余按非空保留独立表面，像素不变，只可能比开启时多占表面账。
             var probe = _graphPixelChecks ? null : new CaptureDrawProbe();
+            var captureBounds = memberBounds ??= MemberOriginalCaptureBounds(request, plan, step.Member, resources);
             // 对象成员的部件不含有自己图或材质的元素族。
-            var captured = CaptureColorPart(request, CaptureTarget(step.Member), step.Part, bounds, state.Budget, resources,
+            var captured = CaptureColorPart(request, CaptureTarget(step.Member), step.Part, captureBounds, state.Budget, resources,
                 step.Member == plan.Target ? plan.ExcludedTokens : null, step.Sung, probe, band);
             state.Own(captured);
             SetOpacity(captured.QuantizedOpacity);
@@ -179,17 +186,17 @@ public sealed partial class SkiaRenderPipeline
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], surface, [], null, null));
             return empty;
         }
-        void AddEmpty(ObjectPartStep step, WipeBandProbe? band)
+        void AddEmpty(ObjectPartStep step, WipeBandProbe? band, ref GraphRect? memberBounds)
         {
             // 检查模式按原样部件捕获（表面与读回同原来）并核对判空条件没有漏掉样式来源；注音材质同样不执行。
             if (_graphPixelChecks)
             {
-                if (!AddOriginal(step, band))
+                if (!AddOriginal(step, band, ref memberBounds))
                     throw new PreparedFrameException("SceneColorPartKnownEmptyMismatch", "预判为空的对象部件实际有像素。");
                 return;
             }
             state.SetLayerBudget(checked(state.Layers.Count + 1));
-            state.Empty ??= state.Own(RasterSceneSurface(request, bounds, state.Budget, ShaderSurfaceKind.Color, resources,
+            state.Empty ??= state.Own(RasterSceneSurface(request, EmptySurfaceBounds(request, bounds), state.Budget, ShaderSurfaceKind.Color, resources,
                 "CaptureSceneColorPart", static (_, _, _) => { }));
             state.Layers.Add(new(step.Order, [new(step.Member, step.Part)], state.Empty, [], null, null));
         }

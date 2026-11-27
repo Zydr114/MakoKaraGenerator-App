@@ -79,20 +79,20 @@ public sealed partial class MainCanvasImageEffectsTests
         var request = Request(WithoutRuby(Snapshot(false)));
         using var graph = Tint("first");
         using var resources = new SceneImageEffectResources([Program("first", graph)]);
-        // The same fixture with alpha reads forced measured failure at six and success at seven.
-        using var belowBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 6 });
+        // 提前释放图临时输入与被替换原部件后，同一夹具的精确表面边界由 6／7 降至 4／5（共享空表面仍保住该边界）。
+        using var belowBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 4 });
         using var belowRenderer = new SkiaRenderPipeline(null, null, belowBudget, resources);
         var failure = Assert.Throws<EffectFailureException>(() => belowRenderer.Render(Bindings(request, Bind("below", Line(request)))));
         Assert.Equal("ImageSurfaceBudgetExceeded", failure.Code);
         Assert.Equal(0, belowBudget.Usage.ActiveSurfaces);
         Assert.Equal(0, belowBudget.Usage.EstimatedBytes);
-        using var exactBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 7 });
+        using var exactBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 5 });
         using var exactRenderer = new SkiaRenderPipeline(null, null, exactBudget, resources);
         using var exact = exactRenderer.Render(Bindings(request, Bind("exact", Line(request))));
         Close(ExpectedParts(request, Whole, graph), exact.Pixels.ToArray());
     }
 
-    // O4：关闭检查时空部件判定不读回；未发起绘制的部件仍共享空表面（保留 6／7 精确边界），已绘制的装饰不被当作空。
+    // O4：关闭检查时空部件判定不读回；未发起绘制的部件仍共享空表面（保留 4／5 精确边界），已绘制的装饰不被当作空。
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public void 关闭像素检查时空原始部件不读回_未绘制部件仍共享空表面且装饰不丢(bool decorated)
@@ -114,11 +114,11 @@ public sealed partial class MainCanvasImageEffectsTests
         Assert.Equal(on.Pixels.ToArray(), off.Pixels.ToArray());
         if (decorated) return;
 
-        using var belowBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 6 });
+        using var belowBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 4 });
         using var belowRenderer = new SkiaRenderPipeline(null, null, belowBudget, offResources, false, offDevice, false, graphPixelChecks: false);
         Assert.Equal("ImageSurfaceBudgetExceeded", Assert.Throws<EffectFailureException>(
             () => belowRenderer.Render(Bindings(request, Bind("below", Line(request))))).Code);
-        using var exactBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 7 });
+        using var exactBudget = new ImageSurfaceBudgetSession(new() { MaximumSurfaces = 5 });
         using var exactRenderer = new SkiaRenderPipeline(null, null, exactBudget, offResources, false, offDevice, false, graphPixelChecks: false);
         using var exact = exactRenderer.Render(Bindings(request, Bind("exact", Line(request))));
         Assert.Equal(on.Pixels.ToArray(), exact.Pixels.ToArray());

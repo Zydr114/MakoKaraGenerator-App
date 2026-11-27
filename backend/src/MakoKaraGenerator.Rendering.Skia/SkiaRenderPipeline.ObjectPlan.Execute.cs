@@ -80,26 +80,29 @@ public sealed partial class SkiaRenderPipeline
         using var capturedBelow = plan.Below == ObjectBelowSource.DestinationSnapshot ? SnapshotSceneBelow(main, request, bounds, state) : null;
         var below = capturedBelow;
         bool opacityKnown = false;
-        // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
-        WipeBandProbe? sides = null;
-        foreach (var step in plan.Parts)
+        // 先处理整行／标记自身部件（保持层准入序），再按独立元素族流式执行「部件捕获／材质 → 该元素族图执行并立即释放旧层」，
+        // 最后执行整行／标记级图；避免把所有元素族的原始部件同时留在内存里。
+        AddMemberParts(plan.Target);
+        foreach (var token in plan.TokenTargets)
         {
-            var band = step.Sung switch { false => sides = new(), true => sides, null => null };
-            switch (step.Kind)
+            var tokenGraphs = plan.Graphs.Where(graph => graph.Binding.Binding.Target == token).ToArray();
+            if (tokenGraphs.Length > 0) owner.Value = new(tokenGraphs[0].Binding);
+            else if (plan.Parts.FirstOrDefault(step => step.Member == token && step.Kind == ObjectPartKind.Material) is { Material: { } material })
+                owner.Value = new(material.Owner, "RenderMaterials", material.TextTarget);
+            AddMemberParts(token);
+            foreach (var graph in tokenGraphs)
             {
-                case ObjectPartKind.Material: AddMaterial(step, band); break;
-                case ObjectPartKind.KnownEmpty: AddEmpty(step, band); break;
-                default: AddOriginal(step, band); break;
+                owner.Value = new(graph.Binding);
+                state.ScopeBudget?.Result();
+                ApplyImageObjectBinding(request, graph.Binding, graph.Program, state, below, run.Diagnostics);
             }
-            if (step.Sung != true) continue;
-            if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
-            sides = null;
         }
         state.Backgrounds.Dispose();
 
-        // 子元素先完成，再把真实产物交给整行图；每个目标内保留工程实例顺序。
+        // 子元素全部完成后，再把真实产物交给整行／标记级图；目标内保留工程实例顺序。
         foreach (var graph in plan.Graphs)
         {
+            if (graph.Binding.Binding.Target != plan.Target) continue;
             owner.Value = new(graph.Binding);
             state.ScopeBudget?.Result();
             ApplyImageObjectBinding(request, graph.Binding, graph.Program, state, below, run.Diagnostics);
@@ -110,6 +113,26 @@ public sealed partial class SkiaRenderPipeline
         using var processed = AssembleImageLayers(request, state, state.Layers, below!);
         using var final = ApplyImageObjectOpacity(request, state, processed, below!);
         DrawGraphSurface(main.Canvas, final, SKBlendMode.Src);
+
+        void AddMemberParts(ImageEffectTarget member)
+        {
+            // 填充拆侧的两步相邻（未唱在前）：两侧捕获记到同一个探针上，按过渡带画过就在已唱一侧之后合并（P3 设计 §10.2）。
+            WipeBandProbe? sides = null;
+            foreach (var step in plan.Parts)
+            {
+                if (step.Member != member) continue;
+                var band = step.Sung switch { false => sides = new(), true => sides, null => null };
+                switch (step.Kind)
+                {
+                    case ObjectPartKind.Material: AddMaterial(step, band); break;
+                    case ObjectPartKind.KnownEmpty: AddEmpty(step, band); break;
+                    default: AddOriginal(step, band); break;
+                }
+                if (step.Sung != true) continue;
+                if (sides?.Seen == true) MergeWipeSides(request, plan, state, step);
+                sides = null;
+            }
+        }
 
         void AddMaterial(ObjectPartStep step, WipeBandProbe? band)
         {
